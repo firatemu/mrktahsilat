@@ -1,0 +1,846 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MRK AI Rapor Asistanı</title>
+  <style>
+    :root {
+      --primary-color: #667eea;
+      --secondary-color: #764ba2;
+      --success-color: #10b981;
+      --warning-color: #f59e0b;
+      --error-color: #ef4444;
+      --bg-color: #f8f9fa;
+      --card-bg: #ffffff;
+      --border-color: #e5e7eb;
+      --text-primary: #2d3748;
+      --text-secondary: #6c757d;
+      --shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    body { 
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: var(--bg-color);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+    
+    .app-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 1fr 350px;
+      gap: 20px;
+      min-height: 100vh;
+    }
+    
+    @media (max-width: 768px) {
+      .app-container {
+        grid-template-columns: 1fr;
+      padding: 10px;
+      gap: 10px;
+      min-height: auto;
+      padding-bottom: 80px;
+      }
+    }
+    
+    /* Chat Area */
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      background: var(--card-bg);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      overflow: hidden;
+      height: calc(100vh - 40px);
+    }
+    
+    .chat-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border-color);
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .chat-header h2 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+    }
+    
+    .chat-header-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .btn-icon {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-size: 14px;
+    }
+    
+    .btn-icon:hover {
+      background: rgba(255,255,255,0.3);
+      transform: scale(1.05);
+    }
+    
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      background: var(--bg-color);
+    }
+    
+    .message {
+      margin: 16px 0;
+      display: flex;
+      align-items: flex-start;
+      animation: fadeIn 0.3s ease-out;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .message.user {
+      flex-direction: row-reverse;
+    }
+    
+    .message.user .bubble {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+    }
+    
+    .bubble {
+      max-width: 75%;
+      padding: 14px 18px;
+      border-radius: 18px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      font-size: 15px;
+      line-height: 1.5;
+      position: relative;
+      word-wrap: break-word;
+    }
+    
+    .message.bot .bubble {
+      background: white;
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+    
+    .message-info {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+      opacity: 0.8;
+    }
+    
+    .input-area {
+      padding: 20px;
+      border-top: 1px solid var(--border-color);
+      background: var(--card-bg);
+    }
+    
+    .input-wrapper {
+      display: flex;
+      gap: 12px;
+    }
+    
+    textarea {
+      flex: 1;
+      min-height: 60px;
+      max-height: 150px;
+      padding: 16px;
+      border: 2px solid var(--border-color);
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 15px;
+      resize: none;
+      transition: border-color 0.3s;
+      background: var(--bg-color);
+      color: var(--text-primary);
+    }
+    
+    textarea:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .btn-send {
+      padding: 16px 32px;
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    }
+    
+    .btn-send:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(102, 126, 234, 0.3);
+    }
+    
+    .btn-send:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .input-actions {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 12px;
+    }
+    
+    .btn-clear {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+    
+    .btn-clear:hover {
+      background: var(--border-color);
+      color: var(--text-primary);
+    }
+    
+    /* Sidebar Panel */
+    .sidebar-panel {
+      background: var(--card-bg);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    
+    .sidebar-section {
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 16px;
+    }
+    
+    .sidebar-section:last-child {
+      border-bottom: none;
+    }
+    
+    .sidebar-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .sidebar-content {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    
+    /* SQL Highlight */
+    .sql-result {
+      background: var(--bg-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      margin-top: 12px;
+      overflow-x: auto;
+    }
+    
+    .sql-keyword {
+      color: #8b5cf6;
+      font-weight: 600;
+    }
+    
+    .sql-string {
+      color: #2d8a63;
+    }
+    
+    .sql-function {
+      color: #7c3aed;
+    }
+    
+    .sql-number {
+      color: #f59e0b;
+    }
+    
+    /* KPI Cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    
+    .kpi-card {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+      padding: 20px;
+      border-radius: 10px;
+      border: 1px solid rgba(102, 126, 234, 0.1);
+      transition: all 0.3s;
+    }
+    
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    }
+    
+    .kpi-title {
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    
+    .kpi-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--primary-color);
+      margin-bottom: 4px;
+    }
+    
+    .kpi-label {
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+    
+    /* Loading Spinner */
+    .loading-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255, 255, 255, 0.9);
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+      animation: fadeIn 0.3s;
+    }
+    
+    .spinner {
+      border: 4px solid var(--border-color);
+      border-top: 4px solid var(--primary-color);
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* Status Indicators */
+    .status-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    
+    .status-online {
+      background: var(--success-color);
+    }
+    
+    .status-offline {
+      background: var(--error-color);
+    }
+    
+    /* Error Messages */
+    .error-message {
+      background: #fee2e2;
+      color: #7f1d3d;
+      padding: 16px;
+      border-radius: 8px;
+      border-left: 4px solid var(--error-color);
+      margin: 16px 0;
+    }
+    
+    .copy-button {
+      background: rgba(102, 126, 234, 0.1);
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      margin-left: 8px;
+      transition: all 0.2s;
+    }
+    
+    .copy-button:hover {
+      background: rgba(102, 126, 234, 0.2);
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .kpi-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .chat-container {
+        height: 400px;
+      }
+      
+      textarea {
+        max-height: 80px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Chat Section -->
+    <div class="chat-container">
+      <div class="chat-header">
+        <h2>🤖 MRK AI Rapor Asistanı</h2>
+        <div class="chat-header-actions">
+          <button class="btn-icon" onclick="toggleHistory()" title="Sohbet Geçmişi">📜</button>
+          <button class="btn-icon" onclick="toggleSettings()" title="Ayarlar">⚙️</button>
+        </div>
+      </div>
+      <div id="chat" class="chat-messages"></div>
+      <div class="input-area">
+        <div class="input-wrapper">
+          <textarea id="q" placeholder="Örn: Bu haftaki toplam satış nedir?"></textarea>
+          <button id="send" class="btn-send">Gönder</button>
+        </div>
+        <div class="input-actions">
+          <button class="btn-clear" onclick="clearChat()">💬 Sohbeti Temizle</button>
+        <small id="status">● Online</small>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Sidebar Panel -->
+    <div class="sidebar-panel">
+      <div class="sidebar-section">
+        <div class="sidebar-title">
+          📊 Son Sorgular
+        </div>
+        <div class="sidebar-content" id="recent-queries">
+          <p style="color: var(--text-secondary);">Henüz sorgu yok</p>
+        </div>
+      </div>
+      
+      <div class="sidebar-section">
+        <div class="sidebar-title">
+          📈 Hızlı Raporlar
+        </div>
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-title">Bugün</div>
+            <div class="kpi-value" id="today-sales">0 ₺</div>
+            <div class="kpi-label">Satış</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-title">Bu Hafta</div>
+            <div class="kpi-value" id="week-sales">0 ₺</div>
+            <div class="kpi-label">Satış</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-title">Bu Ay</div>
+            <div class="kpi-value" id="month-sales">0 ₺</div>
+            <div class="kpi-label">Satış</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="sidebar-section">
+        <div class="sidebar-title">
+          💡 Kullanım İpuçları
+        </div>
+        <div class="sidebar-content">
+          <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">
+            • Tablo isimleri: <strong>FATURA, DETAY, GunlukTahsilat_V</strong><br>
+            • Toplam satış: <strong>SUM(Tutar)</strong><br>
+            • Son 5 satış: <strong>TOP 5</strong><br>
+            • Cari bazlı filtre: <strong>WHERE CARI_KOD = '...'</strong><br>
+            • Tarih aralığı: <strong>BETWEEN ... AND ...</strong>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loading">
+    <div class="spinner"></div>
+  </div>
+  
+  <script>
+    const chat = document.getElementById('chat');
+    const q = document.getElementById('q');
+    const send = document.getElementById('send');
+    const loading = document.getElementById('loading');
+    const status = document.getElementById('status');
+    
+    // State
+    let isTyping = false;
+    let queryHistory = [];
+    
+    function getCookie(name) {
+      const v = `; ${document.cookie}`;
+      const parts = v.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+    
+    function showLoading() {
+      loading.style.display = 'flex';
+    }
+    
+    function hideLoading() {
+      loading.style.display = 'none';
+    }
+    
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    function formatTime() {
+      const now = new Date();
+      return now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    }
+    
+    function addMsg(role, text, className = '') {
+      const row = document.createElement('div');
+      row.className = 'message ' + (role === 'user' ? 'user' : 'bot');
+      
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.textContent = text;
+      
+      if (className) {
+        bubble.classList.add(className);
+      }
+      
+      const info = document.createElement('div');
+      info.className = 'message-info';
+      info.textContent = formatTime();
+      
+      row.appendChild(bubble);
+      row.appendChild(info);
+      chat.appendChild(row);
+      chat.scrollTop = chat.scrollHeight;
+    }
+    
+    function displayTable(data) {
+      if (!data || !data.rows || data.rows.length === 0) {
+        addMsg('bot', 'Sonuç bulunamadı');
+        return;
+      }
+      
+      let html = '<table style="width: 100%; border-collapse: collapse; margin-top: 12px;">';
+      html += '<tr style="background: var(--border-color);">';
+      
+      const headers = Object.keys(data.rows[0]);
+      html += '<th style="padding: 8px 12px; text-align: left; color: white;">' + headers.join('</th><th style="padding: 8px 12px; text-align: left; color: white;">') + '</th></tr>';
+      
+      data.rows.forEach((row, index) => {
+        const bg = index % 2 === 0 ? 'var(--bg-color)' : 'white';
+        html += '<tr style="background: ' + bg + ';">';
+        headers.forEach(header => {
+          const value = row[header] !== null && row[header] !== undefined ? row[header] : '';
+          html += '<td style="padding: 8px 12px; border: 1px solid var(--border-color);">' + value + '</td>';
+        });
+        html += '</tr>';
+      });
+      
+      html += '</table>';
+      
+      const tableDiv = document.createElement('div');
+      tableDiv.innerHTML = html;
+      addMsg('bot', tableDiv.innerHTML);
+    }
+    
+    function displayKPI(data) {
+      if (!data || !data.kpi) {
+        return;
+      }
+      
+      // Update KPI cards
+      if (data.kpi.today_sales !== undefined) {
+        document.getElementById('today-sales').textContent = data.kpi.today_sales + ' ₺';
+      }
+      if (data.kpi.week_sales !== undefined) {
+        document.getElementById('week-sales').textContent = data.kpi.week_sales + ' ₺';
+      }
+      if (data.kpi.month_sales !== undefined) {
+        document.getElementById('month-sales').textContent = data.kpi.month_sales + ' ₺';
+      }
+    }
+    
+    function highlightSQL(sql) {
+      if (!sql) return sql;
+      
+      // Keywords
+      const keywords = ['SELECT', 'FROM', 'WHERE', 'JOIN', 'GROUP BY', 'ORDER BY', 'HAVING', 'SUM', 'COUNT', 'AVG', 'MAX', 'MIN', 'INSERT', 'UPDATE', 'DELETE'];
+      
+      let highlighted = sql;
+      keywords.forEach(keyword => {
+        const regex = new RegExp('\\b' + keyword + '\\b', 'gi');
+        highlighted = highlighted.replace(regex, '<span class="sql-keyword">' + keyword + '</span>');
+      });
+      
+      // Strings
+      highlighted = highlighted.replace(/'[^']*'/g, '<span class="sql-string">$&apos;$&apos;</span>');
+      
+      // Functions
+      highlighted = highlighted.replace(/\b(COUNT|SUM|AVG|MAX|MIN|TOP)\b/g, '<span class="sql-function">$1</span>');
+      
+      return highlighted;
+    }
+    
+    function displaySQL(sql) {
+      const sqlDiv = document.createElement('div');
+      sqlDiv.className = 'sql-result';
+      
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-button';
+      copyBtn.textContent = '📋 Kopyala';
+      copyBtn.onclick = () => {
+        navigator.clipboard.writeText(sql).then(() => {
+          copyBtn.textContent = '✅ Kopyalandı!';
+          setTimeout(() => copyBtn.textContent = '📋 Kopyala', 2000);
+        });
+      };
+      
+      const pre = document.createElement('pre');
+      pre.textContent = highlightSQL(sql);
+      pre.style.margin = '0';
+      
+      const wrapper = document.createElement('div');
+      wrapper.style.display = 'flex';
+      wrapper.style.justifyContent = 'space-between';
+      wrapper.style.alignItems = 'flex-start';
+      
+      const sqlContainer = document.createElement('div');
+      sqlContainer.appendChild(pre);
+      sqlContainer.style.flex = '1';
+      
+      wrapper.appendChild(sqlContainer);
+      wrapper.appendChild(copyBtn);
+      sqlDiv.appendChild(wrapper);
+      addMsg('bot', sqlDiv.outerHTML);
+    }
+    
+    function addToHistory(query, result) {
+      const historyDiv = document.getElementById('recent-queries');
+      
+      if (queryHistory.length === 0) {
+        historyDiv.innerHTML = '';
+      }
+      
+      queryHistory.unshift({ query, result, time: new Date().toLocaleTimeString('tr-TR') });
+      
+      if (queryHistory.length > 5) {
+        queryHistory = queryHistory.slice(0, 5);
+      }
+      
+      let html = '';
+      queryHistory.forEach((item, index) => {
+        const bgColor = index % 2 === 0 ? 'rgba(102, 126, 234, 0.05)' : 'rgba(118, 75, 162, 0.05)';
+        html += `<div style="padding: 12px; border-radius: 8px; background: ${bgColor}; margin-bottom: 8px; cursor: pointer;" onclick="reloadQuery(${index})">
+          <div style="font-size: 13px; font-weight: 500; margin-bottom: 4px;">${item.query}</div>
+          <div style="font-size: 11px; color: var(--text-secondary);">${item.time}</div>
+        </div>`;
+      });
+      
+      historyDiv.innerHTML = html;
+    }
+    
+    async function sendQuery() {
+      const text = q.value.trim();
+      if (!text) return;
+      if (isTyping) return;
+      
+      q.value = '';
+      q.disabled = true;
+      send.disabled = true;
+      isTyping = true;
+      
+      addMsg('user', text);
+      addMsg('bot', '🤔 Düşünülüyor...', 'loading');
+      showLoading();
+      
+      // Add to history
+      if (queryHistory.length === 0) {
+        document.getElementById('recent-queries').innerHTML = '';
+      }
+      
+      const csrftoken = getCookie('csrftoken');
+      
+      try {
+        const res = await fetch('/reports/api/n8n/chat-query/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken
+          },
+          body: JSON.stringify({ query: text })
+        });
+        
+        const json = await res.json();
+        hideLoading();
+        
+        // Remove loading message
+        const loadingMsgs = chat.querySelectorAll('.loading');
+        loadingMsgs.forEach(msg => msg.remove());
+        
+        if (!res.ok) {
+          let errorMsg = 'Hata: ';
+          if (json.error) {
+            errorMsg += json.error;
+          } else if (json.message) {
+            errorMsg += json.message;
+          } else {
+            errorMsg += 'Bilinmeyen hata';
+          }
+          addMsg('bot', '❌ ' + errorMsg);
+          addToHistory(text, errorMsg);
+          return;
+        }
+        
+        const data = json.data;
+        const answer = (data && (data.answer || data.message)) ? (data.answer || data.message) : JSON.stringify(data, null, 2);
+        
+        if (data && data.intent === 'tabular') {
+          displayTable(data);
+        } else if (data && data.intent === 'kpi') {
+          displayKPI(data);
+        } else if (data && data.sql) {
+          displaySQL(data.sql);
+        } else {
+          addMsg('bot', answer);
+        }
+        
+        addToHistory(text, answer);
+        
+      } catch (e) {
+        hideLoading();
+        const loadingMsgs = chat.querySelectorAll('.loading');
+        loadingMsgs.forEach(msg => msg.remove());
+        
+        addMsg('bot', '❌ İstek başarısız: ' + e.toString());
+        addToHistory(text, e.toString());
+      } finally {
+        q.disabled = false;
+        send.disabled = false;
+        isTyping = false;
+        q.focus();
+      }
+    }
+    
+    function toggleHistory() {
+      const historyDiv = document.getElementById('recent-queries');
+      if (historyDiv.style.display === 'none') {
+        historyDiv.style.display = 'block';
+      } else {
+        historyDiv.style.display = 'none';
+      }
+    }
+    
+    function toggleSettings() {
+      // Toggle settings panel (can be implemented later)
+      alert('Ayarlar paneli yakında eklenecek!');
+    }
+    
+    function clearChat() {
+      if (confirm('Sohbet geçmişini temizlemek istediğinize emin misiniz?')) {
+        chat.innerHTML = '';
+        queryHistory = [];
+        document.getElementById('recent-queries').innerHTML = '<p style="color: var(--text-secondary);">Henüz sorgu yok</p>';
+      }
+    }
+    
+    function reloadQuery(index) {
+      const item = queryHistory[index];
+      if (item) {
+        q.value = item.query;
+        sendQuery();
+      }
+    }
+    
+    // Event Listeners
+    send.addEventListener('click', sendQuery);
+    q.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendQuery();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        q.value = '';
+      }
+    });
+    
+    // Auto-save conversation to localStorage
+    setInterval(() => {
+      if (queryHistory.length > 0) {
+        localStorage.setItem('mrk_chat_history', JSON.stringify(queryHistory));
+      }
+    }, 5000);
+    
+    // Load conversation on page load
+    window.addEventListener('load', () => {
+      const saved = localStorage.getItem('mrk_chat_history');
+      if (saved) {
+        try {
+          queryHistory = JSON.parse(saved);
+          const historyDiv = document.getElementById('recent-queries');
+          if (queryHistory.length > 0) {
+            let html = '';
+            queryHistory.forEach((item, index) => {
+              const bgColor = index % 2 === 0 ? 'rgba(102, 126, 234, 0.05)' : 'rgba(118, 75, 162, 0.05)';
+              html += `<div style="padding: 12px; border-radius: 8px; background: ${bgColor}; margin-bottom: 8px; cursor: pointer;" onclick="reloadQuery(${index})">
+                <div style="font-size: 13px; font-weight: 500; margin-bottom: 4px;">${item.query}</div>
+                <div style="font-size: 11px; color: var(--text-secondary);">${item.time}</div>
+              </div>`;
+            });
+            historyDiv.innerHTML = html;
+          }
+        } catch (e) {
+          console.error('Failed to load history:', e);
+        }
+      }
+      
+      // Hide loading on page load
+      hideLoading();
+    });
+  </script>
+</body>
+</html>

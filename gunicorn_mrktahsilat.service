@@ -1,0 +1,17 @@
+[Unit]
+Description=gunicorn daemon for mrktahsilat
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/mrktahsilat
+Environment="PATH=/var/www/mrktahsilat/venv/bin"
+ExecStart=/usr/local/bin/gunicorn --access-logfile - --workers 3 --bind unix:/var/www/mrktahsilat/mrktahsilat.sock mrktahsilat.wsgi:application
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

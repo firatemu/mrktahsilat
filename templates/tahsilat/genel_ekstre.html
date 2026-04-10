@@ -1,0 +1,674 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+{% load number_format %}
+
+{% block title %}Genel Ekstre - MRK OTOMOTİV{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Modern ve responsive tasarım */
+    .page-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem 0;
+        margin-bottom: 2rem;
+        border-radius: 0 0 1rem 1rem;
+    }
+
+    .page-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .page-subtitle {
+        font-size: 1.1rem;
+        opacity: 0.9;
+    }
+
+    /* Filter Card */
+    .filter-card {
+        background: white;
+        border-radius: 1rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+        overflow: hidden;
+    }
+
+    .filter-header {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .filter-body {
+        padding: 1.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+
+    .form-select {
+        border: 2px solid #e9ecef;
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .form-select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+
+    /* Action Buttons */
+    .btn-action {
+        border-radius: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        margin: 0.25rem;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+    }
+
+    .btn-primary:hover {
+        background: linear-gradient(135deg, #5568d3 0%, #654a92 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        color: #f8f9fa !important;
+    }
+
+    .btn-outline-secondary {
+        border: 2px solid #6c757d;
+        color: #6c757d;
+    }
+
+    .btn-outline-secondary:hover {
+        background: #6c757d;
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .btn-outline-danger {
+        border: 2px solid #dc3545;
+        color: #dc3545;
+    }
+
+    .btn-outline-danger:hover {
+        background: #dc3545;
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .btn-success {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        border: none;
+        color: white;
+    }
+
+    .btn-success:hover {
+        background: linear-gradient(135deg, #218838 0%, #1da87e 100%);
+        color: white !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
+    }
+
+    /* Dashboard Cards */
+    .dashboard-card {
+        background: white;
+        border-radius: 1rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+        overflow: hidden;
+        transition: transform 0.3s ease;
+    }
+
+    .dashboard-card:hover {
+        transform: translateY(-5px);
+    }
+
+    .dashboard-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+    }
+
+    .dashboard-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    /* Stats Cards */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        transition: transform 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+
+    .stat-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #495057;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+        color: #6c757d;
+        font-weight: 500;
+    }
+
+    /* Table Styles */
+    .table-container {
+        background: white;
+        border-radius: 1rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+    }
+
+    .table-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+    }
+
+    .table-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .table-responsive {
+        border-radius: 0;
+    }
+
+    .table {
+        margin: 0;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+        /* Removed PDF/print-specific styling to disable PDF output design for this page */
+    }
+
+    .badge-warning {
+        background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+        color: #212529;
+    }
+
+    /* Currency Styles */
+    .currency {
+        font-weight: 700;
+        font-family: 'Courier New', monospace;
+    }
+
+    .currency.positive {
+        color: #dc3545;
+    }
+
+    .currency.negative {
+        color: #28a745;
+    }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: #6c757d;
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .empty-state h4 {
+        margin-bottom: 1rem;
+        color: #495057;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+        .page-title {
+            font-size: 2rem;
+        }
+
+        .page-subtitle {
+            font-size: 1rem;
+        }
+
+        .filter-body {
+            padding: 1rem;
+        }
+
+        .stats-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        .stat-card {
+            padding: 1rem;
+        }
+
+        .stat-icon {
+            font-size: 2rem;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+        }
+
+        .table-responsive {
+            font-size: 0.875rem;
+        }
+
+        .table thead th,
+        .table tbody td {
+            padding: 0.75rem 0.5rem;
+        }
+
+        .btn-action {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            margin: 0.125rem;
+        }
+    }
+
+    @media (max-width: 576px) {
+        .page-header {
+            padding: 1.5rem 0;
+            margin-bottom: 1rem;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+        }
+
+        .filter-body {
+            padding: 0.75rem;
+        }
+
+        .form-select {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        .table-responsive {
+            font-size: 0.75rem;
+        }
+
+        .table thead th,
+        .table tbody td {
+            padding: 0.5rem 0.25rem;
+        }
+
+        .badge {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+        }
+    }
+
+    /* Loading Animation */
+    .loading {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* PDF/print CSS removed for this page */
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="page-header">
+        <div class="container">
+            <div class="row">
+                <div class="col-12">
+                    <h1 class="page-title"><i class="bi bi-journal-text me-3"></i>Genel Ekstre</h1>
+                    <p class="page-subtitle">Plasiyer ve Bölge bazlı cari ekstreler — PDF / Excel dışa aktarımı desteklenir.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="filter-card">
+            <div class="filter-header">
+                <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Filtreleme</h5>
+            </div>
+            <div class="filter-body">
+                <form method="GET" id="filterForm">
+                    <div class="row align-items-end">
+                        <div class="col-md-4 form-group">
+                            <label class="form-label">Plasiyer</label>
+                            <select name="plasiyer" id="plasiyer" class="form-select">
+                                <option value="" {% if not selected_plasiyer %}selected{% endif %}>Tüm Plasiyerler</option>
+                                {% for plasiyer in all_plasiyer_list %}
+                                <option value="{{ plasiyer }}" {% if plasiyer == selected_plasiyer %}selected{% endif %}>{{ plasiyer }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-4 form-group">
+                            <label class="form-label">Bölge</label>
+                            <select name="bolge" id="bolge" class="form-select">
+                                <option value="all" {% if bolge_filter == 'all' %}selected{% endif %}>Tüm Bölgeler</option>
+                                {% for bolge in bolgeler %}
+                                <option value="{{ bolge }}" {% if bolge == bolge_filter %}selected{% endif %}>{{ bolge }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-4 text-end">
+                            <button type="submit" class="btn btn-primary btn-action"><i class="bi bi-search me-1"></i>Ara</button>
+                            <a href="{% url 'tahsilat:genel_ekstre' %}" class="btn btn-outline-secondary btn-action"><i class="bi bi-arrow-clockwise me-1"></i>Temizle</a>
+                            {% if cari_bakiye_list %}
+                            <a href="?plasiyer={{ selected_plasiyer }}&bolge={{ bolge_filter }}&export=pdf" class="btn btn-outline-danger btn-action" target="_blank"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+                            <a href="?plasiyer={{ selected_plasiyer }}&bolge={{ bolge_filter }}&export=excel" class="btn btn-success btn-action" target="_blank"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+            <!-- Plasiyer Özet Tablosu -->
+            <div class="dashboard-card mb-4">
+                <div class="dashboard-header">
+                    <h2 class="dashboard-title"><i class="bi bi-table me-2"></i>Plasiyer Özetleri</h2>
+                    <p class="small text-white-50 mb-0">Her plasiyer için toplam alacak ve borç (özet)</p>
+                </div>
+                    <div class="filter-body">
+                    {% if plasiyer_bakiye_summary %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0 plasiyer-table">
+                            <colgroup>
+                                <col class="p-col-name" style="width:40%" />
+                                <col class="p-col-count" style="width:20%" />
+                                <col class="p-col-bakiye" style="width:20%" />
+                                <col class="p-col-alacak" style="width:10%" />
+                                <col class="p-col-borc" style="width:10%" />
+                            </colgroup>
+                            <thead>
+                                <tr>
+                                    <th>Plasiyer</th>
+                                    <th class="text-end">Toplam Kayıt</th>
+                                    <th class="text-end">Toplam Bakiye</th>
+                                    <th class="text-end">Alacak (Pozitif)</th>
+                                    <th class="text-end">Borç (Negatif)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in plasiyer_bakiye_summary %}
+                                <tr>
+                                    <td>{{ p.plasiyer|default:'-' }}</td>
+                                    <td class="text-end">{{ p.toplam_kayit|default:0 }}</td>
+                                    <td class="text-end">{{ p.toplam_bakiye|default:0|numberformat }} ₺</td>
+                                    <td class="text-end text-success">{{ p.pozitif_bakiye|default:0|numberformat }} ₺</td>
+                                    <td class="text-end text-danger">{{ p.negatif_bakiye|default:0|numberformat }} ₺</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td class="text-end"><strong>Alt Toplam</strong></td>
+                                    <td class="text-end"><strong>{{ dashboard_totals.toplam_kayit|default:0 }}</strong></td>
+                                    <td class="text-end"><strong>{{ dashboard_totals.toplam_bakiye|default:0|numberformat }} ₺</strong></td>
+                                    <td class="text-end text-success"><strong>{{ dashboard_totals.pozitif_bakiye|default:0|numberformat }} ₺</strong></td>
+                                    <td class="text-end text-danger"><strong>{{ dashboard_totals.negatif_bakiye|default:0|numberformat }} ₺</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="empty-state text-center py-3">
+                        <small class="text-muted">Plasiyer özet verisi bulunamadı.</small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="dashboard-card">
+            <div class="dashboard-header">
+                <h2 class="dashboard-title"><i class="bi bi-person me-2"></i>Ekstre Sonuçları</h2>
+            </div>
+            <div class="filter-body">
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <div class="small text-muted">Toplam Kayıt</div>
+                        <div class="h5">{{ toplam_kayit|default:0 }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="small text-muted">Toplam Bakiye</div>
+                        <div class="h5">{{ toplam_bakiye|default:0|numberformat }} ₺</div>
+                    </div>
+                </div>
+
+                {% if cari_bakiye_list %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover ekstre-table">
+                        <colgroup>
+                            <col class="col-cari-kod" style="width:9%" /> <!-- Cari Kod -->
+                            <col class="col-cari-unvan" style="width:30%" /> <!-- Cari Ünvan -->
+                            <col class="col-plasiyer" style="width:8%" />  <!-- Plasiyer -->
+                            <col class="col-satis-tarih" style="width:8%" />  <!-- Satış Tarih -->
+                            <col class="col-satis-gecen" style="width:7%" />  <!-- Satış Geçen Süre -->
+                            <col class="col-tahsilat-tarih" style="width:8%" />  <!-- Tahsilat Tarih -->
+                            <col class="col-tahsilat-gecen" style="width:7%" />  <!-- Tahsilat Geçen Süre -->
+                            <col class="col-bakiye" style="width:12%" /> <!-- Bakiye -->
+                            <col class="col-bolge" style="width:10%" /> <!-- Bölge -->
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th>Cari Kod</th>
+                                <th>Cari Ünvan</th>
+                                <th>Plasiyer</th>
+                                <th>Satış Tarih</th>
+                                <th>Satış Geçen Süre</th>
+                                <th>Tahsilat Tarih</th>
+                                <th>Tahsilat Geçen Süre</th>
+                                <th class="text-end">Bakiye</th>
+                                <th>Bölge</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in cari_bakiye_list %}
+                            <tr>
+                                <td><code class="text-muted">{{ item.CODE }}</code></td>
+                                <td title="{{ item.DEFINITION_ }}">{{ item.DEFINITION_|truncatechars:50 }}</td>
+                                <td>{{ item.SPECODE }}</td>
+                                <td>{% if item.TARIHS %}{{ item.TARIHS|date:"d.m.Y" }}{% else %}-{% endif %}</td>
+                                <td class="text-center">{% if item.SATISGECENSURE %}{{ item.SATISGECENSURE }} gün{% else %}-{% endif %}</td>
+                                <td>{% if item.TARIHT %}{{ item.TARIHT|date:"d.m.Y" }}{% else %}-{% endif %}</td>
+                                <td class="text-center">{% if item.TAHSILATGECENSURE %}{{ item.TAHSILATGECENSURE }} gün{% else %}-{% endif %}</td>
+                                <td class="text-end">{% if item.BAKİYE %}{{ item.BAKİYE|numberformat }} ₺{% else %}-{% endif %}</td>
+                                <td>{{ item.BOLGE|default:"-" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state text-center py-5">
+                    <i class="bi bi-inbox" style="font-size: 48px;"></i>
+                    <h4 class="mt-3">Veri Bulunamadı</h4>
+                    <p>Filtreleri değiştirip tekrar deneyin veya tüm plasiyerler için arama yapın.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Sayfa yüklendiğinde bölgeleri yükle
+    var selectedPlasiyer = $('#plasiyer').val();
+    if (selectedPlasiyer) {
+        updateRegionsByPlasiyer(selectedPlasiyer);
+    } else {
+        loadAllRegions();
+    }
+
+    // Plasiyer seçimi değiştiğinde bölgeleri güncelle
+    $('#plasiyer').change(function() {
+        var plasiyer = $(this).val();
+        updateRegionsByPlasiyer(plasiyer);
+    });
+
+    // Cari tipi seçimi değiştiğinde bölgeleri güncelle
+    $('#cari_tipi').change(function() {
+        var plasiyer = $('#plasiyer').val();
+        updateRegionsByPlasiyer(plasiyer);
+    });
+
+    // Form submit animasyonu
+    $('#filterForm').on('submit', function() {
+        $('button[type="submit"]').html('<span class="loading"></span> Yükleniyor...');
+    });
+
+    // Table hover effects
+    $('.table tbody tr').hover(
+        function() {
+            $(this).addClass('table-active');
+        },
+        function() {
+            $(this).removeClass('table-active');
+        }
+    );
+
+    // Smooth scroll for anchor links
+    $('a[href^="#"]').on('click', function(event) {
+        var target = $(this.getAttribute('href'));
+        if (target.length) {
+            event.preventDefault();
+            $('html, body').stop().animate({
+                scrollTop: target.offset().top - 100
+            }, 1000);
+        }
+    });
+});
+
+// Plasiyer seçimine göre bölgeleri güncelle
+function updateRegionsByPlasiyer(plasiyer) {
+    var cari_tipi = $('#cari_tipi').val();
+    
+    // Bölge dropdown'ını temizle
+    $('#bolge').html('<option value="all">Tüm Bölgeler</option>');
+    
+    if (!plasiyer) {
+        // Plasiyer seçilmemişse tüm bölgeleri göster
+        loadAllRegions();
+        return;
+    }
+
+    // AJAX ile plasiyerin bölgelerini al
+    $.ajax({
+        url: '{% url "tahsilat:get_plasiyer_regions" %}',
+        type: 'GET',
+        data: {
+            'plasiyer': plasiyer,
+            'cari_tipi': cari_tipi
+        },
+        success: function(data) {
+            if (data.success && data.regions) {
+                // Bölge dropdown'ını güncelle
+                var bolgeSelect = $('#bolge');
+                bolgeSelect.html('<option value="all">Tüm Bölgeler</option>');
+                
+                $.each(data.regions, function(index, region) {
+                    bolgeSelect.append('<option value="' + region + '">' + region + '</option>');
+                });
+                
+                // Debug bilgisini güncelle
+                updateRegionDebugInfo(data.regions.length);
+            }
+        },
+        error: function() {
+            console.log('Bölge verileri alınamadı');
+        }
+    });
+}
+
+// Tüm bölgeleri yükle
+function loadAllRegions() {
+    $.ajax({
+        url: '{% url "tahsilat:get_all_regions" %}',
+        type: 'GET',
+        success: function(data) {
+            if (data.success && data.regions) {
+                var bolgeSelect = $('#bolge');
+                bolgeSelect.html('<option value="all">Tüm Bölgeler</option>');
+                
+                $.each(data.regions, function(index, region) {
+                    bolgeSelect.append('<option value="' + region + '">' + region + '</option>');
+                });
+                
+                updateRegionDebugInfo(data.regions.length);
+            }
+        },
+        error: function() {
+            console.log('Tüm bölge verileri alınamadı');
+        }
+    });
+}
+
+// Debug bilgisini güncelle
+function updateRegionDebugInfo(count) {
+    $('.form-label').each(function() {
+        if ($(this).text().includes('Bölge Seçin')) {
+            $(this).html('<i class="bi bi-geo me-1"></i>Bölge Seçin (Debug: ' + count + ' bölge)');
+        }
+    });
+}
+</script>
+{% endblock %}

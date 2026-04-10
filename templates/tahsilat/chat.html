@@ -1,0 +1,484 @@
+{% extends 'base.html' %}
+{% load tahsilat_extras %}
+
+{% block title %}Mesajlaşma{% endblock %}
+
+{% block extra_head %}
+<!-- CSRF Token'ı meta tag olarak ekle -->
+<meta name="csrf-token" content="{{ csrf_token }}">
+<style>
+.chat-container {
+    height: 70vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-users {
+    border-right: 1px solid #dee2e6;
+    background-color: #f8f9fa;
+    min-height: 100%;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    background-color: #ffffff;
+}
+
+.chat-input {
+    border-top: 1px solid #dee2e6;
+    padding: 15px;
+    background-color: #f8f9fa;
+}
+
+.user-item {
+    padding: 10px 15px;
+    border-bottom: 1px solid #e9ecef;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.user-item:hover {
+    background-color: #e9ecef;
+}
+
+.user-item.active {
+    background-color: #007bff;
+    color: white;
+}
+
+.user-item.unread {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.message-item {
+    margin-bottom: 15px;
+    padding: 10px;
+    border-radius: 10px;
+    max-width: 70%;
+}
+
+.message-sent {
+    background-color: #007bff;
+    color: white;
+    margin-left: auto;
+    text-align: right;
+}
+
+.message-received {
+    background-color: #e9ecef;
+    color: #333;
+    margin-right: auto;
+}
+
+.message-time {
+    font-size: 0.8em;
+    opacity: 0.7;
+    margin-top: 5px;
+}
+
+.unread-badge {
+    background-color: #dc3545;
+    color: white;
+    border-radius: 50%;
+    padding: 2px 6px;
+    font-size: 0.7em;
+    margin-left: 5px;
+}
+
+.online-indicator {
+    width: 8px;
+    height: 8px;
+    background-color: #28a745;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+}
+
+.offline-indicator {
+    width: 8px;
+    height: 8px;
+    background-color: #6c757d;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2><i class="bi bi-chat-dots me-2"></i>Mesajlaşma</h2>
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-success me-2" id="online-status">Çevrimiçi</span>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="refreshMessages()">
+                        <i class="bi bi-arrow-clockwise"></i> Yenile
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row chat-container">
+        <!-- Kullanıcı Listesi -->
+        <div class="col-md-3 chat-users">
+            <div class="p-3 border-bottom">
+                <h6 class="mb-0"><i class="bi bi-people me-2"></i>Kullanıcılar</h6>
+            </div>
+            <div id="users-list">
+                {% for user in users %}
+                <div class="user-item" data-user-id="{{ user.id }}" data-username="{{ user.username }}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="offline-indicator" id="status-{{ user.id }}"></span>
+                            <strong>{{ user.username }}</strong>
+                            {% if user.id != request.user.id %}
+                                <span class="unread-badge" id="unread-{{ user.id }}" style="display: none;">0</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Mesaj Alanı -->
+        <div class="col-md-9">
+            <div class="d-flex flex-column h-100">
+                <!-- Seçili Kullanıcı Bilgisi -->
+                <div class="p-3 border-bottom bg-light" id="selected-user-info" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0" id="selected-username"></h6>
+                            <small class="text-muted" id="selected-user-status">Çevrimdışı</small>
+                        </div>
+                        <div>
+                            <button class="btn btn-outline-danger btn-sm" onclick="clearChat()">
+                                <i class="bi bi-trash"></i> Temizle
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mesajlar -->
+                <div class="chat-messages" id="messages-container">
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-chat-square-text display-4 mb-3"></i>
+                        <p>Bir kullanıcı seçerek mesajlaşmaya başlayın</p>
+                    </div>
+                </div>
+
+                <!-- Mesaj Gönderme -->
+                <div class="chat-input" id="message-input" style="display: none;">
+                    <form id="message-form">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="message-text" placeholder="Mesajınızı yazın..." maxlength="1000">
+                            <button class="btn btn-primary" type="submit">
+                                <i class="bi bi-send"></i> Gönder
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedUserId = null;
+let selectedUsername = null;
+let messageInterval = null;
+
+// CSRF Token'ı al
+function getCSRFToken() {
+    const token = document.querySelector('meta[name="csrf-token"]');
+    return token ? token.getAttribute('content') : '';
+}
+
+// Sayfa yüklendiğinde
+document.addEventListener('DOMContentLoaded', function() {
+    // Kullanıcı listesi tıklama olayları
+    document.querySelectorAll('.user-item').forEach(item => {
+        item.addEventListener('click', function() {
+            if (this.dataset.userId != '{{ request.user.id }}') {
+                selectUser(this.dataset.userId, this.dataset.username);
+            }
+        });
+    });
+
+    // Mesaj gönderme formu
+    document.getElementById('message-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        sendMessage();
+    });
+
+    // Enter tuşu ile mesaj gönderme
+    document.getElementById('message-text').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    // Otomatik mesaj yenileme
+    startMessageRefresh();
+    
+    // Kullanıcı durumlarını yükle
+    loadUserStatuses();
+});
+
+function selectUser(userId, username) {
+    selectedUserId = userId;
+    selectedUsername = username;
+
+    // Aktif kullanıcıyı işaretle
+    document.querySelectorAll('.user-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    document.querySelector(`[data-user-id="${userId}"]`).classList.add('active');
+
+    // Seçili kullanıcı bilgisini göster
+    document.getElementById('selected-user-info').style.display = 'block';
+    document.getElementById('selected-username').textContent = username;
+    document.getElementById('message-input').style.display = 'block';
+
+    // Mesajları yükle
+    loadMessages(userId);
+}
+
+function loadMessages(userId) {
+    fetch(`{% url 'tahsilat:get_messages' %}?user_id=${userId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayMessages(data.messages);
+                // Okunmamış mesajları işaretle
+                markMessagesAsRead(userId);
+            }
+        })
+        .catch(error => {
+            console.error('Mesajlar yüklenirken hata:', error);
+        });
+}
+
+function displayMessages(messages) {
+    const container = document.getElementById('messages-container');
+    
+    if (messages.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-chat-square-text display-4 mb-3"></i>
+                <p>Henüz mesaj yok. İlk mesajı siz gönderin!</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = '';
+    
+    messages.forEach(message => {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message-item ${message.is_sent ? 'message-sent' : 'message-received'}`;
+        
+        messageDiv.innerHTML = `
+            <div>${escapeHtml(message.mesaj)}</div>
+            <div class="message-time">${formatDateTime(message.olusturma_tarihi)}</div>
+        `;
+        
+        container.appendChild(messageDiv);
+    });
+
+    // En alta kaydır
+    container.scrollTop = container.scrollHeight;
+}
+
+function sendMessage() {
+    const messageText = document.getElementById('message-text').value.trim();
+    
+    if (!messageText || !selectedUserId) {
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('alici_id', selectedUserId);
+    formData.append('mesaj', messageText);
+
+    fetch('{% url "tahsilat:send_message" %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': getCSRFToken()
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('message-text').value = '';
+            loadMessages(selectedUserId);
+        } else {
+            alert('Mesaj gönderilemedi: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Mesaj gönderilirken hata:', error);
+        alert('Mesaj gönderilirken hata oluştu');
+    });
+}
+
+function markMessagesAsRead(userId) {
+    fetch('{% url "tahsilat:mark_messages_read" %}', {
+        method: 'POST',
+        body: JSON.stringify({user_id: userId}),
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Okunmamış mesaj sayısını güncelle
+            updateUnreadCount(userId, 0);
+        }
+    });
+}
+
+function updateUnreadCount(userId, count) {
+    const badge = document.getElementById(`unread-${userId}`);
+    if (badge) {
+        if (count > 0) {
+            badge.textContent = count;
+            badge.style.display = 'inline';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+}
+
+function refreshMessages() {
+    if (selectedUserId) {
+        loadMessages(selectedUserId);
+    }
+    loadUnreadCounts();
+}
+
+function loadUnreadCounts() {
+    fetch('{% url "tahsilat:get_unread_counts" %}')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Object.keys(data.counts).forEach(userId => {
+                    updateUnreadCount(userId, data.counts[userId]);
+                });
+            }
+        });
+}
+
+function startMessageRefresh() {
+    // Her 5 saniyede bir mesajları kontrol et
+    messageInterval = setInterval(() => {
+        if (selectedUserId) {
+            loadMessages(selectedUserId);
+        }
+        loadUnreadCounts();
+        loadUserStatuses();
+        updateUserActivity();
+    }, 5000);
+}
+
+function loadUserStatuses() {
+    fetch('{% url "tahsilat:get_user_statuses" %}')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Object.keys(data.statuses).forEach(userId => {
+                    updateUserStatus(userId, data.statuses[userId]);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Kullanıcı durumları yüklenirken hata:', error);
+        });
+}
+
+function updateUserStatus(userId, isOnline) {
+    const statusElement = document.getElementById(`status-${userId}`);
+    if (statusElement) {
+        if (isOnline) {
+            statusElement.className = 'online-indicator';
+        } else {
+            statusElement.className = 'offline-indicator';
+        }
+    }
+}
+
+function updateUserActivity() {
+    fetch('{% url "tahsilat:update_user_status" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCSRFToken()
+        }
+    })
+    .catch(error => {
+        console.error('Kullanıcı aktivitesi güncellenirken hata:', error);
+    });
+}
+
+function clearChat() {
+    if (confirm('Tüm mesajları silmek istediğinizden emin misiniz?')) {
+        fetch('{% url "tahsilat:clear_chat" %}', {
+            method: 'POST',
+            body: JSON.stringify({user_id: selectedUserId}),
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadMessages(selectedUserId);
+            } else {
+                alert('Mesajlar silinemedi: ' + data.message);
+            }
+        });
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatDateTime(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now - date;
+    
+    if (diff < 60000) { // 1 dakikadan az
+        return 'Az önce';
+    } else if (diff < 3600000) { // 1 saatten az
+        return Math.floor(diff / 60000) + ' dakika önce';
+    } else if (diff < 86400000) { // 1 günden az
+        return Math.floor(diff / 3600000) + ' saat önce';
+    } else {
+        return date.toLocaleDateString('tr-TR') + ' ' + date.toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'});
+    }
+}
+
+// Sayfa kapatılırken interval'ı temizle
+window.addEventListener('beforeunload', function() {
+    if (messageInterval) {
+        clearInterval(messageInterval);
+    }
+});
+</script>
+{% endblock %}

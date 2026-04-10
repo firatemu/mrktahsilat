@@ -1,0 +1,1348 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}{{ sayfa_baslik }} - MRK OTOMOTİV{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stats-card {
+        border-left: 4px solid #007bff;
+        transition: all 0.3s ease;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    }
+
+    .stats-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .plasiyer-card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        background: white;
+    }
+
+    .plasiyer-card:hover {
+        border-color: #007bff;
+        box-shadow: 0 2px 10px rgba(0, 123, 255, 0.15);
+    }
+
+    .plasiyer-header {
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        color: white;
+        font-weight: bold;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .stat-item {
+        border-bottom: 1px solid #f8f9fa;
+        padding: 0.75rem;
+        transition: all 0.3s ease;
+        border-radius: 6px;
+        margin-bottom: 0.25rem;
+    }
+
+    .stat-item:hover {
+        background: rgba(0, 123, 255, 0.05);
+        transform: translateX(2px);
+        border-left: 3px solid #007bff;
+    }
+
+    .stat-item:last-child {
+        border-bottom: none;
+    }
+
+    .stat-label {
+        font-size: 0.9rem;
+        color: #495057;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .stat-value {
+        font-size: 1.1rem;
+        font-weight: 700;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    .toplam-section {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+    }
+
+    .toplam-item {
+        text-align: center;
+        padding: 1rem;
+    }
+
+    .toplam-label {
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+
+    .toplam-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-top: 0.25rem;
+    }
+
+    .admin-badge {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: bold;
+    }
+
+    /* Sabit Footer Stilleri */
+    .fixed-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        padding: 15px 20px;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        border-top: 3px solid #1e7e34;
+    }
+
+    .footer-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .footer-totals {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+    }
+
+    .footer-total-item {
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .footer-total-label {
+        font-size: 0.85rem;
+        opacity: 0.9;
+        margin-bottom: 2px;
+        text-align: center;
+    }
+
+    .footer-total-value {
+        font-size: 1.2rem;
+        font-weight: bold;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        text-align: center;
+    }
+
+    .footer-record-count {
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+
+    /* Ana içerik için alt boşluk ekle */
+    .main-content {
+        padding-bottom: 80px;
+    }
+
+    /* Sticky header için CSS */
+    .sticky-header-table {
+        height: 70vh;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+    }
+
+    .sticky-header-table thead th {
+        position: sticky;
+        top: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+        border-bottom: 2px solid #dee2e6;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Alım sayfası için yeşil tema */
+    .satis-theme .plasiyer-header {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    }
+
+    .satis-theme .toplam-section {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    }
+
+    /* Tab Content Ekleme */
+    .tab-content {
+        margin-top: 1.5rem;
+    }
+
+    .nav-tabs .nav-link {
+        border: 1px solid transparent;
+        border-radius: 0.375rem 0.375rem 0 0;
+        color: #495057;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        margin-right: 0.25rem;
+    }
+
+    .nav-tabs .nav-link:hover {
+        border-color: #e9ecef #e9ecef #dee2e6;
+        isolation: isolate;
+        background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+    }
+
+    .nav-tabs .nav-link.active {
+        color: #495057;
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        color: white;
+        border-color: #007bff #007bff #fff;
+    }
+
+    /* Master-Detail Styles */
+    .fatura-table {
+        margin-bottom: 20px;
+    }
+
+    .table-header {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+        border-radius: 10px 10px 0 0;
+        box-shadow: 0 2px 10px rgba(40, 167, 69, 0.3);
+    }
+
+    .table-header .fatura-info {
+        display: grid;
+        grid-template-columns: 80px 1fr 120px 120px 130px 120px 100px 30px;
+        gap: 15px;
+        padding: 15px;
+        font-weight: 600;
+        font-size: 14px;
+        align-items: center;
+    }
+
+    .fatura-item {
+        border: 1px solid #e3f2fd;
+        margin-bottom: 2px;
+        border-radius: 8px;
+        background: white;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+    }
+
+    .fatura-item:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transform: translateY(-1px);
+    }
+
+    .fatura-row {
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border-radius: 8px;
+    }
+
+    .fatura-row:hover {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    }
+
+    .fatura-info {
+        display: grid;
+        grid-template-columns: 80px 1fr 120px 120px 130px 120px 100px 30px;
+        gap: 15px;
+        padding: 15px;
+        align-items: center;
+    }
+
+    .fatura-id {
+        font-weight: 700;
+        color: #495057;
+        font-size: 14px;
+    }
+
+    .fatura-cari {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .fatura-cari-name {
+        font-weight: 600;
+        color: #2c3e50;
+        font-size: 14px;
+        margin-bottom: 3px;
+    }
+
+    .fatura-cari-details {
+        font-size: 12px;
+        color: #6c757d;
+    }
+
+    .fatura-date {
+        font-weight: 500;
+        color: #495057;
+        text-align: center;
+        font-size: 13px;
+    }
+
+    .fatura-amount {
+        font-weight: 700;
+        color: #28a745;
+        text-align: right;
+        font-size: 14px;
+    }
+
+    .fatura-plasiyer,
+    .fatura-location {
+        text-align: center;
+        font-size: 12px;
+    }
+
+    .expand-icon {
+        text-align: center;
+        transition: transform 0.3s ease;
+        color: #6c757d;
+    }
+
+    .expand-icon.rotated {
+        transform: rotate(180deg);
+        color: #28a745;
+    }
+
+    /* Detail Section */
+    .detail-section {
+        background: #f8f9fa;
+        border-top: 1px solid #e9ecef;
+        padding: 0;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.4s ease, padding 0.4s ease;
+    }
+
+    .detail-section.show {
+        max-height: 5000px; /* Yeterince yüksek bir değer, içerik kadar genişleyecek */
+        padding: 1.5rem;
+        overflow: visible;
+    }
+
+    .detail-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 30px;
+        color: #6c757d;
+        font-size: 14px;
+    }
+
+    .spinner {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #28a745;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        animation: spin 1s linear infinite;
+        margin-right: 10px;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Detail Table */
+    .detail-table {
+        width: 100%;
+        background: white;
+        border-radius: 8px;
+        overflow: visible;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        margin: 15px 15px 0 15px;
+    }
+
+    .detail-header {
+        background: linear-gradient(135deg, #17a2b8, #138496);
+        color: white;
+        padding: 12px 15px;
+        font-weight: 600;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+    }
+
+    .detail-header i {
+        margin-right: 8px;
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+        overflow-y: visible;
+        max-height: none;
+        min-height: 0;
+    }
+
+    .detail-content-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .detail-content-table th {
+        background: #f1f3f4;
+        color: #495057;
+        font-weight: 600;
+        padding: 12px 8px;
+        text-align: center;
+        border-bottom: 2px solid #dee2e6;
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .detail-content-table td {
+        padding: 10px 8px;
+        border-bottom: 1px solid #f1f3f4;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .detail-content-table tbody tr:hover {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    }
+
+    /* Scroll bar styling */
+    .table-wrapper::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .table-wrapper::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+
+    .table-wrapper::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 4px;
+    }
+
+    .table-wrapper::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .table-wrapper {
+            max-height: none;
+            min-height: 0;
+        }
+
+        .fatura-info {
+            grid-template-columns: 60px 1fr 100px 30px;
+            gap: 10px;
+        }
+
+        .fatura-info>div:nth-child(3),
+        .fatura-info>div:nth-child(4),
+        .fatura-info>div:nth-child(6),
+        .fatura-info>div:nth-child(7) {
+            display: none;
+        }
+
+        .table-header .fatura-info {
+            grid-template-columns: 60px 1fr 100px 30px;
+        }
+
+        .table-header .fatura-info>div:nth-child(3),
+        .table-header .fatura-info>div:nth-child(4),
+        .table-header .fatura-info>div:nth-child(6),
+        .table-header .fatura-info>div:nth-child(7) {
+            display: none;
+        }
+    }
+
+    /* Badge Styles */
+    .badge {
+        font-size: 11px;
+        padding: 4px 8px;
+    }
+
+    .text-muted {
+        color: #6c757d !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="main-content">
+    <div class="container-fluid mt-4 satis-theme">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h2>
+                        <i class="{{ sayfa_ikon }} me-2"></i>
+                        Genel Görünüm - {{ sayfa_baslik }}
+                        <span class="admin-badge ms-2">ADMIN</span>
+                    </h2>
+                    <div class="text-muted">
+                        <i class="bi bi-calendar3 me-1"></i>
+                        {{ "now"|date:"d.m.Y" }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Breadcrumb -->
+        <div class="row mb-3">
+            <div class="col-12">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{% url 'tahsilat:dashboard' %}">Dashboard</a></li>
+                        <li class="breadcrumb-item">Genel Görünüm</li>
+                        <li class="breadcrumb-item active">{{ sayfa_baslik }}</li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Sekmeler -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <ul class="nav nav-tabs" id="satislarTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="liste-tab" data-bs-toggle="tab" data-bs-target="#liste"
+                            type="button" role="tab">
+                            <i class="bi bi-table me-1"></i>Alım Listesi
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="malzeme-tab" data-bs-toggle="tab" data-bs-target="#malzeme"
+                            type="button" role="tab">
+                            <i class="bi bi-box-seam me-1"></i>Malzeme Alım Listesi
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Sekme İçerikleri -->
+        <div class="tab-content" id="satislarTabContent">
+
+
+            <!-- Alım Listesi Sekmesi -->
+            <div class="tab-pane fade show active" id="liste" role="tabpanel">
+
+                <!-- Filtreler - Alım Listesi -->
+                <form method="get" class="row g-3 mb-3">
+                    <div class="col-md-2">
+                        <label class="form-label">Başlangıç Tarihi</label>
+                        <input type="date" class="form-control" name="baslangic_tarihi" value="{{ baslangic_tarihi }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Bitiş Tarihi</label>
+                        <input type="date" class="form-control" name="bitis_tarihi" value="{{ bitis_tarihi }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Cari Kod</label>
+                        <input type="text" class="form-control" name="cari_kod" value="{{ cari_kod }}"
+                            placeholder="Cari kod...">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Cari Ünvan</label>
+                        <input type="text" class="form-control" name="cari_unvan" value="{{ cari_unvan }}"
+                            placeholder="Cari ünvan...">
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary me-2"><i
+                                class="bi bi-search me-1"></i>Filtrele</button>
+                        <a href="?" class="btn btn-outline-secondary"><i class="bi bi-x-circle me-1"></i>Temizle</a>
+                        <div class="ms-auto">
+                            <a href="?{{ request.GET.urlencode }}&export=excel#liste" class="btn btn-success me-2"><i
+                                    class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Master-Detail Alım Listesi -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="fatura-table">
+                            <!-- Table Header -->
+                            <div class="table-header">
+                                <div class="fatura-info">
+                                    <div>ID</div>
+                                    <div>Cari Bilgileri</div>
+                                    <div style="text-align: center;">Tarih</div>
+                                    <div style="text-align: center;">İşlem Tarihi</div>
+                                    <div style="text-align: right;">Tutar</div>
+                                    <div style="text-align: center;">Plasiyer</div>
+                                    <div style="text-align: center;">Bölge</div>
+                                    <div></div>
+                                </div>
+                            </div>
+
+                            <!-- Fatura Rows -->
+                            {% for fatura in satis_listesi %}
+                            <div class="fatura-item">
+                                <div class="fatura-row" onclick="toggleDetail('{{ fatura.ID }}')">
+                                    <div class="fatura-info">
+                                        <div class="fatura-id">#{{ fatura.ID }}</div>
+
+                                        <div class="fatura-cari">
+                                            <div class="fatura-cari-name">{{ fatura.CARİ_ÜNVAN }}</div>
+                                            <div class="fatura-cari-details">
+                                                {{ fatura.CARİ_KOD }} |
+                                                {% if fatura.FATURA_NO %}{{ fatura.FATURA_NO }}{% else %}Belge Yok{% endif %}
+                                            </div>
+                                        </div>
+
+                                        <div class="fatura-date">{{ fatura.FormattedDate|default:"-" }}</div>
+
+                                        <div class="fatura-date">{{ fatura.İŞLEM_TARİHİ|default:"-" }}</div>
+
+                                        <div class="fatura-amount">{{ fatura.NET_TOPLAM|floatformat:2 }} ₺</div>
+
+                                        <div class="fatura-plasiyer">
+                                            {% if fatura.CARİ_PLASİYER %}
+                                            <span class="badge bg-warning text-dark">{{ fatura.CARİ_PLASİYER }}</span>
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="fatura-bolge">
+                                            {% if fatura.BÖLGE %}
+                                            <span class="badge bg-info">{{ fatura.BÖLGE }}</span>
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="expand-icon" id="icon-{{ fatura.ID }}">
+                                            <i class="bi bi-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Detail Section -->
+                                <div class="detail-section" id="detail-{{ fatura.ID }}">
+                                    <div class="detail-loading" id="loading-{{ fatura.ID }}">
+                                        <div class="spinner"></div>
+                                        Detaylar yükleniyor...
+                                    </div>
+
+                                    <div class="detail-content" id="content-{{ fatura.ID }}">
+                                        <!-- AJAX ile doldurulacak -->
+                                    </div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="col-12">
+                                <div class="alert alert-info text-center">
+                                    <i class="bi bi-inbox me-2"></i>
+                                    Henüz satış kaydı bulunmuyor.
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Toplam kayıt sayısı -->
+                <div class="mt-3">
+                    <small class="text-muted">
+                        Toplam {{ satis_listesi|length }} kayıt gösteriliyor
+                    </small>
+                </div>
+
+            </div>
+
+            <!-- Malzeme Alım Listesi Sekmesi -->
+            <div class="tab-pane fade" id="malzeme" role="tabpanel">
+
+                <!-- Filtreler -->
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">
+                            <i class="bi bi-funnel me-2"></i>Filtreleme Seçenekleri
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <form id="malzemeFilterForm" class="row g-3">
+                            <div class="col-md-2">
+                                <label for="baslangic_tarihi" class="form-label">Başlangıç Tarihi</label>
+                                <input type="date" class="form-control" id="baslangic_tarihi" name="baslangic_tarihi">
+                            </div>
+                            <div class="col-md-2">
+                                <label for="bitis_tarihi" class="form-label">Bitiş Tarihi</label>
+                                <input type="date" class="form-control" id="bitis_tarihi" name="bitis_tarihi">
+                            </div>
+                            <div class="col-md-2">
+                                <label for="cari_kod_filter" class="form-label">Cari Kod</label>
+                                <input type="text" class="form-control" id="cari_kod_filter" name="cari_kod"
+                                    placeholder="Cari kod girin...">
+                            </div>
+                            <div class="col-md-2">
+                                <label for="cari_unvan_filter" class="form-label">Cari Ünvan</label>
+                                <input type="text" class="form-control" id="cari_unvan_filter" name="cari_unvan"
+                                    placeholder="Cari ünvan girin...">
+                            </div>
+                            <div class="col-md-2">
+                                <label for="malzeme_kodu_filter" class="form-label">Malzeme Kodu</label>
+                                <input type="text" class="form-control" id="malzeme_kodu_filter" name="malzeme_kodu"
+                                    placeholder="Malzeme kodu girin...">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="malzeme_aciklama_filter" class="form-label">Malzeme Açıklaması</label>
+                                <input type="text" class="form-control" id="malzeme_aciklama_filter"
+                                    name="malzeme_aciklama" placeholder="Malzeme açıklaması girin...">
+                            </div>
+                            <div class="col-md-2">
+                                <label for="per_page" class="form-label">Sayfa Başı Kayıt</label>
+                                <select class="form-select" id="per_page" name="per_page">
+                                    <option value="100">100</option>
+                                    <option value="200">200</option>
+                                    <option value="500">500</option>
+                                    <option value="1000">1000</option>
+                                    <option value="all">Hepsi</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 d-flex align-items-end">
+                                <button type="button" class="btn btn-primary me-2" onclick="loadMalzemeData()">
+                                    <i class="bi bi-search me-1"></i>Ara
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="clearMalzemeFilters()">
+                                    <i class="bi bi-x-circle me-1"></i>Temizle
+                                </button>
+                                <div class="ms-auto">
+                                    <button type="button" class="btn btn-success me-2" onclick="exportMalzeme('excel')">
+                                        <i class="bi bi-file-earmark-excel me-1"></i>Excel
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Yükleniyor Animasyonu -->
+                <div id="malzeme-loading" class="text-center py-5" style="display: none;">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Yükleniyor...</span>
+                    </div>
+                    <div class="text-muted">
+                        <h5>Veriler yükleniyor...</h5>
+                        <p>Lütfen bekleyiniz, veriler hazırlanıyor.</p>
+                    </div>
+                </div>
+
+                <!-- Malzeme Alım Listesi -->
+                <div id="malzeme-content">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h6 class="mb-0">
+                                <i class="bi bi-box-seam me-2"></i>Malzeme Alım Detayları
+                            </h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="malzeme-table-container">
+                                <div class="text-center py-5 text-muted">
+                                    <i class="bi bi-search" style="font-size: 3rem;"></i>
+                                    <h5 class="mt-3">Arama yapın</h5>
+                                    <p>Yukarıdaki filtreleri kullanarak malzeme satış verilerini görüntüleyebilirsiniz.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Toplam kayıt sayısı -->
+                <div id="malzeme-total-count" style="display: none;" class="mt-3">
+                    <small class="text-muted">
+                        Toplam <span id="malzeme-count">0</span> kayıt gösteriliyor
+                    </small>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    {% endblock %}
+
+    {% block extra_js %}
+    <script>
+        // Sayfa yüklendiğinde hash kontrolü yap
+        document.addEventListener('DOMContentLoaded', function () {
+            // Bugünün tarihini al
+            const today = new Date().toISOString().split('T')[0];
+
+            // Malzeme satış listesi formundaki tarih alanlarını bugünün tarihi ile doldur
+            const baslangicTarihi = document.getElementById('baslangic_tarihi');
+            const bitisTarihi = document.getElementById('bitis_tarihi');
+
+            if (baslangicTarihi && !baslangicTarihi.value) {
+                baslangicTarihi.value = today;
+            }
+            if (bitisTarihi && !bitisTarihi.value) {
+                bitisTarihi.value = today;
+            }
+
+            // URL hash'ini kontrol et
+            if (window.location.hash === '#malzeme') {
+                // Malzeme Alım Listesi sekmesini aç
+                var malzemeTab = new bootstrap.Tab(document.getElementById('malzeme-tab'));
+                malzemeTab.show();
+            }
+            // Hash yoksa veya farklıysa varsayılan olarak Alım Listesi açık kalır
+        });
+
+        // Malzeme alım verilerini yükleme fonksiyonu
+        function loadMalzemeData() {
+            const form = document.getElementById('malzemeFilterForm');
+            const formData = new FormData(form);
+            formData.append('action', 'get_malzeme_alim');
+
+            // CSRF token'ı meta tag'den al
+            const csrfToken = document.querySelector('meta[name=csrf-token]').getAttribute('content');
+            if (csrfToken) {
+                formData.append('csrfmiddlewaretoken', csrfToken);
+            }
+
+            // Yükleniyor animasyonunu göster
+            document.getElementById('malzeme-loading').style.display = 'block';
+            document.getElementById('malzeme-content').style.display = 'none';
+
+            fetch('{% url "tahsilat:genel_alimlar" %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    // Yükleniyor animasyonunu gizle
+                    document.getElementById('malzeme-loading').style.display = 'none';
+                    document.getElementById('malzeme-content').style.display = 'block';
+
+                    if (data.success) {
+                        // Tabloyu oluştur
+                        let tableHtml = `
+                    <div class="table-responsive sticky-header-table" style="height: 70vh;">
+                        <table class="table table-striped table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Tarih</th>
+                                    <th>Malzeme Kodu</th>
+                                    <th>Açıklama</th>
+                                    <th>Marka</th>
+                                    <th>Malzeme Türü</th>
+                                    <th class="text-end">Miktar</th>
+                                    <th>Birim</th>
+                                    <th class="text-end">Birim Brüt</th>
+                                    <th class="text-end">Birim İndirim</th>
+                                    <th class="text-end">Birim Net</th>
+                                    <th class="text-end">Toplam İndirim</th>
+                                    <th class="text-end">KDV Tutarı</th>
+                                    <th class="text-end">Net Toplam</th>
+                                    <th>Cari Kod</th>
+                                    <th>Cari Ünvan</th>
+                                    <th>Bölge</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                        // Toplamları hesapla
+                        let toplamMiktar = 0;
+                        let toplamNetToplam = 0;
+                        let toplamIndirim = 0;
+
+                        data.data.forEach(item => {
+                            toplamMiktar += parseFloat(item.MİKTAR || 0);
+                            toplamNetToplam += parseFloat(item.NET_TOPLAM || 0);
+                            toplamIndirim += parseFloat(item.TOPLAM_İNDİRİM || 0);
+
+                            tableHtml += `
+                        <tr>
+                            <td><span class="badge bg-light text-dark border">${item.TARİH || '-'}</span></td>
+                            <td><code class="bg-light text-dark px-2 py-1 rounded">${item.MALZEME_KODU || '-'}</code></td>
+                            <td>${item.AÇIKLAMASI || '-'}</td>
+                            <td>${item.MARKA || '-'}</td>
+                            <td><span class="badge bg-secondary">${item.MALZEME_TÜRÜ || '-'}</span></td>
+                            <td class="text-end fw-bold">${parseFloat(item.MİKTAR || 0).toFixed(2)}</td>
+                            <td>${item.BİRİM || '-'}</td>
+                            <td class="text-end">${parseFloat(item.BİRİM_BRÜT || 0).toFixed(2)} ₺</td>
+                            <td class="text-end text-danger">${parseFloat(item.BİRİM_İNDİRİM || 0).toFixed(2)} ₺</td>
+                            <td class="text-end fw-bold text-success">${parseFloat(item.BİRİM_NET || 0).toFixed(2)} ₺</td>
+                            <td class="text-end text-danger">${parseFloat(item.TOPLAM_İNDİRİM || 0).toFixed(2)} ₺</td>
+                            <td class="text-end text-warning">${parseFloat(item.KDV_TUTARI || 0).toFixed(2)} ₺</td>
+                            <td class="text-end fw-bold text-primary">${parseFloat(item.NET_TOPLAM || 0).toFixed(2)} ₺</td>
+                            <td><code class="bg-light text-dark px-2 py-1 rounded">${item.CARİ_KOD || '-'}</code></td>
+                            <td>${item.CARİ_ÜNVAN || '-'}</td>
+                            <td><span class="badge bg-success">${item.BÖLGE || '-'}</span></td>
+                        </tr>
+                    `;
+                        });
+
+                        // Footer ekle
+                        tableHtml += `
+                            </tbody>
+                            <tfoot class="table-dark">
+                                <tr>
+                                    <td colspan="5" class="text-end fw-bold">TOPLAM:</td>
+                                    <td class="text-end fw-bold text-warning">${toplamMiktar.toFixed(2)}</td>
+                                    <td colspan="4"></td>
+                                    <td class="text-end fw-bold text-danger">${toplamIndirim.toFixed(2)} ₺</td>
+                                    <td colspan="2"></td>
+                                    <td class="text-end fw-bold text-success">${toplamNetToplam.toFixed(2)} ₺</td>
+                                    <td colspan="3"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                `;
+
+                        document.getElementById('malzeme-table-container').innerHTML = tableHtml;
+
+                        // Toplam kayıt sayısını göster
+                        document.getElementById('malzeme-count').textContent = data.total_count;
+                        document.getElementById('malzeme-total-count').style.display = 'block';
+
+                        // Footer hesaplamasını yap
+                        setTimeout(calculateMalzemeSatisTotals, 100);
+
+                    } else {
+                        document.getElementById('malzeme-table-container').innerHTML = `
+                    <div class="alert alert-warning text-center">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        ${data.message || 'Veri bulunamadı.'}
+                    </div>
+                `;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('malzeme-loading').style.display = 'none';
+                    document.getElementById('malzeme-content').style.display = 'block';
+                    document.getElementById('malzeme-table-container').innerHTML = `
+                <div class="alert alert-danger text-center">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Bir hata oluştu. Lütfen tekrar deneyin.
+                </div>
+            `;
+                });
+        }
+
+        // Malzeme filtrelerini temizle
+        function clearMalzemeFilters() {
+            document.getElementById('malzemeFilterForm').reset();
+            document.getElementById('malzeme-table-container').innerHTML = `
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-search" style="font-size: 3rem;"></i>
+                <h5 class="mt-3">Arama yapın</h5>
+                <p>Yukarıdaki filtreleri kullanarak malzeme satış verilerini görüntüleyebilirsiniz.</p>
+            </div>
+        `;
+            document.getElementById('malzeme-total-count').style.display = 'none';
+        }
+
+        // Malzeme Alım Export (Excel/PDF)
+        function exportMalzeme(format) {
+            const form = document.getElementById('malzemeFilterForm');
+            const temp = document.createElement('form');
+            temp.method = 'POST';
+            temp.action = '{% url "tahsilat:genel_alimlar" %}';
+            // CSRF token
+            const csrf = document.createElement('input');
+            csrf.type = 'hidden';
+            csrf.name = 'csrfmiddlewaretoken';
+            csrf.value = document.querySelector('meta[name=csrf-token]').getAttribute('content');
+            temp.appendChild(csrf);
+            // Action
+            const action = document.createElement('input');
+            action.type = 'hidden';
+            action.name = 'action';
+            action.value = format === 'excel' ? 'export_malzeme_alim_excel' : 'export_malzeme_alim_pdf';
+            temp.appendChild(action);
+            // Copy filter fields
+            ['baslangic_tarihi', 'bitis_tarihi', 'plasiyer', 'cari_kod', 'cari_unvan', 'malzeme_kodu', 'malzeme_aciklama', 'per_page']
+                .forEach(id => {
+                    const el = document.getElementById(id) || document.getElementById(id + '_filter');
+                    if (el && el.name) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = el.name;
+                        input.value = el.value || '';
+                        temp.appendChild(input);
+                    }
+                });
+            document.body.appendChild(temp);
+            temp.submit();
+            document.body.removeChild(temp);
+        }
+
+        // Sekme değiştiğinde URL'yi güncelle (opsiyonel)
+        document.getElementById('liste-tab').addEventListener('shown.bs.tab', function (e) {
+            history.replaceState(null, null, '#liste');
+        });
+
+        // Master-Detail Functions
+        let openDetailId = null; // Açık olan detayın ID'si
+
+        function toggleDetail(faturaId) {
+            const detailSection = document.getElementById(`detail-${faturaId}`);
+            const icon = document.getElementById(`icon-${faturaId}`);
+            const loading = document.getElementById(`loading-${faturaId}`);
+            const content = document.getElementById(`content-${faturaId}`);
+
+            // Eğer başka bir detail açıksa kapat
+            if (openDetailId && openDetailId !== faturaId) {
+                closeDetail(openDetailId);
+            }
+
+            if (detailSection.classList.contains('show')) {
+                // Kapat
+                closeDetail(faturaId);
+            } else {
+                // Aç
+                openDetail(faturaId);
+            }
+        }
+
+        function openDetail(faturaId) {
+            console.log('openDetail çağrıldı, faturaId:', faturaId);
+
+            const detailSection = document.getElementById(`detail-${faturaId}`);
+            const icon = document.getElementById(`icon-${faturaId}`);
+            const loading = document.getElementById(`loading-${faturaId}`);
+            const content = document.getElementById(`content-${faturaId}`);
+
+            // UI güncellemeleri
+            detailSection.classList.add('show');
+            icon.classList.add('rotated');
+            loading.style.display = 'block';
+            content.style.display = 'none';
+
+            openDetailId = faturaId;
+
+            console.log('AJAX isteği gönderiliyor...');
+
+            // AJAX ile detayları yükle
+            fetch(`/fatura-detay/${faturaId}/`, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+                .then(response => {
+                    console.log('AJAX yanıtı alındı:', response);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('AJAX verisi:', data);
+                    loading.style.display = 'none';
+
+                    if (data.success) {
+                        content.innerHTML = createDetailHTML(data);
+                        content.style.display = 'block';
+                    } else {
+                        content.innerHTML = `<div class="alert alert-danger">Hata: ${data.error}</div>`;
+                        content.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    console.error('AJAX hatası:', error);
+                    loading.style.display = 'none';
+                    content.innerHTML = `<div class="alert alert-danger">Detaylar yüklenirken hata oluştu: ${error}</div>`;
+                    content.style.display = 'block';
+                });
+        }
+
+        function closeDetail(faturaId) {
+            const detailSection = document.getElementById(`detail-${faturaId}`);
+            const icon = document.getElementById(`icon-${faturaId}`);
+
+            detailSection.classList.remove('show');
+            icon.classList.remove('rotated');
+
+            if (openDetailId === faturaId) {
+                openDetailId = null;
+            }
+        }
+
+        function createDetailHTML(data) {
+            if (!data.detaylar || data.detaylar.length === 0) {
+                return '<div class="alert alert-info">Bu faturaya ait detay bulunmuyor.</div>';
+            }
+
+            let html = `
+        <div class="detail-header">
+            <i class="bi bi-box-seam me-2"></i>Detaylı Malzeme Bilgileri
+            <span class="badge bg-light text-dark ms-2">${data.toplam_kalem} Kalem Ürün</span>
+        </div>
+        
+        <div class="detail-table">
+            <div class="table-wrapper">
+                <table class="table table-hover mb-0 detail-content-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 100px;">Kod</th>
+                            <th style="width: 180px;">Malzeme Adı</th>
+                            <th style="width: 80px;">Marka</th>
+                            <th style="width: 100px;">Türü</th>
+                            <th style="width: 70px;">Miktar</th>
+                            <th style="width: 60px;">Birim</th>
+                            <th style="width: 90px;">Birim Brüt</th>
+                            <th style="width: 90px;">İndirim</th>
+                            <th style="width: 90px;">Birim Net</th>
+                            <th style="width: 90px;">Brüt Toplam</th>
+                            <th style="width: 70px;">KDV %</th>
+                            <th style="width: 90px;">KDV Tutarı</th>
+                            <th style="width: 100px;">Net Toplam</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    `;
+
+            data.detaylar.forEach(detay => {
+                const miktar = parseFloat(detay['MİKTAR'] || detay['MIKTAR'] || 0);
+                const birimBrut = parseFloat(detay['BİRİM BRÜT'] || detay['BIRIM_BRUT'] || 0);
+                const birimIndirim = parseFloat(detay['BİRİM İNDİRİM'] || detay['BIRIM_INDIRIM'] || 0);
+                const birimNet = parseFloat(detay['BİRİM NET'] || detay['BIRIM_NET'] || 0);
+                const brutToplam = parseFloat(detay['BRÜT TOPLAM'] || detay['BRUT_TOPLAM'] || 0);
+                const kdvOrani = parseFloat(detay['KDV %'] || detay['KDV_%'] || 0);
+                const kdvTutari = parseFloat(detay['KDV TUTARI'] || detay['KDV_TUTARI'] || 0);
+                const netToplam = parseFloat(detay['NET TOPLAM'] || detay['NET_TOPLAM'] || 0);
+
+                const malzemeKodu = detay['MALZEME KODU'] || detay['MALZEME_KODU'] || '';
+                const aciklama = detay['AÇIKLAMASI'] || detay['ACIKLAMASI'] || '';
+                const marka = detay['MARKA'] || '';
+                const malzemeTuru = detay['MALZEME TÜRÜ'] || detay['MALZEME_TURU'] || '';
+                const birim = detay['BİRİM'] || detay['BIRIM'] || '';
+
+                html += `
+            <tr>
+                <td class="malzeme-kod">${malzemeKodu}</td>
+                <td class="malzeme-ad">${aciklama}</td>
+                <td class="marka">${marka}</td>
+                <td><span class="malzeme-tur">${malzemeTuru}</span></td>
+                <td class="miktar">${miktar.toFixed(2)}</td>
+                <td class="birim">${birim}</td>
+                <td class="fiyat">${birimBrut.toFixed(2)} ₺</td>
+                <td class="indirim">${birimIndirim.toFixed(2)} ₺</td>
+                <td class="net-fiyat">${birimNet.toFixed(2)} ₺</td>
+                <td class="brut-toplam">${brutToplam.toFixed(2)} ₺</td>
+                <td class="kdv-oran">${kdvOrani.toFixed(0)}%</td>
+                <td class="kdv-tutar">${kdvTutari.toFixed(2)} ₺</td>
+                <td class="net-toplam">${netToplam.toFixed(2)} ₺</td>
+            </tr>
+        `;
+            });
+
+            html += `
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+            return html;
+        }    // Cookie helper function
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // Footer güncelleme fonksiyonları
+        function updateFooter(tabName, totalRecords, totalAmount, totalMiktar = 0, totalIndirim = 0) {
+            document.getElementById('footerActiveTab').textContent = tabName;
+            document.getElementById('footerTotalRecords').textContent = totalRecords;
+
+            console.log('updateFooter çağrıldı:', {
+                tabName, totalRecords, totalAmount, totalMiktar, totalIndirim
+            });
+
+            // Ana listeler için sadece TUTAR göster
+            if (tabName === 'Alım Listesi' || tabName === 'Satış Listesi') {
+                document.getElementById('footerLabel1').textContent = 'TUTAR';
+                document.getElementById('footerLabel2').textContent = 'TUTAR';
+                document.getElementById('footerLabel3').textContent = 'TUTAR';
+
+                document.getElementById('footerTotalAmount').textContent = totalAmount.toLocaleString('tr-TR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }) + ' ₺';
+                document.getElementById('footerTotalMiktar').textContent = '-';
+                document.getElementById('footerTotalIndirim').textContent = '-';
+            } else {
+                // Malzeme listeleri için 3 farklı kolon göster
+                document.getElementById('footerLabel1').textContent = 'MİKTAR';
+                document.getElementById('footerLabel2').textContent = 'TOPLAM İNDİRİM';
+                document.getElementById('footerLabel3').textContent = 'NET TOPLAM';
+
+                document.getElementById('footerTotalAmount').textContent = totalAmount.toLocaleString('tr-TR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }) + ' ₺';
+                document.getElementById('footerTotalMiktar').textContent = totalMiktar.toLocaleString('tr-TR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+                document.getElementById('footerTotalIndirim').textContent = totalIndirim.toLocaleString('tr-TR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }) + ' ₺';
+            }
+
+            document.getElementById('fixedFooter').style.display = 'block';
+        }
+
+        function calculateSatisListesiTotals() {
+            const rows = document.querySelectorAll('#liste .fatura-info');
+            let totalAmount = 0;
+            let recordCount = rows.length;
+
+            rows.forEach((row, index) => {
+                // Grid yapısında 5. kolon tutar kolonu (index 4) - İşlem Tarihi kolonu eklendikten sonra
+                const tutarElement = row.children[4];
+                if (tutarElement) {
+                    const tutarText = tutarElement.textContent.replace(/[^\d,.-]/g, '').replace(',', '.');
+                    const tutar = parseFloat(tutarText) || 0;
+                    totalAmount += tutar;
+                }
+            });
+
+            // Ana Alım Listesi için sadece TUTAR hesaplanır
+            updateFooter('Alım Listesi', recordCount, totalAmount, 0, 0);
+        }
+
+        function calculateMalzemeSatisTotals() {
+            const rows = document.querySelectorAll('#malzeme-table-container tbody tr');
+            let totalAmount = 0;
+            let totalMiktar = 0;
+            let totalIndirim = 0;
+            let recordCount = rows.length;
+
+            console.log('Malzeme Alım Listesi - Toplam satır sayısı:', recordCount);
+
+            // Tablo footer'ındaki değerleri al
+            const footerRow = document.querySelector('#malzeme-table-container tfoot tr');
+            if (footerRow) {
+                const footerCells = footerRow.querySelectorAll('td');
+                console.log('Footer hücre sayısı:', footerCells.length);
+
+                // Her hücrenin içeriğini debug için yazdır
+                footerCells.forEach((cell, index) => {
+                    console.log(`Footer hücre ${index}:`, cell.textContent.trim());
+                });
+
+                // Footer yapısı: [colspan=5] [miktar] [colspan=4] [indirim] [colspan=2] [netToplam] [colspan=3]
+                // Hücre sırası: 0=colspan, 1=miktar, 2=colspan, 3=indirim, 4=colspan, 5=netToplam, 6=colspan
+
+                if (footerCells.length >= 6) {
+                    // Toplam Miktar (2. hücre, index 1)
+                    const miktarText = footerCells[1].textContent.replace(/[^\d,.-]/g, '').replace(',', '.');
+                    totalMiktar = parseFloat(miktarText) || 0;
+                    console.log('Miktar metni:', miktarText, 'Parsed:', totalMiktar);
+
+                    // Toplam İndirim (4. hücre, index 3)
+                    const indirimText = footerCells[3].textContent.replace(/[^\d,.-]/g, '').replace(',', '.');
+                    totalIndirim = parseFloat(indirimText) || 0;
+                    console.log('İndirim metni:', indirimText, 'Parsed:', totalIndirim);
+
+                    // Net Toplam (6. hücre, index 5)
+                    const netToplamText = footerCells[5].textContent.replace(/[^\d,.-]/g, '').replace(',', '.');
+                    totalAmount = parseFloat(netToplamText) || 0;
+                    console.log('Net Toplam metni:', netToplamText, 'Parsed:', totalAmount);
+                } else {
+                    console.log('Footer hücre sayısı yetersiz:', footerCells.length);
+                }
+            } else {
+                console.log('Footer satırı bulunamadı');
+            }
+
+            console.log('Final değerler - Miktar:', totalMiktar, 'İndirim:', totalIndirim, 'Net Toplam:', totalAmount);
+            updateFooter('Malzeme Alım Listesi', recordCount, totalAmount, totalMiktar, totalIndirim);
+        }
+
+        // Tab değişimlerinde footer'ı güncelle
+        document.addEventListener('DOMContentLoaded', function () {
+            // Tab event'lerini dinle
+            const tabButtons = document.querySelectorAll('button[data-bs-toggle="tab"]');
+            tabButtons.forEach(button => {
+                button.addEventListener('shown.bs.tab', function (event) {
+                    const targetTab = event.target.getAttribute('data-bs-target');
+                    if (targetTab === '#liste') {
+                        // Alım Listesi sekmesi açıldığında
+                        setTimeout(calculateSatisListesiTotals, 100);
+                    } else if (targetTab === '#malzeme') {
+                        // Malzeme Alım Listesi sekmesi açıldığında
+                        setTimeout(calculateMalzemeSatisTotals, 100);
+                    }
+                });
+            });
+
+            // Sayfa yüklendiğinde footer'ı güncelle
+            setTimeout(calculateSatisListesiTotals, 500);
+        });
+    </script>
+
+    <!-- Sabit Footer -->
+    <div class="fixed-footer" id="fixedFooter" style="display: none;">
+        <div class="footer-content">
+            <div class="footer-totals">
+                <div class="footer-total-item">
+                    <div class="footer-total-label">Toplam Kayıt</div>
+                    <div class="footer-total-value" id="footerTotalRecords">0</div>
+                </div>
+                <div class="footer-total-item">
+                    <div class="footer-total-label" id="footerLabel1">Toplam Miktar</div>
+                    <div class="footer-total-value" id="footerTotalMiktar">0,00</div>
+                </div>
+                <div class="footer-total-item">
+                    <div class="footer-total-label" id="footerLabel2">Toplam İndirim</div>
+                    <div class="footer-total-value" id="footerTotalIndirim">0,00 ₺</div>
+                </div>
+                <div class="footer-total-item">
+                    <div class="footer-total-label" id="footerLabel3">Net Toplam</div>
+                    <div class="footer-total-value" id="footerTotalAmount">0,00 ₺</div>
+                </div>
+            </div>
+            <div class="footer-record-count">
+                <i class="bi bi-info-circle me-1"></i>
+                <span id="footerActiveTab">Alım Listesi</span>
+            </div>
+        </div>
+    </div>
+
+</div> <!-- main-content kapatma -->
+{% endblock %}

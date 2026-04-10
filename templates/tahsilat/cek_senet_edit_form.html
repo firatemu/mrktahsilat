@@ -1,0 +1,88 @@
+<!-- Düzenleme Formu -->
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Ödeme Türü *</label>
+        <select name="odeme_turu" class="form-select" required>
+            <option value="">Seçiniz</option>
+            {% for value, label in choices.odeme_turu %}
+                <option value="{{ value }}" {% if cek_senet.odeme_turu == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Tip *</label>
+        <select name="tip" class="form-select" required>
+            <option value="">Seçiniz</option>
+            {% for value, label in choices.tip %}
+                <option value="{{ value }}" {% if cek_senet.tip == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Tutar *</label>
+        <input type="number" name="tutar" class="form-control" step="0.01" min="0" value="{{ cek_senet.tutar }}" required>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label class="form-label">İşlem Tarihi *</label>
+        <input type="date" name="islem_tarihi" class="form-control" value="{{ cek_senet.islem_tarihi|date:'Y-m-d' }}" required>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Vade Tarihi *</label>
+        <input type="date" name="vade_tarihi" class="form-control" value="{{ cek_senet.vade_tarihi|date:'Y-m-d' }}" required>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Banka Adı</label>
+        <select name="banka_adi" class="form-select">
+            <option value="">Banka Seçiniz</option>
+            {% for banka in banka_listesi %}
+                <option value="{{ banka }}" {% if cek_senet.banka_adi == banka %}selected{% endif %}>{{ banka }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Çek/Senet No</label>
+        <input type="text" name="cek_senet_no" class="form-control" value="{{ cek_senet.cek_senet_no }}">
+    </div>
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Kredi Türü</label>
+        <input type="text" name="kredi_turu" class="form-control" value="{{ cek_senet.kredi_turu }}">
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Faiz Oranı (%)</label>
+        <input type="number" name="faiz_orani" class="form-control" step="0.01" min="0" value="{{ cek_senet.faiz_orani }}">
+    </div>
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Taksit Sayısı</label>
+        <input type="number" name="taksit_sayisi" class="form-control" min="1" value="{{ cek_senet.taksit_sayisi }}">
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Cari Kod</label>
+        <input type="text" name="cari_kod" class="form-control" value="{{ cek_senet.cari_kod }}">
+    </div>
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Cari Ünvan</label>
+        <input type="text" name="cari_unvan" class="form-control" value="{{ cek_senet.cari_unvan }}">
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12 mb-3">
+        <label class="form-label">Açıklama</label>
+        <textarea name="aciklama" class="form-control" rows="3">{{ cek_senet.aciklama }}</textarea>
+    </div>
+</div>

@@ -1,0 +1,1727 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <style>
+        /* Loading Spinner Styles */
+        #global-loading-spinner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.7);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.3s;
+        }
+
+        #global-loading-spinner .lds-ring {
+            display: inline-block;
+            position: relative;
+            width: 80px;
+            height: 80px;
+        }
+
+        #global-loading-spinner .lds-ring div {
+            box-sizing: border-box;
+            display: block;
+            position: absolute;
+            width: 64px;
+            height: 64px;
+            margin: 8px;
+            border: 8px solid #667eea;
+            border-radius: 50%;
+            animation: lds-ring 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+            border-color: #667eea transparent transparent transparent;
+        }
+
+        #global-loading-spinner .lds-ring div:nth-child(1) {
+            animation-delay: -0.45s;
+        }
+
+        #global-loading-spinner .lds-ring div:nth-child(2) {
+            animation-delay: -0.3s;
+        }
+
+        #global-loading-spinner .lds-ring div:nth-child(3) {
+            animation-delay: -0.15s;
+        }
+
+        @keyframes lds-ring {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>{% block title %}MRK OTOMOTİV Sistemi{% endblock %}</title>
+
+    <!-- localStorage Safe Wrapper - Handle private mode and restricted contexts -->
+    <script>
+        (function () {
+            // Test if localStorage is accessible
+            function isLocalStorageAccessible() {
+                try {
+                    const test = '__ls_test__';
+                    localStorage.setItem(test, test);
+                    localStorage.removeItem(test);
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }  // If not accessible, override methods to gracefully handle errors
+            if (!isLocalStorageAccessible()) {
+                const safeMethods = {
+                    getItem: function (key) {
+                        try {
+                            return localStorage.getItem(key);
+                        } catch (e) {
+                            return null;
+                        }
+                    },
+                    setItem: function (key, value) {
+                        try {
+                            localStorage.setItem(key, value);
+                        } catch (e) {
+                            // Silent fail - expected in private mode
+                        }
+                    },
+                    removeItem: function (key) {
+                        try {
+                            localStorage.removeItem(key);
+                        } catch (e) {
+                            // Silent fail - expected in private mode
+                        }
+                    },
+                    clear: function () {
+                        try {
+                            localStorage.clear();
+                        } catch (e) {
+                            // Silent fail
+                        }
+                    },
+                    key: function (index) {
+                        try {
+                            return localStorage.key(index);
+                        } catch (e) {
+                            return null;
+                        }
+                    }
+                };
+
+                // localStorage erisilemiyorsa guvenli stub'lari window'a bagla
+                Object.defineProperty(window, 'localStorage', {
+                    get: function () {
+                        return safeMethods;
+                    },
+                    configurable: true
+                });
+            }
+        })();
+    </script>
+
+    <!-- Favicon -->
+    {% load static %}
+    {% load tahsilat_extras %}
+    <link rel="icon" type="image/x-icon" href="{% static 'images/favicon.ico' %}">
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/favicon.svg' %}">
+    <link rel="apple-touch-icon" href="{% static 'images/favicon.svg' %}">
+
+    <!-- Bootstrap 5.3.2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons 1.11.0 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- FontAwesome 6.4.0 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --success-gradient: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            --warning-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --info-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --navbar-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            --sidebar-bg: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
+            --hover-bg: rgba(255, 255, 255, 0.1);
+            --active-bg: rgba(102, 126, 234, 0.2);
+            --text-primary: #ffffff;
+            --text-secondary: #b8c5d6;
+            --border-radius: 12px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+        }
+
+        /* Compact Navigation Styles */
+        .navbar-compact {
+            background: var(--navbar-gradient);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 0.5rem 0;
+            position: relative;
+        }
+
+        .navbar-brand-compact {
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: var(--text-primary);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .navbar-brand-compact:hover {
+            color: var(--text-primary);
+            transform: scale(1.05);
+            transition: var(--transition);
+        }
+
+        .navbar-brand-compact i {
+            font-size: 1.3rem;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Modern Hamburger Menu */
+        .hamburger-menu {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1.2rem;
+            padding: 0.6rem;
+            border-radius: 8px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hamburger-menu::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            border-radius: 8px;
+        }
+
+        .hamburger-menu:hover::before {
+            opacity: 1;
+        }
+
+        .hamburger-menu:hover {
+            color: #667eea;
+            transform: scale(1.1) rotate(5deg);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .hamburger-menu:active {
+            transform: scale(0.95);
+        }
+
+        /* Animated Hamburger Icon */
+        .hamburger-icon {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            transition: all 0.3s ease;
+        }
+
+        .hamburger-line {
+            width: 18px;
+            height: 2px;
+            background: currentColor;
+            border-radius: 2px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-origin: center;
+        }
+
+        .hamburger-menu:hover .hamburger-line:nth-child(1) {
+            transform: translateY(1px) rotate(45deg);
+        }
+
+        .hamburger-menu:hover .hamburger-line:nth-child(2) {
+            opacity: 0;
+            transform: scaleX(0);
+        }
+
+        .hamburger-menu:hover .hamburger-line:nth-child(3) {
+            transform: translateY(-1px) rotate(-45deg);
+        }
+
+        /* Pulse Animation */
+        .hamburger-menu::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: radial-gradient(circle, rgba(102, 126, 234, 0.3) 0%, transparent 70%);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: all 0.6s ease;
+            pointer-events: none;
+        }
+
+        .hamburger-menu:hover::after {
+            width: 60px;
+            height: 60px;
+        }
+
+        /* Sidebar */
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 1040;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-out, visibility 0.3s ease-out;
+            pointer-events: none;
+        }
+
+        .sidebar-overlay.show {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 300px;
+            height: 100vh;
+            max-height: 100vh;
+            background: var(--navbar-gradient);
+            backdrop-filter: blur(10px);
+            z-index: 1050;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease-out;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 1rem 0;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.3);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            will-change: transform;
+            transform: translateX(-100%);
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .sidebar.show {
+            transform: translateX(0);
+            box-shadow: 0 0 80px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Sidebar Animation Effects */
+        .sidebar.show .sidebar-nav-item {
+            animation: slideInFromLeft 0.6s ease-out forwards;
+        }
+
+        .sidebar.show .sidebar-nav-item:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .sidebar.show .sidebar-nav-item:nth-child(2) {
+            animation-delay: 0.15s;
+        }
+
+        .sidebar.show .sidebar-nav-item:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .sidebar.show .sidebar-nav-item:nth-child(4) {
+            animation-delay: 0.25s;
+        }
+
+        .sidebar.show .sidebar-nav-item:nth-child(5) {
+            animation-delay: 0.3s;
+        }
+
+        .sidebar.show .sidebar-nav-item:nth-child(6) {
+            animation-delay: 0.35s;
+        }
+
+        .sidebar.show .sidebar-nav-item:nth-child(7) {
+            animation-delay: 0.4s;
+        }
+
+        .sidebar.show .sidebar-nav-item:nth-child(8) {
+            animation-delay: 0.45s;
+        }
+
+        .sidebar.show .sidebar-nav-item:nth-child(9) {
+            animation-delay: 0.5s;
+        }
+
+        .sidebar.show .sidebar-nav-item:nth-child(10) {
+            animation-delay: 0.55s;
+        }
+
+        .sidebar.show .sidebar-nav-item:nth-child(11) {
+            animation-delay: 0.6s;
+        }
+
+        .sidebar.show .sidebar-nav-item:nth-child(12) {
+            animation-delay: 0.65s;
+        }
+
+        .sidebar.show .sidebar-nav-item:nth-child(13) {
+            animation-delay: 0.7s;
+        }
+
+        @keyframes slideInFromLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .sidebar-header {
+            padding: 0 1.5rem 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 1rem;
+        }
+
+        .sidebar-brand {
+            font-weight: 700;
+            font-size: 1.3rem;
+            color: var(--text-primary);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .sidebar-brand i {
+            font-size: 1.5rem;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .sidebar-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .sidebar-close:hover {
+            color: var(--text-primary);
+            transform: scale(1.1);
+        }
+
+        /* Sidebar Navigation */
+        .sidebar-nav {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar-nav-item {
+            margin: 0;
+        }
+
+        .sidebar-nav-link {
+            color: #ffffff;
+            text-decoration: none;
+            padding: 0.9rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            transition: transform 0.2s ease-out, color 0.2s ease-out, box-shadow 0.2s ease-out;
+            border-radius: 0;
+            margin-right: 0;
+            font-weight: 500;
+            font-size: 0.95rem;
+            position: relative;
+            overflow: hidden;
+            will-change: transform;
+            backface-visibility: hidden;
+            transform: translateZ(0);
+            white-space: nowrap;
+            min-height: 44px;
+            /* Touch target size for mobile */
+        }
+
+        .sidebar-nav-link::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            transition: width 0.2s ease-out;
+            z-index: -1;
+            will-change: width;
+        }
+
+        .sidebar-nav-link:hover::before {
+            width: 100%;
+        }
+
+        .sidebar-nav-link:hover {
+            color: #ffffff;
+            background: none;
+            transform: translate3d(8px, 0, 0);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+        }
+
+        .sidebar-nav-link.active {
+            color: #ffffff;
+            background: linear-gradient(90deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+            border-left: 3px solid #667eea;
+        }
+
+        .sidebar-nav-link.active::before {
+            width: 100%;
+        }
+
+        .sidebar-nav-link i {
+            font-size: 1.1rem;
+            width: 20px;
+            text-align: center;
+            color: #ffffff;
+            transition: color 0.2s ease-out, transform 0.2s ease-out;
+            will-change: transform;
+            backface-visibility: hidden;
+        }
+
+        .sidebar-nav-link:hover i {
+            color: #667eea;
+            transform: scale3d(1.1, 1.1, 1);
+        }
+
+        .sidebar-nav-link.active i {
+            color: #667eea;
+        }
+
+        .sidebar-nav-link .dropdown-arrow {
+            margin-left: auto;
+            font-size: 0.8rem;
+            transition: color 0.2s ease-out, transform 0.2s ease-out;
+            color: #ffffff;
+            will-change: transform;
+            backface-visibility: hidden;
+        }
+
+        .sidebar-nav-link:hover .dropdown-arrow {
+            color: #667eea;
+            transform: scale3d(1.1, 1.1, 1);
+        }
+
+        /* Sidebar Dropdown */
+        .sidebar-dropdown {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            margin: 0.5rem 1rem;
+            overflow: hidden;
+            display: none;
+            border-left: 2px solid rgba(102, 126, 234, 0.3);
+        }
+
+        .sidebar-dropdown-item {
+            margin: 0;
+        }
+
+        .sidebar-dropdown-link {
+            color: #4a90e2;
+            text-decoration: none;
+            padding: 0.7rem 1.5rem 0.7rem 3rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: transform 0.2s ease-out, color 0.2s ease-out;
+            font-size: 0.9rem;
+            font-weight: 500;
+            position: relative;
+            will-change: transform;
+            backface-visibility: hidden;
+            transform: translateZ(0);
+            white-space: nowrap;
+            min-height: 44px;
+            /* Touch target size for mobile */
+        }
+
+        .sidebar-dropdown-link::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 0;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(74, 144, 226, 0.1), rgba(102, 126, 234, 0.1));
+            transition: width 0.2s ease-out;
+            z-index: -1;
+            will-change: width;
+        }
+
+        .sidebar-dropdown-link:hover::before {
+            width: 100%;
+        }
+
+        .sidebar-dropdown-link:hover {
+            color: #ffffff;
+            background: none;
+            transform: translate3d(5px, 0, 0);
+            text-decoration: none;
+        }
+
+        .sidebar-dropdown-link i {
+            font-size: 0.9rem;
+            width: 16px;
+            text-align: center;
+            color: #4a90e2;
+            transition: color 0.2s ease-out, transform 0.2s ease-out;
+            will-change: transform;
+            backface-visibility: hidden;
+        }
+
+        .sidebar-dropdown-link:hover i {
+            color: #ffffff;
+            transform: scale3d(1.1, 1.1, 1);
+        }
+
+        /* User Section */
+        .sidebar-user {
+            padding: 0.8rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin-top: auto;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            margin: 0.8rem;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            margin-bottom: 0.6rem;
+        }
+
+        .user-avatar-sidebar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .user-details h6 {
+            color: #4a90e2;
+            margin: 0;
+            font-size: 0.8rem;
+            text-decoration: underline;
+            font-weight: 500;
+        }
+
+        .sidebar-actions {
+            display: flex;
+            gap: 0;
+        }
+
+        .btn-sidebar {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--text-primary);
+            padding: 0.5rem 0.8rem;
+            border-radius: 5px;
+            font-weight: 600;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            text-decoration: none;
+            font-size: 0.75rem;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .btn-sidebar:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: var(--text-primary);
+            transform: translateY(-1px);
+        }
+
+        /* Refresh Button */
+        .btn-refresh {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            font-size: 0.85rem;
+            margin: 1rem;
+            justify-content: center;
+        }
+
+        .btn-refresh:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: var(--text-primary);
+            transform: translateY(-2px);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 280px;
+                -webkit-overflow-scrolling: touch;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .sidebar {
+                width: 100%;
+                /* left property removed - using transform instead */
+            }
+
+            .navbar-brand-compact {
+                font-size: 1.1rem;
+            }
+
+            .sidebar-nav-link {
+                font-size: 0.95rem;
+                padding: 0.75rem 1rem;
+            }
+
+            .sidebar-dropdown-link {
+                font-size: 0.9rem;
+                padding: 0.6rem 1rem 0.6rem 2.5rem;
+            }
+
+            .sidebar-header {
+                padding: 1rem;
+            }
+
+            .sidebar-brand {
+                font-size: 1.1rem;
+            }
+        }
+
+        /* Dropdown Styles */
+        .dropdown-menu-modern {
+            background: rgba(26, 26, 46, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            padding: 0.5rem;
+            margin-top: 0.5rem;
+            min-width: 200px;
+        }
+
+        .dropdown-item-modern {
+            color: var(--text-secondary);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            margin: 0.125rem 0;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .dropdown-item-modern:hover {
+            color: var(--text-primary);
+            background: var(--hover-bg);
+            transform: translateX(5px);
+        }
+
+        .dropdown-item-modern i {
+            font-size: 1rem;
+            width: 16px;
+            text-align: center;
+        }
+
+        /* User Menu */
+        .user-menu {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: var(--border-radius);
+            padding: 0.5rem;
+            margin-left: 1rem;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        /* Action Buttons */
+        .btn-action {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius);
+            font-weight: 500;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-action:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: var(--text-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 991.98px) {
+            .navbar-modern {
+                padding: 0.5rem 0;
+            }
+
+            .navbar-brand-modern {
+                font-size: 1.2rem;
+            }
+
+            .nav-link-modern {
+                padding: 1rem;
+                margin: 0.25rem 0;
+                border-radius: var(--border-radius);
+            }
+
+            .dropdown-menu-modern {
+                position: static;
+                float: none;
+                width: 100%;
+                margin-top: 0.5rem;
+                box-shadow: none;
+                background: rgba(0, 0, 0, 0.1);
+            }
+
+            .user-menu {
+                margin-left: 0;
+                margin-top: 1rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .navbar-brand-modern {
+                font-size: 1.1rem;
+            }
+
+            .nav-link-modern {
+                font-size: 0.9rem;
+                padding: 0.75rem;
+            }
+
+            .btn-action {
+                padding: 0.4rem 0.8rem;
+                font-size: 0.85rem;
+            }
+        }
+
+        /* Animation for mobile menu */
+        .navbar-collapse {
+            transition: var(--transition);
+        }
+
+        .navbar-collapse.show {
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Legacy styles for compatibility */
+        .main-content {
+            padding: 2rem 0;
+        }
+
+        .card-custom {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card-custom:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-custom {
+            border-radius: 10px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .stats-card {
+            background: var(--primary-gradient);
+            color: white;
+        }
+
+        .currency {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+
+        .sidebar {
+            background: var(--sidebar-bg);
+            min-height: 100vh;
+            padding: 0;
+        }
+
+        .sidebar .nav-link {
+            color: #ecf0f1;
+            padding: 1rem 1.5rem;
+            border-radius: 0;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar .nav-link:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .sidebar .nav-link.active {
+            background: var(--primary-gradient);
+            color: white;
+        }
+    </style>
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+    <!-- Global Loading Spinner -->
+    <div id="global-loading-spinner" style="display:none;">
+        <div class="lds-ring">
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+        </div>
+        <span style="margin-left:24px;font-size:1.2rem;color:#333;">Sayfa açılıyor...</span>
+    </div>
+    <script>
+        // Global loading spinner initialization
+        document.addEventListener('DOMContentLoaded', function () {
+            var spinner = document.getElementById('global-loading-spinner');
+            if (spinner) {
+                // Ensure it's hidden initially if not needed
+                // spinner.style.display = 'none';
+            }
+        });
+
+        window.addEventListener('load', function () {
+            var spinner = document.getElementById('global-loading-spinner');
+            if (spinner) {
+                spinner.style.opacity = '0';
+                setTimeout(function () {
+                    spinner.style.display = 'none';
+                }, 300);
+            }
+        });
+
+        // Global function to show/hide spinner manually
+        window.showGlobalLoading = function () {
+            var spinner = document.getElementById('global-loading-spinner');
+            if (spinner) {
+                spinner.style.display = 'flex';
+                spinner.style.opacity = '1';
+            }
+        };
+
+        window.hideGlobalLoading = function () {
+            var spinner = document.getElementById('global-loading-spinner');
+            if (spinner) {
+                spinner.style.opacity = '0';
+                setTimeout(function () {
+                    spinner.style.display = 'none';
+                }, 300);
+            }
+        };
+    </script>
+    <script>
+        (function () {
+            function shouldHandleLink(a) {
+                if (!a) return false;
+                var href = a.getAttribute('href') || '';
+                if (href.indexOf('javascript:') === 0) return false;
+                if (a.hasAttribute('download')) return false;
+                if (a.target && a.target !== '_self') return false;
+
+                try {
+                    var url = new URL(a.href, window.location.href);
+                    // Only for same origin
+                    if (url.origin !== window.location.origin) return false;
+                    // Don't trigger for hash links on the same page
+                    if (url.pathname === window.location.pathname && url.search === window.location.search && url.hash) return false;
+
+                    // Exclude PDF/Excel export links from the loading spinner
+                    if (url.searchParams.has('export')) {
+                        var exportType = url.searchParams.get('export');
+                        if (exportType === 'pdf' || exportType === 'excel') {
+                            return false;
+                        }
+                    }
+                } catch (e) {
+                    return false;
+                }
+                return true;
+            }
+
+            // Global link click handler for the loading spinner
+            document.addEventListener('click', function (event) {
+                var el = event.target;
+                while (el && el.tagName !== 'A') el = el.parentElement;
+
+                if (!el || !shouldHandleLink(el)) return;
+
+                // Detect if it's a dropdown toggle link (no spinner needed)
+                var href = (el.getAttribute('href') || '').trim();
+                var isDropdownToggle = href === '#' || (el.getAttribute('onclick') || '').includes('toggleDropdown');
+                
+                if (isDropdownToggle) return;
+
+                try {
+                    window.showGlobalLoading();
+                } catch (e) { }
+            }, true);
+
+            // Show spinner on form submissions (unless AJAX)
+            document.addEventListener('submit', function (evt) {
+                var form = evt.target;
+                if (form && (form.hasAttribute('data-ajax') || form.classList.contains('ajax-form'))) return;
+                
+                try {
+                    // Check if it's an export form
+                    var action = form.getAttribute('action') || '';
+                    if (action.indexOf('export=pdf') > -1 || action.indexOf('export=excel') > -1) return;
+                    
+                    window.showGlobalLoading();
+                } catch (e) { }
+            }, true);
+        })();
+    </script>
+    <!-- Compact Navigation -->
+    <nav class="navbar navbar-compact">
+        <div class="container-fluid">
+            <button class="hamburger-menu" type="button" onclick="toggleSidebar(event)">
+                <div class="hamburger-icon">
+                    <div class="hamburger-line"></div>
+                    <div class="hamburger-line"></div>
+                    <div class="hamburger-line"></div>
+                </div>
+            </button>
+
+            <a class="navbar-brand-compact" href="{% url 'tahsilat:dashboard' %}">
+                <i class="fas fa-money-bill-wave"></i>
+                <span>MRK OTOMOTİV</span>
+            </a>
+        </div>
+    </nav>
+
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a class="sidebar-brand" href="{% url 'tahsilat:dashboard' %}">
+                <i class="fas fa-money-bill-wave"></i>
+                <span>MRK OTOMOTİV</span>
+            </a>
+            <button class="sidebar-close" onclick="closeSidebar()">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+
+        <ul class="sidebar-nav">
+            {% if user.is_authenticated %}
+
+            <!-- Dashboard menüsü -->
+            {% if user|has_menu_permission:'dashboard' or user.is_superuser %}
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link active" href="{% url 'tahsilat:dashboard' %}">
+                    <i class="bi bi-speedometer2"></i>
+                    <span>Dashboard</span>
+                </a>
+            </li>
+            {% endif %}
+
+            <!-- Diğer menüler -->
+            {% if user|has_menu_permission:'genel_gorunum' %}
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link" href="#" onclick="toggleDropdown(this)">
+                    <i class="bi bi-bar-chart"></i>
+                    <span>Genel Görünüm</span>
+                    <i class="bi bi-chevron-down dropdown-arrow"></i>
+                </a>
+                <ul class="sidebar-dropdown">
+                    {% if user|has_menu_permission:'genel_dashboard' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:genel_dashboard' %}">
+                            <i class="bi bi-speedometer2"></i>
+                            <span>Plasiyer Dashboard</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'genel_tahsilatlar' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:genel_tahsilatlar' %}">
+                            <i class="bi bi-cash-coin"></i>
+                            <span>Tahsilatlar</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'genel_satislar' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:genel_satislar' %}">
+                            <i class="bi bi-receipt"></i>
+                            <span>Satışlar</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'genel_alimlar' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:genel_alimlar' %}">
+                            <i class="bi bi-cart-check"></i>
+                            <span>Alımlar</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'genel_ekstre' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:genel_ekstre' %}">
+                            <i class="bi bi-journal-text"></i>
+                            <span>Genel Ekstre</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'genel_cari_analiz' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:genel_cari_analiz' %}">
+                            <i class="bi bi-graph-up"></i>
+                            <span>Cari Genel Analiz</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'genel_cari_aylik_ozet' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:genel_cari_aylik_ozet' %}">
+                            <i class="bi bi-calendar-month"></i>
+                            <span>Cari Aylık Özet</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:plasiyer_prim_list' %}">
+                            <i class="bi bi-calculator"></i>
+                            <span>Plasiyer Prim</span>
+                        </a>
+                    </li>
+                </ul>
+            </li>
+            {% endif %}
+            {% if user|has_menu_permission:'tahsilatlar' or user|has_menu_permission:'tahsilatlarim' %}
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link" href="{% url 'tahsilat:tahsilatlarim' %}">
+                    <i class="bi bi-person-check"></i>
+                    <span>Tahsilatlarım</span>
+                </a>
+            </li>
+            {% endif %}
+            {% if user|has_menu_permission:'satislar' or user|has_menu_permission:'satislarim' %}
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link" href="{% url 'tahsilat:satislarim' %}">
+                    <i class="bi bi-receipt"></i>
+                    <span>Satışlarım</span>
+                </a>
+            </li>
+            {% endif %}
+            {% if user|has_menu_permission:'alimlar' %}
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link" href="#">
+                    <i class="bi bi-cart-check"></i>
+                    <span>Alımlarım</span>
+                </a>
+            </li>
+            {% endif %}
+            {% if user|has_menu_permission:'cari_ekstre' %}
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link" href="{% url 'tahsilat:cari_ekstre' %}">
+                    <i class="bi bi-calendar"></i>
+                    <span>Cari Ekstre</span>
+                </a>
+            </li>
+            {% endif %}
+            {% if user|has_menu_permission:'yeni_tahsilat' %}
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link" href="{% url 'tahsilat:yeni_tahsilat' %}">
+                    <i class="bi bi-plus-circle"></i>
+                    <span>Yeni Tahsilat</span>
+                </a>
+            </li>
+            {% endif %}
+            {% if user|has_menu_permission:'stok_yonetimi' %}
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link" href="#" onclick="toggleDropdown(this)">
+                    <i class="bi bi-boxes"></i>
+                    <span>Stok Yönetimi</span>
+                    <i class="bi bi-chevron-down dropdown-arrow"></i>
+                </a>
+                <ul class="sidebar-dropdown">
+                    {% if user|has_menu_permission:'stok_listesi' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:stok_yonetimi' %}">
+                            <i class="bi bi-list-ul"></i>
+                            <span>Stok Listesi</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'fiyat_analizi' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:fiyat_analizi' %}">
+                            <i class="bi bi-graph-up"></i>
+                            <span>Fiyat Analizi</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'stok_detayli_analiz' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:stok_detayli_analiz' %}">
+                            <i class="bi bi-clipboard-data"></i>
+                            <span>Stok Detaylı Analiz</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'ortalama_maliyet' or user|has_menu_permission:'stok_listesi' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:ortalama_maliyet' %}">
+                            <i class="bi bi-currency-exchange"></i>
+                            <span>Ortalama Maliyet</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'stok_listesi' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:ambar_deger_raporu' %}">
+                            <i class="bi bi-calculator"></i>
+                            <span>Ambar Değer Raporu</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </li>
+            {% endif %}
+
+            {% if user|has_menu_permission:'muhasebe' %}
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link" href="#" onclick="toggleDropdown(this)">
+                    <i class="bi bi-journal-richtext"></i>
+                    <span>Muhasebe</span>
+                    <i class="bi bi-chevron-down dropdown-arrow"></i>
+                </a>
+                <ul class="sidebar-dropdown">
+                    {% if user|has_menu_permission:'muhasebe_yeni_tahsilat' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:muhasebe_yeni_tahsilat' %}">
+                            <i class="bi bi-plus-circle"></i>
+                            <span>Yeni Tahsilat</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'muhasebe_tahsilat_listesi' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:muhasebe_tahsilat_listesi' %}">
+                            <i class="bi bi-list-ul"></i>
+                            <span>Tahsilat Listesi</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'muhasebe' or user|has_menu_permission:'kdv_raporu' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:kdv_raporu' %}">
+                            <i class="bi bi-percent"></i>
+                            <span>KDV Raporu</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'muhasebe_klasik_rapor' or user|has_menu_permission:'klasik_tahsilat_raporu' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:klasik_tahsilat_raporu' %}">
+                            <i class="bi bi-table"></i>
+                            <span>Klasik Tahsilat Raporu</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'muhasebe_gunluk_rapor' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:muhasebe_gunluk_rapor' %}">
+                            <i class="bi bi-calendar-day"></i>
+                            <span>Günlük Rapor</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'cek_senetler' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:cek_senetler' %}">
+                            <i class="bi bi-receipt"></i>
+                            <span>Çek ve Senetler</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </li>
+            {% endif %}
+
+            {% if user|has_menu_permission:'cari_yonetimi' %}
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link" href="#" onclick="toggleDropdown(this)">
+                    <i class="bi bi-people"></i>
+                    <span>Cari Yönetimi</span>
+                    <i class="bi bi-chevron-down dropdown-arrow"></i>
+                </a>
+                <ul class="sidebar-dropdown">
+                    {% if user|has_menu_permission:'cari_bakiyeler' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:cari_bakiyeler' %}">
+                            <i class="bi bi-wallet2"></i>
+                            <span>Cari Bakiyeler</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'cari_analiz' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:cari_analiz' %}">
+                            <i class="bi bi-graph-up-arrow"></i>
+                            <span>Cari Analiz</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'cari_vade_analizi' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:cari_vade_analizi' %}">
+                            <i class="bi bi-clock-history"></i>
+                            <span>Vade Analizi</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'cari_gecikmeleri_detay' or user|has_menu_permission:'cari_gecikmeleri' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:cari_gecikmeleri' %}">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <span>Cari Geçiklemeleri</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </li>
+            {% endif %}
+
+            {% if user|has_menu_permission:'gider_masraf' %}
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link" href="#" onclick="toggleDropdown(this)">
+                    <i class="bi bi-cash-stack"></i>
+                    <span>Gider Masraf</span>
+                    <i class="bi bi-chevron-down dropdown-arrow"></i>
+                </a>
+                <ul class="sidebar-dropdown">
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:gider_masraf_listesi' %}">
+                            <i class="bi bi-list-ul"></i>
+                            <span>Gider Listesi</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:gider_masraf_ekle' %}">
+                            <i class="bi bi-plus-circle"></i>
+                            <span>Yeni Gider</span>
+                        </a>
+                    </li>
+                </ul>
+            </li>
+            {% endif %}
+
+            {% if user|has_menu_permission:'perakende' %}
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link" href="{% url 'tahsilat:perakende' %}">
+                    <i class="bi bi-shop"></i>
+                    <span>Perakende</span>
+                </a>
+            </li>
+            {% endif %}
+
+            {% if user|has_menu_permission:'chat' and user.username != 'FIRAT' %}
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link" href="{% url 'tahsilat:chat' %}">
+                    <i class="bi bi-chat-dots"></i>
+                    <span>Mesajlaşma</span>
+                </a>
+            </li>
+            {% endif %}
+
+            <!-- Yapay Zeka Menüsü -->
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link" href="/reports/reports/chat/">
+                    <i class="bi bi-robot"></i>
+                    <span>Yapay Zeka</span>
+                </a>
+            </li>
+
+            {% if user|has_menu_permission:'logo_transfer' %}
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link" href="{% url 'tahsilat:logo_transfer' %}">
+                    <i class="bi bi-database"></i>
+                    <span>LOGOYA AKTAR</span>
+                </a>
+            </li>
+            {% endif %}
+
+            <!-- Yönetici Paneli menüsü - Sadece FIRAT kullanıcısı - En alt sırada -->
+            {% if user.username == 'FIRAT' %}
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link" href="#" onclick="toggleDropdown(this)">
+                    <i class="bi bi-shield-check"></i>
+                    <span>Yönetici Paneli</span>
+                    <i class="bi bi-chevron-down dropdown-arrow"></i>
+                </a>
+                <ul class="sidebar-dropdown">
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:yetkilendirme' %}">
+                            <i class="bi bi-people-fill"></i>
+                            <span>Yetkilendirme</span>
+                        </a>
+                    </li>
+                </ul>
+            </li>
+            {% endif %}
+
+        </ul>
+
+        <!-- Refresh Button -->
+        <button class="btn-refresh" onclick="yenileVeriler()">
+            <i class="bi bi-arrow-clockwise"></i>
+            <span>Yenile</span>
+        </button>
+
+        <!-- User Section -->
+        <div class="sidebar-user">
+            <div class="user-info">
+                <div class="user-avatar-sidebar">{{ user.username|first|upper }}</div>
+                <div class="user-details">
+                    <h6>{{ user.username }}</h6>
+                </div>
+            </div>
+            <div class="sidebar-actions">
+                <a class="btn-sidebar" href="{% url 'tahsilat:logout' %}">
+                    <i class="bi bi-box-arrow-right"></i>
+                    <span>Çıkış</span>
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Messages -->
+    {% if messages %}
+    <div class="container-fluid mt-3">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Main Content -->
+    <main>
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-light text-center py-3 mt-5">
+        <div class="container">
+            <p class="mb-0">&copy; 2025 MRK OTOMOTİV Sistemi. Tüm hakları saklıdır.</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap 5.3.2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- jQuery 3.7.1 -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+    <!-- Global Yenileme Script -->
+    <script>
+        function yenileVeriler() {
+            // Dashboard'da varsa o butonu kullan, yoksa global butonu
+            const dashboardBtn = document.getElementById('yenileBtn');
+            const globalBtn = document.getElementById('globalYenileBtn');
+            const targetBtn = dashboardBtn || globalBtn;
+
+            if (targetBtn) {
+                const originalContent = targetBtn.innerHTML;
+                targetBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Yenileniyor...';
+                targetBtn.disabled = true;
+
+                if (targetBtn.classList.contains('btn-outline-primary')) {
+                    targetBtn.classList.add('btn-warning');
+                    targetBtn.classList.remove('btn-outline-primary');
+                } else if (targetBtn.classList.contains('btn-outline-light')) {
+                    targetBtn.classList.add('btn-warning');
+                    targetBtn.classList.remove('btn-outline-light');
+                }
+            }
+
+            // Cache'i bypass ederek sayfayı yenile
+            setTimeout(() => {
+                // Timestamp ekleyerek cache bypass
+                const url = new URL(window.location);
+                url.searchParams.set('refresh', Date.now());
+                window.location.href = url.toString();
+            }, 500);
+        }
+
+        // Sayfa yüklendiğinde cache kontrol
+        document.addEventListener('DOMContentLoaded', function () {
+            // URL'den refresh parametresini temizle
+            const url = new URL(window.location);
+            if (url.searchParams.has('refresh')) {
+                url.searchParams.delete('refresh');
+                window.history.replaceState({}, document.title, url.toString());
+            }
+        });
+    </script>
+
+    <!-- Modern Sidebar JavaScript -->
+    <script>
+        let sidebarOpen = false;
+
+        function toggleSidebar(event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const hamburger = document.querySelector('.hamburger-menu');
+
+            sidebarOpen = !sidebarOpen;
+            if (sidebarOpen) {
+                sidebar.classList.add('show');
+                overlay.classList.add('show');
+                hamburger.style.transform = 'scale(0.9) rotate(90deg)';
+                // Prevent body scroll on mobile when sidebar is open
+                document.body.style.overflow = 'hidden';
+                document.body.style.position = 'fixed';
+                document.body.style.width = '100%';
+
+                // Add ripple effect
+                createRippleEffect(hamburger);
+
+                // Animate menu items
+                setTimeout(() => {
+                    const menuItems = document.querySelectorAll('.sidebar-nav-item');
+                    menuItems.forEach((item, index) => {
+                        item.style.opacity = '0';
+                        item.style.transform = 'translate3d(-30px, 0, 0)';
+                        setTimeout(() => {
+                            item.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+                            item.style.opacity = '1';
+                            item.style.transform = 'translate3d(0, 0, 0)';
+                        }, index * 30);
+                    });
+                }, 100);
+            } else {
+                closeSidebar();
+            }
+        }
+
+        function closeSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const hamburger = document.querySelector('.hamburger-menu');
+
+            sidebar.classList.remove('show');
+            overlay.classList.remove('show');
+            hamburger.style.transform = 'scale(1) rotate(0deg)';
+            sidebarOpen = false;
+            // Restore body scroll
+            document.body.style.overflow = '';
+            document.body.style.position = '';
+            document.body.style.width = '';
+        }
+
+        function createRippleEffect(element) {
+            const ripple = document.createElement('div');
+            ripple.style.position = 'absolute';
+            ripple.style.borderRadius = '50%';
+            ripple.style.background = 'rgba(102, 126, 234, 0.3)';
+            ripple.style.transform = 'scale(0)';
+            ripple.style.animation = 'ripple 0.6s linear';
+            ripple.style.left = '50%';
+            ripple.style.top = '50%';
+            ripple.style.width = '20px';
+            ripple.style.height = '20px';
+            ripple.style.marginLeft = '-10px';
+            ripple.style.marginTop = '-10px';
+            ripple.style.pointerEvents = 'none';
+
+            element.appendChild(ripple);
+
+            setTimeout(() => {
+                ripple.remove();
+            }, 600);
+        }
+
+        function toggleDropdown(element) {
+            const dropdown = element.nextElementSibling;
+            const chevron = element.querySelector('.dropdown-arrow');
+
+            if (dropdown.style.display === 'block') {
+                dropdown.style.display = 'none';
+                chevron.style.transform = 'rotate(0deg)';
+                element.style.background = 'none';
+            } else {
+                dropdown.style.display = 'block';
+                chevron.style.transform = 'rotate(180deg)';
+                element.style.background = 'rgba(255, 255, 255, 0.1)';
+
+                // Animate dropdown items - optimized with requestAnimationFrame
+                const dropdownItems = dropdown.querySelectorAll('.sidebar-dropdown-item');
+                dropdownItems.forEach((item, index) => {
+                    item.style.opacity = '0';
+                    item.style.transform = 'translate3d(0, -10px, 0)';
+                    item.style.willChange = 'transform, opacity';
+                    requestAnimationFrame(() => {
+                        setTimeout(() => {
+                            item.style.transition = 'opacity 0.15s ease-out, transform 0.15s ease-out';
+                            item.style.opacity = '1';
+                            item.style.transform = 'translate3d(0, 0, 0)';
+                            // Clear will-change after animation
+                            setTimeout(() => {
+                                item.style.willChange = 'auto';
+                            }, 200);
+                        }, index * 30);
+                    });
+                });
+            }
+        }
+
+        // Close sidebar when clicking outside
+        document.addEventListener('click', function (event) {
+            const sidebar = document.getElementById('sidebar');
+            const hamburger = document.querySelector('.hamburger-menu');
+            const overlay = document.getElementById('sidebarOverlay');
+
+            // Only close if sidebar is open and click is outside sidebar and hamburger
+            if (sidebarOpen && !sidebar.contains(event.target) && !hamburger.contains(event.target)) {
+                // Allow overlay click to close
+                if (event.target === overlay) {
+                    closeSidebar();
+                } else if (!overlay.contains(event.target)) {
+                    closeSidebar();
+                }
+            }
+        });
+
+        // Close sidebar on escape key
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeSidebar();
+            }
+        });
+
+        // Add ripple animation CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes ripple {
+                to {
+                    transform: scale(4);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+
+    {% block extra_js %}{% endblock %}
+
+    <!-- Floating Chat -->
+    {% if user.is_authenticated and user|has_menu_permission:'chat' %}
+    {% include 'tahsilat/floating_chat.html' %}
+    {% endif %}
+</body>
+
+</html>

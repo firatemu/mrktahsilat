@@ -1,0 +1,1589 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}Genel Tahsilat Listesi - MRK OTOMOTİV{% endblock %}
+
+{% block extra_head %}
+<!-- CSRF Token'ı meta tag olarak ekle -->
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Evrak butonu için özel stil */
+    .col-evrak {
+        width: 100px !important;
+        min-width: 100px;
+    }
+
+    /* İşlemler kolonu için özel stil */
+    .col-islemler {
+        width: 120px !important;
+        min-width: 120px;
+    }
+
+
+    /* Modal görüntü için stil */
+    #evrakImage {
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Responsive table için evrak kolonu */
+    @media (max-width: 768px) {
+        .col-evrak {
+            width: 80px !important;
+        }
+
+        .col-evrak .btn {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+
+
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Gizli CSRF form -->
+<form id="csrf-form" style="display: none;">
+    {% csrf_token %}
+</form>
+
+<!-- CSRF ve Helper Fonksiyonları - Global Scope'ta -->
+<script>
+    // Django CSRF token'ını global olarak erişilebilir yap
+    window.csrfToken = '{{ csrf_token }}';
+    
+    // AJAX istekleri için CSRF token'ı otomatik ekle
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // CSRF token'ı cookie'den al
+    const csrftoken = getCookie('csrftoken');
+    if (csrftoken) {
+        window.csrfToken = csrftoken;
+    }
+    
+    // HTTP metod kontrolü - hangi metodlar CSRF token gerektirmez
+    function csrfSafeMethod(method) {
+        return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
+    }
+    
+    // jQuery AJAX setup (eğer jQuery kullanılıyorsa)
+    if (typeof $ !== 'undefined') {
+        $.ajaxSetup({
+            beforeSend: function(xhr, settings) {
+                if (!csrfSafeMethod(settings.type) && !this.crossDomain) {
+                    xhr.setRequestHeader("X-CSRFToken", window.csrfToken);
+                }
+            }
+        });
+    }
+    
+    // Fetch API için CSRF token wrapper - Global scope
+    window.csrfFetch = function(url, options = {}) {
+        const method = options.method || 'GET';
+        
+        if (!csrfSafeMethod(method)) {
+            options.headers = options.headers || {};
+            // Ensure token is defined via window.csrfToken or fallback to cookie
+            const token = window.csrfToken || getCookie('csrftoken');
+            if (token) {
+                options.headers['X-CSRFToken'] = token;
+            }
+        }
+        
+        return fetch(url, options);
+    };
+</script>
+
+<div class="container-fluid main-content">
+    <!-- Başlık -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="display-5 fw-bold mb-1">
+                <i class="bi bi-person-check me-3"></i>Genel Tahsilat Listesi <small class="badge bg-primary ms-2">v6.7</small>
+            </h1>
+            <p class="text-muted">Tüm plasiyerlerin tahsilat kayıtları</p>
+        </div>
+    </div>
+
+    <!-- Nakit Teslim Edilmedi Toplamları -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Nakit Teslim Edilmedi Toplamları
+                        <span class="badge bg-danger ms-2">Toplam: {{ nakit_teslim_edilmedi_toplam|currency_display }}</span>
+                    </h6>
+                </div>
+                <div class="card-body p-3">
+                    {% if nakit_teslim_edilmedi_by_user %}
+                        <div class="row g-2">
+                            {% for user_data in nakit_teslim_edilmedi_by_user %}
+                            <div class="col-md-3 col-sm-6">
+                                <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded">
+                                    <div>
+                                        <strong class="text-dark">{{ user_data.kullanici }}</strong>
+                                        <br>
+                                        <small class="text-muted">Nakit Teslim Edilmedi</small>
+                                    </div>
+                                    <div class="text-end">
+                                        <span class="fs-6 fw-bold text-danger">{{ user_data.tutar|currency_display }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center text-muted">
+                            <i class="bi bi-check-circle-fill text-success me-2"></i>
+                            Tüm kullanıcıların nakit tahsilatları teslim edilmiş
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtreler -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-funnel me-2"></i>Filtreler
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="GET" id="filterForm">
+                        <div class="row g-3">
+                            <!-- Tarih Filtresi -->
+                            <div class="col-md-3">
+                                <label for="tarih_filtresi" class="form-label">Tarih</label>
+                                <select class="form-select" id="tarih_filtresi" name="tarih_filtresi">
+                                    <option value="all" {% if request.GET.tarih_filtresi == 'all' or not request.GET.tarih_filtresi %}selected{% endif %}>Tümü</option>
+                                    <option value="today" {% if request.GET.tarih_filtresi == 'today' %}selected{% endif %}>Bugün</option>
+                                    <option value="week" {% if request.GET.tarih_filtresi == 'week' %}selected{% endif %}>Bu Hafta</option>
+                                    <option value="month" {% if request.GET.tarih_filtresi == 'month' %}selected{% endif %}>Bu Ay</option>
+                                </select>
+                            </div>
+
+                            <!-- Tahsilat Türü Filtresi -->
+                            <div class="col-md-3">
+                                <label for="tahsilat_turu" class="form-label">Tahsilat Türü</label>
+                                <select class="form-select" id="tahsilat_turu" name="tahsilat_turu">
+                                    <option value="">Tümü</option>
+                                    <option value="Nakit" {% if request.GET.tahsilat_turu == 'Nakit' %}selected{% endif %}>Nakit</option>
+                                    <option value="Kredi Kartı" {% if request.GET.tahsilat_turu == 'Kredi Kartı' %}selected{% endif %}>Kredi Kartı</option>
+                                    <option value="Banka Havalesi" {% if request.GET.tahsilat_turu == 'Banka Havalesi' %}selected{% endif %}>Banka Havalesi</option>
+                                    <option value="Senet" {% if request.GET.tahsilat_turu == 'Senet' %}selected{% endif %}>Senet</option>
+                                    <option value="Çek" {% if request.GET.tahsilat_turu == 'Çek' %}selected{% endif %}>Çek</option>
+                                </select>
+                            </div>
+
+                            <!-- Teslim Durumu Filtresi -->
+                            <div class="col-md-3">
+                                <label for="teslim_durumu" class="form-label">Teslim Durumu</label>
+                                <select class="form-select" id="teslim_durumu" name="teslim_durumu">
+                                    <option value="">Tümü</option>
+                                    <option value="TESLİM EDİLDİ" {% if request.GET.teslim_durumu == 'TESLİM EDİLDİ' %}selected{% endif %}>Teslim Edildi</option>
+                                    <option value="TESLİM EDİLMEDİ" {% if request.GET.teslim_durumu == 'TESLİM EDİLMEDİ' %}selected{% endif %}>Teslim Edilmedi</option>
+                                </select>
+                            </div>
+
+                            <!-- Kullanıcı Filtresi - Sadece FIRAT kullanıcısı görebilir -->
+                            {% if current_user|upper == 'FIRAT' %}
+                            <div class="col-md-3">
+                                <label for="kullanici" class="form-label">Kullanıcı</label>
+                                <select class="form-select" id="kullanici" name="kullanici">
+                                    <option value="">Tümü</option>
+                                    <option value="burcu" {% if request.GET.kullanici == 'burcu' %}selected{% endif %}>burcu</option>
+                                    <option value="turan" {% if request.GET.kullanici == 'turan' %}selected{% endif %}>turan</option>
+                                    <option value="oğuz" {% if request.GET.kullanici == 'oğuz' %}selected{% endif %}>oğuz</option>
+                                    <option value="masallah" {% if request.GET.kullanici == 'masallah' %}selected{% endif %}>masallah</option>
+                                </select>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary me-2">
+                                    <i class="bi bi-search me-1"></i>Filtrele
+                                </button>
+                                <a href="{% url 'tahsilat:muhasebe_tahsilat_listesi' %}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-x-circle me-1"></i>Temizle
+                                </a>
+                                <button type="button" class="btn btn-outline-info" onclick="testCSRF()">
+                                    <i class="bi bi-shield-check me-1"></i>CSRF Test
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tahsilat Listesi -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card card-custom">
+                <div class="card-header bg-transparent">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-list-check me-2"></i>
+                            Tahsilat Kayıtları
+                        </h5>
+                        <span class="badge bg-primary" id="kayit-sayisi">{{ pagination_info.total_count }} kayıt</span>
+                    </div>
+                </div>
+
+
+                <div class="card-body p-0">
+                    {% if tahsilatlar %}
+                    <div class="table-responsive">
+                        <table class="table table-compact mb-0" id="tahsilat-table">
+            <thead>
+                <tr>
+                    <th class="col-checkbox">
+                        <input type="checkbox" id="selectAll" class="form-check-input" onchange="toggleSelectAll()">
+                    </th>
+                    <th class="col-id">ID</th>
+                    <th class="col-tarih">Tarih</th>
+                    <th class="col-cari-kod">Cari Kod</th>
+                    <th class="col-cari-unvan">Cari Ünvan</th>
+                    <th class="col-tahsilat-turu">Tahsilat Türü</th>
+                    <th class="col-banka">Banka</th>
+                    <th class="col-taksit">Taksit</th>
+                    <th class="col-tutar">Tutar</th>
+                    <th class="col-plasiyer">Plasiyer</th>
+                    <th class="col-durum">Durum</th>
+                    <th class="col-kullanici">Kullanıcı</th>
+                    <th class="col-ekleme-tarihi">Ekleme Tarihi</th>
+                    <th class="col-teslim-durumu">Teslim Durumu</th>
+                    <th class="col-evrak-no">Evrak No</th>
+                    <th class="col-evrak">Evrak</th>
+                    <th class="col-islemler">İşlemler</th>
+                </tr>
+            </thead>
+                            <tbody>
+                                {% for tahsilat in tahsilatlar %}
+                                <tr>
+                                    <td class="text-center">
+                                        <input type="checkbox" class="form-check-input tahsilat-checkbox" 
+                                               value="{{ tahsilat.ID }}" 
+                                               data-tahsilat-id="{{ tahsilat.ID }}"
+                                               data-cari-unvan="{{ tahsilat.CariUnvan|escapejs }}"
+                                               onchange="updateSelectAllState()">
+                                    </td>
+                                    <td><span class="badge bg-secondary">{{ tahsilat.ID }}</span></td>
+                                    <td>
+                                        <small>{{ tahsilat.Tarih|date:"d.m.Y" }}</small>
+                                    </td>
+                                    <td>{{ tahsilat.CariKod }}</td>
+                                    <td title="{{ tahsilat.CariUnvan }}">{{ tahsilat.CariUnvan }}</td>
+                                    <td>
+                                        {% if tahsilat.TahsilatTuru == "Nakit" %}
+                                        <span class="badge bg-success">{{ tahsilat.TahsilatTuru }}</span>
+                                        {% elif tahsilat.TahsilatTuru == "Kredi Kartı" %}
+                                        <span class="badge bg-primary">{{ tahsilat.TahsilatTuru }}</span>
+                                        {% elif tahsilat.TahsilatTuru == "Banka Havalesi" %}
+                                        <span class="badge bg-info">{{ tahsilat.TahsilatTuru }}</span>
+                                        {% elif tahsilat.TahsilatTuru == "Senet" %}
+                                        <span class="badge bg-warning">{{ tahsilat.TahsilatTuru }}</span>
+                                        {% elif tahsilat.TahsilatTuru == "Çek" %}
+                                        <span class="badge bg-secondary">{{ tahsilat.TahsilatTuru }}</span>
+                                        {% else %}
+                                        <span class="badge bg-dark">{{ tahsilat.TahsilatTuru }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if tahsilat.BANKAADI == "AKBANK" %}
+                                        <span class="badge bg-danger">{{ tahsilat.BANKAADI|default:"-" }}</span>
+                                        {% elif tahsilat.BANKAADI == "FİNANSBANK" %}
+                                        <span class="badge bg-primary">{{ tahsilat.BANKAADI|default:"-" }}</span>
+                                        {% elif tahsilat.BANKAADI == "VAKIFBANK" %}
+                                        <span class="badge bg-success">{{ tahsilat.BANKAADI|default:"-" }}</span>
+                                        {% elif tahsilat.BANKAADI == "GARANTİ" %}
+                                        <span class="badge bg-warning">{{ tahsilat.BANKAADI|default:"-" }}</span>
+                                        {% elif tahsilat.BANKAADI == "İŞBANKASI" %}
+                                        <span class="badge bg-info">{{ tahsilat.BANKAADI|default:"-" }}</span>
+                                        {% elif tahsilat.BANKAADI == "DENİZBANK" %}
+                                        <span class="badge bg-secondary">{{ tahsilat.BANKAADI|default:"-" }}</span>
+                                        {% elif tahsilat.BANKAADI == "TEB" %}
+                                        <span class="badge bg-dark">{{ tahsilat.BANKAADI|default:"-" }}</span>
+                                        {% else %}
+                                        <span class="badge bg-light text-dark">{{ tahsilat.BANKAADI|default:"-" }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <strong>{{ tahsilat.Taksit|default:"-" }}</strong>
+                                    </td>
+                                    <td>
+                                        <strong class="text-success currency">{{ tahsilat.Tutar|currency_display }}</strong>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">{{ tahsilat.Plasiyer|default:"-" }}</span>
+                                    </td>
+                                    <td class="durum-cell" 
+                                        data-tahsilat-id="{{ tahsilat.ID }}"
+                                        data-durum="{{ tahsilat.Durum|default:'' }}"
+                                        oncontextmenu="showLogoDurumMenu(event, {{ tahsilat.ID }}, '{{ tahsilat.Durum|default:''|escapejs }}'); return false;"
+                                        style="cursor: context-menu;">
+                                        {% if tahsilat.Durum %}
+                                        {% if tahsilat.Durum == "LOGO'DA İŞLENDİ" %}
+                                        <span class="badge bg-success">{{ tahsilat.Durum }}</span>
+                                        {% elif tahsilat.Durum == "TESLİM EDİLDİ" %}
+                                        <span class="badge bg-primary">{{ tahsilat.Durum }}</span>
+                                        {% elif tahsilat.Durum == "BEKLEMEDE" %}
+                                        <span class="badge bg-warning">{{ tahsilat.Durum }}</span>
+                                        {% elif tahsilat.Durum == "İPTAL" %}
+                                        <span class="badge bg-danger">{{ tahsilat.Durum }}</span>
+                                        {% elif tahsilat.Durum == "YENİ" %}
+                                        <span class="badge bg-info">{{ tahsilat.Durum }}</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ tahsilat.Durum }}</span>
+                                        {% endif %}
+                                        {% else %}
+                                        <span class="badge bg-warning">Belirsiz</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ tahsilat.Kullanici|default:"-" }}</small>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {% if tahsilat.EklemeTarihi %}
+                                                {{ tahsilat.EklemeTarihi|date:"d.m.Y" }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        {% if tahsilat.TeslimDurumu %}
+                                        {% if tahsilat.TeslimDurumu == "TESLİM EDİLDİ" %}
+                                        <span class="badge bg-success">{{ tahsilat.TeslimDurumu }}</span>
+                                        {% elif tahsilat.TeslimDurumu == "BEKLEMEDE" %}
+                                        <span class="badge bg-warning">{{ tahsilat.TeslimDurumu }}</span>
+                                        {% elif tahsilat.TeslimDurumu == "İPTAL" %}
+                                        <span class="badge bg-danger">{{ tahsilat.TeslimDurumu }}</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ tahsilat.TeslimDurumu }}</span>
+                                        {% endif %}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ tahsilat.EvrakNo|default:"-" }}</td>
+                                    <td class="text-center">
+                                        {% if tahsilat.evrak_var %}
+                                        <button type="button" class="btn btn-outline-primary btn-sm"
+                                            onclick="evrakGoster('{{ tahsilat.evrak_url }}', '{{ tahsilat.ID }}')"
+                                            title="Evrak Görüntüsünü Göster">
+                                            <i class="bi bi-eye me-1"></i>Görüntüle
+                                        </button>
+                                        {% else %}
+                                        <span class="text-muted small">
+                                            <i class="bi bi-file-x me-1"></i>Yok
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if user.username|upper == 'FIRAT' %}
+                                            <a href="{% url 'tahsilat:muhasebe_tahsilat_duzenle' tahsilat.ID %}" class="btn btn-outline-primary btn-sm" title="Düzenle">
+                                                <i class="bi bi-pencil-square me-1"></i>Düzenle
+                                            </a>
+                                        {% endif %}
+                                        {% if tahsilat.Durum != "TESLİM EDİLDİ" and tahsilat.Durum != "HESAP GÖRÜLDÜ" and tahsilat.Durum != "LOGO'DA İŞLENDİ" %}
+                                            <button type="button" class="btn btn-outline-danger btn-sm"
+                                                onclick="tahsilatSil('{{ tahsilat.ID }}', '{{ tahsilat.CariUnvan|escapejs }}')"
+                                                title="Tahsilat Sil">
+                                                <i class="bi bi-trash3 me-1"></i>Sil
+                                            </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if pagination_info.total_pages > 1 %}
+                    <div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+                        <div class="pagination-info">
+                            <small class="text-muted">
+                                Sayfa {{ pagination_info.current_page }} / {{ pagination_info.total_pages }}
+                                (Toplam {{ pagination_info.total_count }} kayıt)
+                            </small>
+                        </div>
+                        <nav aria-label="Sayfa navigasyonu">
+                            <ul class="pagination pagination-sm mb-0">
+                                <!-- İlk sayfa -->
+                                {% if pagination_info.current_page > 1 %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                        href="?page=1{% if cari_kod %}&cari_kod={{ cari_kod|urlencode }}{% endif %}{% if cari_unvan %}&cari_unvan={{ cari_unvan|urlencode }}{% endif %}{% if tarih_filtresi != 'all' %}&tarih_filtresi={{ tarih_filtresi }}{% endif %}"
+                                        aria-label="İlk">
+                                        <i class="bi bi-chevron-double-left"></i>
+                                    </a>
+                                </li>
+                                {% endif %}
+
+                                <!-- Önceki sayfa -->
+                                {% if pagination_info.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                        href="?page={{ pagination_info.previous_page }}{% if tarih_filtresi != 'all' %}&tarih_filtresi={{ tarih_filtresi }}{% endif %}{% if tahsilat_turu %}&tahsilat_turu={{ tahsilat_turu|urlencode }}{% endif %}{% if teslim_durumu %}&teslim_durumu={{ teslim_durumu|urlencode }}{% endif %}{% if kullanici %}&kullanici={{ kullanici|urlencode }}{% endif %}"
+                                        aria-label="Önceki">
+                                        <i class="bi bi-chevron-left"></i>
+                                    </a>
+                                </li>
+                                {% endif %}
+
+                                <!-- Sayfa numaraları -->
+                                {% if pagination_info.page_range %}
+                                    {% for page_num in pagination_info.page_range %}
+                                    {% if page_num == pagination_info.current_page %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ page_num }}</span>
+                                    </li>
+                                    {% else %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_num }}{% if tarih_filtresi != 'all' %}&tarih_filtresi={{ tarih_filtresi }}{% endif %}{% if tahsilat_turu %}&tahsilat_turu={{ tahsilat_turu|urlencode }}{% endif %}{% if teslim_durumu %}&teslim_durumu={{ teslim_durumu|urlencode }}{% endif %}{% if kullanici %}&kullanici={{ kullanici|urlencode }}{% endif %}">{{ page_num }}</a>
+                                    </li>
+                                    {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <!-- Fallback: Manuel sayfa numaraları -->
+                                    {% for i in "12345"|make_list %}
+                                    {% if forloop.counter == pagination_info.current_page %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ forloop.counter }}</span>
+                                    </li>
+                                    {% else %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ forloop.counter }}{% if tarih_filtresi != 'all' %}&tarih_filtresi={{ tarih_filtresi }}{% endif %}{% if tahsilat_turu %}&tahsilat_turu={{ tahsilat_turu|urlencode }}{% endif %}{% if teslim_durumu %}&teslim_durumu={{ teslim_durumu|urlencode }}{% endif %}{% if kullanici %}&kullanici={{ kullanici|urlencode }}{% endif %}">{{ forloop.counter }}</a>
+                                    </li>
+                                    {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+
+                                <!-- Sonraki sayfa -->
+                                {% if pagination_info.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                        href="?page={{ pagination_info.next_page }}{% if tarih_filtresi != 'all' %}&tarih_filtresi={{ tarih_filtresi }}{% endif %}{% if tahsilat_turu %}&tahsilat_turu={{ tahsilat_turu|urlencode }}{% endif %}{% if teslim_durumu %}&teslim_durumu={{ teslim_durumu|urlencode }}{% endif %}{% if kullanici %}&kullanici={{ kullanici|urlencode }}{% endif %}"
+                                        aria-label="Sonraki">
+                                        <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                </li>
+                                {% endif %}
+
+                                <!-- Son sayfa -->
+                                {% if pagination_info.current_page < pagination_info.total_pages %} <li
+                                    class="page-item">
+                                    <a class="page-link"
+                                        href="?page={{ pagination_info.total_pages }}{% if tarih_filtresi != 'all' %}&tarih_filtresi={{ tarih_filtresi }}{% endif %}{% if tahsilat_turu %}&tahsilat_turu={{ tahsilat_turu|urlencode }}{% endif %}{% if teslim_durumu %}&teslim_durumu={{ teslim_durumu|urlencode }}{% endif %}{% if kullanici %}&kullanici={{ kullanici|urlencode }}{% endif %}"
+                                        aria-label="Son">
+                                        <i class="bi bi-chevron-double-right"></i>
+                                    </a>
+                                    </li>
+                                    {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                    {% endif %}
+
+                    <!-- Özet İstatistikler -->
+                    <div class="card-footer bg-light">
+                        <div class="row text-center">
+                            <div class="col-md-3">
+                                <small class="text-muted d-block">Toplam Kayıt</small>
+                                <strong>{{ pagination_info.total_count|default:"0" }}</strong>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted d-block">Toplam Tutar</small>
+                                <strong class="text-success">{{ toplam_tutar|currency_display }}</strong>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted d-block">Plasiyer</small>
+                                <strong>{{ plasiyer }}</strong>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted d-block">Son Güncelleme</small>
+                                <strong>{{ "now"|date:"d.m.Y" }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-inbox fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Tahsilat kaydı bulunamadı</h5>
+                        <p class="text-muted">Henüz tahsilat kaydı bulunmuyor.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Tahsilatlarım tablosu için dashboard ile aynı compact stil */
+    .table-compact {
+        table-layout: fixed !important;
+        /* Sabit layout ile kontrollü boyutlama */
+        width: 100% !important;
+        /* Pencereyi tamamen doldur */
+        border-collapse: collapse !important;
+    }
+
+    /* Tüm border'ları kaldır */
+    .table-compact,
+    .table-compact th,
+    .table-compact td,
+    .table-compact thead,
+    .table-compact tbody,
+    .table-compact tr {
+        border: none !important;
+    }
+
+    .table-compact th,
+    .table-compact td {
+        padding: 0.1rem 0.15rem !important;
+        /* Çok minimal padding */
+        vertical-align: top !important;
+        /* Üstten hizala */
+        border-right: none !important;
+        /* Border kaldırıldı */
+        border-left: none !important;
+    }
+
+    /* Cari Ünvan hariç diğer kolonlar için nowrap ve ellipsis */
+    .table-compact th:not(.col-cari-unvan),
+    .table-compact td:not([title]) {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .table-compact th {
+        font-weight: 600;
+        border-bottom: none !important;
+        /* Alt border kaldırıldı */
+        font-size: 0.9rem !important;
+        /* Font büyütüldü */
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        /* Template primary gradient */
+        color: white !important;
+        /* Beyaz yazı */
+    }
+
+    .table-compact td {
+        font-size: 1rem !important;
+        /* Font büyütüldü */
+    }
+
+    /* Even-Odd satır renklendirmesi - CSS specificity artırıldı */
+    .table-compact tbody tr:nth-child(even) td {
+        background-color: #e8edf7 !important;
+        /* Daha belirgin açık mor-mavi */
+    }
+
+    .table-compact tbody tr:nth-child(odd) td {
+        background-color: #ffffff !important;
+        /* Beyaz */
+    }
+
+    /* Hover efekti - turuncu renkler */
+    .table-compact tbody tr:hover td {
+        background: linear-gradient(135deg, #ffe4d1 0%, #ffd4b3 100%) !important;
+        /* Turuncu gradient hover */
+        transition: all 0.2s ease;
+    }
+
+    .table-compact tbody tr:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(255, 140, 0, 0.25);
+        /* Turuncu shadow */
+    }
+
+    /* Spesifik kolon optimizasyonları - 17 kolon için ayarlandı (v5.1) */
+    .table-compact .col-checkbox {
+        width: 3% !important;
+        text-align: center !important;
+    }
+
+    /* Seçili satırlar için tam turuncu arka plan */
+    .table-compact tbody tr.selected {
+        background-color: #ffc107 !important;
+        color: #000 !important;
+        border-left: 4px solid #ff8c00 !important;
+    }
+
+    /* Seçili satırların tüm hücreleri turuncu */
+    .table-compact tbody tr.selected td {
+        background-color: #ffc107 !important;
+        color: #000 !important;
+    }
+
+    /* Hover efekti - daha koyu turuncu */
+    .table-compact tbody tr.selected:hover {
+        background-color: #ff8c00 !important;
+    }
+
+    .table-compact tbody tr.selected:hover td {
+        background-color: #ff8c00 !important;
+    }
+
+    /* Teslim Durumu kolonundaki veri renkleri - Tüm durumlar için */
+    .table-compact tbody tr td.teslim-edildi-text,
+    .table tbody tr td.teslim-edildi-text,
+    td.teslim-edildi-text {
+        color: #198754 !important;  /* TESLİM EDİLDİ - Yeşil */
+        font-weight: normal !important;
+        background-color: transparent !important;
+    }
+
+    .table-compact tbody tr td.teslim-edilmedi-text,
+    .table tbody tr td.teslim-edilmedi-text,
+    td.teslim-edilmedi-text {
+        color: #dc3545 !important;  /* TESLİM EDİLMEDİ - Kırmızı */
+        font-weight: bold !important;
+        background-color: transparent !important;
+    }
+
+    .table-compact tbody tr td.hesap-goruldu-text,
+    .table tbody tr td.hesap-goruldu-text,
+    td.hesap-goruldu-text {
+        color: #0dcaf0 !important;  /* HESAP GÖRÜLDÜ - Mavi */
+        font-weight: normal !important;
+        background-color: transparent !important;
+    }
+
+    .table-compact tbody tr td.logo-islendi-text,
+    .table tbody tr td.logo-islendi-text,
+    td.logo-islendi-text {
+        color: #6f42c1 !important;  /* LOGO'DA İŞLENDİ - Mor */
+        font-weight: normal !important;
+        background-color: transparent !important;
+    }
+
+    .table-compact tbody tr td.beklemede-text,
+    .table tbody tr td.beklemede-text,
+    td.beklemede-text {
+        color: #fd7e14 !important;  /* BEKLEMEDE - Turuncu */
+        font-weight: normal !important;
+        background-color: transparent !important;
+    }
+
+    .table-compact tbody tr td.iptal-text,
+    .table tbody tr td.iptal-text,
+    td.iptal-text {
+        color: #dc3545 !important;  /* İPTAL - Kırmızı */
+        font-weight: bold !important;
+        background-color: transparent !important;
+    }
+
+    .table-compact .col-id {
+        width: 4% !important;
+        text-align: center !important;
+    }
+
+    .table-compact .col-tarih {
+        width: 7% !important;
+        font-size: 0.9rem !important;
+    }
+
+    .table-compact .col-cari-kod {
+        width: 7% !important;
+        font-family: monospace;
+        font-size: 0.9rem !important;
+    }
+
+    .table-compact .col-cari-unvan {
+        width: 20% !important;
+        /* Cari ünvan için yeterli alan */
+        overflow: visible !important;
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        text-overflow: unset !important;
+        max-width: none !important;
+    }
+
+    .table-compact .col-tahsilat-turu {
+        width: 9% !important;
+    }
+
+    .table-compact .col-banka {
+        width: 8% !important;
+    }
+
+    .table-compact .col-taksit {
+        width: 5% !important;
+        text-align: center !important; /* Başlık ortalı */
+        font-weight: bold;
+    }
+
+    .table-compact .col-tutar {
+        width: 8% !important;
+        text-align: center !important; /* Başlık ortalı */
+        font-weight: bold;
+    }
+
+    /* Taksit ve Tutar kolonları için sağa dayalı hizalama */
+    .table-compact tbody tr td:nth-child(8), /* Taksit kolonu */
+    .table-compact tbody tr td:nth-child(9) { /* Tutar kolonu */
+        text-align: right !important;
+    }
+
+    .table-compact .col-plasiyer {
+        width: 7% !important;
+        text-align: center !important;
+    }
+
+    .table-compact .col-durum {
+        width: 11% !important;
+        text-align: center !important;
+    }
+
+    .table-compact .col-kullanici {
+        width: 5% !important;
+        text-align: center !important;
+    }
+
+    .table-compact .col-ekleme-tarihi {
+        width: 7% !important;
+        text-align: center !important;
+        font-size: 0.9rem !important;
+    }
+
+    .table-compact .col-teslim-durumu {
+        width: 9% !important;
+        text-align: center !important;
+    }
+
+    .table-compact .col-evrak-no {
+        width: 6% !important;
+        font-family: monospace;
+        font-size: 0.9rem !important;
+    }
+
+    .table-compact .col-evrak {
+        width: 6% !important;
+        text-align: center !important;
+    }
+
+    .table-compact .col-islemler {
+        width: 6% !important;
+        text-align: center !important;
+    }
+
+    /* Badge'ler için minimal boyut */
+    .table-compact .badge {
+        font-size: 0.75rem !important;
+        /* Font büyütüldü */
+        padding: 0.15rem 0.3rem !important;
+        line-height: 1;
+    }
+
+    /* Sayıları daha compact yap */
+    .table-compact .col-taksit td,
+    .table-compact .col-tutar td {
+        font-size: 0.9rem !important;
+        /* Font büyütüldü */
+    }
+
+    /* Container'ı optimize et */
+    .table-responsive {
+        overflow-x: auto;
+    }
+
+    /* Currency font */
+    .currency {
+        font-family: 'Courier New', monospace;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+
+        .table-compact th,
+        .table-compact td {
+            padding: 0.05rem 0.1rem !important;
+            font-size: 0.8rem !important;
+            /* Font büyütüldü */
+        }
+
+        .table-compact .badge {
+            font-size: 0.7rem !important;
+            /* Font büyütüldü */
+            padding: 0.1rem 0.2rem !important;
+        }
+    }
+
+    /* Filter butonları için gelişmiş stil */
+    .filter-btn {
+        font-size: 1rem !important;
+        /* Daha büyük font */
+        padding: 0.75rem 1.5rem !important;
+        /* Daha büyük padding */
+        border-radius: 0;
+        font-weight: 600 !important;
+        /* Bold yazı */
+        transition: all 0.3s ease !important;
+        /* Smooth geçiş */
+        border-width: 2px !important;
+        /* Kalın border */
+        position: relative;
+        overflow: hidden;
+    }
+
+    .filter-btn:first-child {
+        border-top-left-radius: 0.5rem !important;
+        border-bottom-left-radius: 0.5rem !important;
+    }
+
+    .filter-btn:last-child {
+        border-top-right-radius: 0.5rem !important;
+        border-bottom-right-radius: 0.5rem !important;
+    }
+
+    /* Tümü butonu - Primary */
+    .filter-btn[data-filter="all"] {
+        border-color: #667eea !important;
+        color: #667eea !important;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%) !important;
+    }
+
+    .filter-btn[data-filter="all"].active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        border-color: #667eea !important;
+        color: white !important;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
+    }
+
+    /* Bugün butonu - Success */
+    .filter-btn[data-filter="today"] {
+        border-color: #28a745 !important;
+        color: #28a745 !important;
+        background: linear-gradient(135deg, rgba(40, 167, 69, 0.1) 0%, rgba(32, 201, 151, 0.1) 100%) !important;
+    }
+
+    .filter-btn[data-filter="today"].active {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+        border-color: #28a745 !important;
+        color: white !important;
+        box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4) !important;
+    }
+
+    /* Bu Hafta butonu - Info */
+    .filter-btn[data-filter="week"] {
+        border-color: #17a2b8 !important;
+        color: #17a2b8 !important;
+        background: linear-gradient(135deg, rgba(23, 162, 184, 0.1) 0%, rgba(102, 126, 234, 0.1) 100%) !important;
+    }
+
+    .filter-btn[data-filter="week"].active {
+        background: linear-gradient(135deg, #17a2b8 0%, #667eea 100%) !important;
+        border-color: #17a2b8 !important;
+        color: white !important;
+        box-shadow: 0 4px 15px rgba(23, 162, 184, 0.4) !important;
+    }
+
+    /* Bu Ay butonu - Warning */
+    .filter-btn[data-filter="month"] {
+        border-color: #ffc107 !important;
+        color: #856404 !important;
+        background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 107, 53, 0.1) 100%) !important;
+    }
+
+    .filter-btn[data-filter="month"].active {
+        background: linear-gradient(135deg, #ffc107 0%, #ff6b35 100%) !important;
+        border-color: #ffc107 !important;
+        color: white !important;
+        box-shadow: 0 4px 15px rgba(255, 193, 7, 0.4) !important;
+    }
+
+    /* Hover efektleri */
+    .filter-btn:hover:not(.active) {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15) !important;
+    }
+
+    .filter-btn.active {
+        transform: translateY(-1px) !important;
+    }
+
+    /* Button grup container */
+    .btn-group {
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        border-radius: 0.5rem;
+    }
+
+    /* Responsive için buton boyutları */
+    @media (max-width: 768px) {
+        .filter-btn {
+            font-size: 0.9rem !important;
+            padding: 0.6rem 1rem !important;
+        }
+    }
+
+    /* Gizli satırlar için stil */
+    .table-row-hidden {
+        display: none !important;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Filtreleme butonları
+        const filterButtons = document.querySelectorAll('.filter-btn');
+
+        // Buton click event'leri
+        filterButtons.forEach(button => {
+            button.addEventListener('click', function () {
+                // Aktif butonu değiştir
+                filterButtons.forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+
+                // Backend'e tarih filtresi parametresi ile yönlendir
+                const filterType = this.getAttribute('data-filter');
+                const currentUrl = new URL(window.location);
+
+                // Mevcut parametreleri koru (cari_kod, cari_unvan)
+                currentUrl.searchParams.set('tarih_filtresi', filterType);
+                currentUrl.searchParams.set('page', '1'); // İlk sayfaya dön
+
+                // Sayfayı yeniden yükle
+                window.location.href = currentUrl.toString();
+            });
+        });
+
+        // Sayfa yüklendiğinde aktif filtreyi kontrol et
+        const activeFilter = '{{ tarih_filtresi|default:"all" }}';
+        filterButtons.forEach(btn => {
+            if (btn.getAttribute('data-filter') === activeFilter) {
+                btn.classList.add('active');
+            }
+        });
+    });
+
+    // Evrak görüntüleme fonksiyonu
+    function evrakGoster(evrakUrl, tahsilatId) {
+        // Modal içeriğini güncelle
+        const modalImage = document.getElementById('evrakImage');
+        const modalTitle = document.getElementById('evrakModalTitle');
+
+        modalImage.src = evrakUrl;
+        modalTitle.textContent = `Tahsilat ID: ${tahsilatId} - Evrak Görüntüsü`;
+
+        // Modal'ı aç
+        const modal = new bootstrap.Modal(document.getElementById('evrakModal'));
+        modal.show();
+    }
+
+    // Tahsilat düzenleme işlevselliği kaldırılmıştır
+</script>
+
+<!-- Evrak Görüntüleme Modal -->
+<div class="modal fade" id="evrakModal" tabindex="-1" aria-labelledby="evrakModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="evrakModalTitle">Evrak Görüntüsü</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-3">
+                <img id="evrakImage" src="" alt="Evrak Görüntüsü" class="img-fluid rounded shadow-sm"
+                    style="max-height: 70vh; width: auto;">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary"
+                    onclick="window.open(document.getElementById('evrakImage').src, '_blank')">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Yeni Sekmede Aç
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i>Kapat
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tahsilat düzenleme özelliği kaldırılmıştır -->
+
+{% block extra_js %}
+<script>
+    // CSRF test fonksiyonu
+    function testCSRF() {
+        console.log('CSRF Token:', window.csrfToken);
+        
+        // GET isteği ile token'ı kontrol et
+        csrfFetch('{% url "tahsilat:csrf_debug" %}', {
+            method: 'GET'
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('GET Response:', data);
+            alert(`CSRF Token: ${data.csrf_token}\nUser: ${data.user}\nMethod: ${data.method}`);
+        })
+        .catch(error => {
+            console.error('GET Error:', error);
+            alert('GET isteği başarısız: ' + error.message);
+        });
+        
+        // POST isteği ile token'ı test et
+        setTimeout(() => {
+            csrfFetch('{% url "tahsilat:csrf_debug" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({test: 'data'})
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('POST Response:', data);
+                alert(`POST Test: ${data.message}\nCSRF Token: ${data.csrf_token}\nUser: ${data.user}`);
+            })
+            .catch(error => {
+                console.error('POST Error:', error);
+                alert('POST isteği başarısız: ' + error.message);
+            });
+        }, 1000);
+    }
+
+    // Evrak görüntüleme fonksiyonu
+    function evrakGoster(evrakUrl, tahsilatId) {
+        const modalImage = document.getElementById('evrakImage');
+        const modalTitle = document.getElementById('evrakModalTitle');
+
+        modalImage.src = evrakUrl;
+        modalTitle.textContent = `Tahsilat ID: ${tahsilatId} - Evrak Görüntüsü`;
+
+        // Modal'ı aç
+        const modal = new bootstrap.Modal(document.getElementById('evrakModal'));
+        modal.show();
+    }
+
+    // Tahsilat silme fonksiyonu
+    function tahsilatSil(tahsilatId, cariUnvan) {
+        // Onay mesajı
+        const onayMesaji = `Bu tahsilat kaydını silmek istediğinizden emin misiniz?\n\n` +
+            `Tahsilat ID: ${tahsilatId}\n` +
+            `Cari: ${cariUnvan}\n\n` +
+            `Bu işlem geri alınamaz!`;
+
+        if (!confirm(onayMesaji)) {
+            return;
+        }
+
+        // FormData oluştur
+        const formData = new FormData();
+        formData.append('tahsilat_id', tahsilatId);
+
+        // AJAX ile silme isteği gönder
+        csrfFetch('/sil/', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Backend'den gelen mesajı göster (evrak bilgisi içerir)
+                    alert(data.message || 'Tahsilat başarıyla silindi!');
+                    // Sayfayı yenile
+                    location.reload();
+                } else {
+                    alert('Silme hatası: ' + (data.error || 'Bilinmeyen hata'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Sunucu hatası oluştu');
+            });
+    }
+
+    // Sağ tuş menüsü fonksiyonları
+    function showContextMenu(event, tahsilatId, teslimDurumu, row) {
+        event.preventDefault();
+        
+        // Mevcut menüyü kaldır
+        const existingMenu = document.getElementById('contextMenu');
+        if (existingMenu) {
+            existingMenu.remove();
+        }
+
+        // Yeni menü oluştur
+        const menu = document.createElement('div');
+        menu.id = 'contextMenu';
+        menu.className = 'context-menu';
+        menu.style.position = 'fixed';
+        menu.style.zIndex = '9999';
+        menu.style.backgroundColor = 'white';
+        menu.style.border = '1px solid #dee2e6';
+        menu.style.borderRadius = '8px';
+        menu.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        menu.style.padding = '8px 0';
+        menu.style.minWidth = '200px';
+        menu.style.visibility = 'hidden';
+
+        // Menü öğeleri
+        const menuItems = [];
+
+        // 1) Logo'da İşlendi Yap - sadece Durum "İŞLENMEDİ" ise göster
+        try {
+            const durumCell = row.querySelector('td:nth-child(11)'); // Durum kolonu
+            const logoDurum = (durumCell ? durumCell.textContent : '').trim().toUpperCase();
+            if (logoDurum === 'İŞLENMEDİ' || logoDurum === 'ISLENMEDI') { // Türkçe/ing klavye olası varyasyonları
+                menuItems.push({
+                    text: "Logo'da İşlendi Yap",
+                    icon: 'bi-check-circle',
+                    color: 'text-success',
+                    action: () => updateLogoDurumu(tahsilatId)
+                });
+            }
+        } catch (e) { /* no-op */ }
+
+        // 2) Teslim Edildi Yap - sadece TESLİM EDİLMEDİ durumunda ve kullanıcı yetkisi kontrolü
+        if (teslimDurumu === 'TESLİM EDİLMEDİ') {
+            // FIRAT kullanıcısı herkesin kayıtlarını teslim edildi yapabilir
+            // Diğer kullanıcılar sadece kendi kayıtlarını teslim edildi yapabilir
+            const currentUser = '{{ current_user|upper }}';
+            const tahsilatKullanici = row.querySelector('td:nth-child(12)').textContent.trim().toUpperCase(); // Kullanıcı kolonu
+            
+            if (currentUser === 'FIRAT' || currentUser === tahsilatKullanici) {
+                menuItems.push({
+                    text: 'Teslim Edildi Yap',
+                    icon: 'bi-check-circle',
+                    color: 'text-success',
+                    action: () => updateSingleTeslimDurumu(tahsilatId, 'TESLİM EDİLDİ')
+                });
+            }
+        }
+
+        // Hesap Görüldü Yap - sadece TESLİM EDİLDİ durumunda ve sadece MERT/FIRAT kullanıcıları
+        if (teslimDurumu === 'TESLİM EDİLDİ' && ('{{ user.username|upper }}' === 'MERT' || '{{ user.username|upper }}' === 'FIRAT')) {
+            menuItems.push({
+                text: 'Hesap Görüldü Yap',
+                icon: 'bi-eye',
+                color: 'text-info',
+                action: () => updateSelectedRecordsStatus('HESAP GÖRÜLDÜ')
+            });
+        }
+
+        // Menü öğelerini ekle
+        menuItems.forEach(item => {
+            const menuItem = document.createElement('div');
+            menuItem.className = 'context-menu-item';
+            menuItem.style.padding = '8px 16px';
+            menuItem.style.cursor = 'pointer';
+            menuItem.style.display = 'flex';
+            menuItem.style.alignItems = 'center';
+            menuItem.innerHTML = `
+                <i class="bi ${item.icon} me-2 ${item.color}"></i>
+                <span>${item.text}</span>
+            `;
+            
+            menuItem.addEventListener('mouseenter', () => {
+                menuItem.style.backgroundColor = '#f8f9fa';
+            });
+            
+            menuItem.addEventListener('mouseleave', () => {
+                menuItem.style.backgroundColor = 'transparent';
+            });
+            
+            menuItem.addEventListener('click', () => {
+                item.action();
+                menu.remove();
+            });
+            
+            menu.appendChild(menuItem);
+        });
+
+        // Eğer menü öğesi yoksa
+        if (menuItems.length === 0) {
+            const menuItem = document.createElement('div');
+            menuItem.style.padding = '8px 16px';
+            menuItem.style.color = '#6c757d';
+            menuItem.innerHTML = '<i class="bi bi-info-circle me-2"></i>Bu kayıt için işlem yapılamaz';
+            menu.appendChild(menuItem);
+        }
+
+        document.body.appendChild(menu);
+
+        // Menü boyutunu al ve pozisyonu ayarla
+        const menuRect = menu.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        let menuX = event.clientX;
+        let menuY = event.clientY;
+        
+        // Sağa taşma kontrolü
+        if (menuX + menuRect.width > viewportWidth) {
+            menuX = viewportWidth - menuRect.width - 10;
+        }
+        
+        // Alta taşma kontrolü
+        if (menuY + menuRect.height > viewportHeight) {
+            menuY = viewportHeight - menuRect.height - 10;
+        }
+        
+        // Sol ve üst sınır kontrolü
+        menuX = Math.max(10, menuX);
+        menuY = Math.max(10, menuY);
+        
+        // Pozisyonu ayarla ve görünür yap
+        menu.style.left = menuX + 'px';
+        menu.style.top = menuY + 'px';
+        menu.style.visibility = 'visible';
+
+        // Menü dışına tıklandığında kapat
+        const closeMenu = (e) => {
+            if (!menu.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+        
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+        }, 100);
+    }
+
+    // Tek bir kaydın teslim durumunu güncelle
+    function updateSingleTeslimDurumu(tahsilatId, newStatus) {
+        if (!confirm('Bu kaydın teslim durumunu "' + newStatus + '" yapmak istediğinizden emin misiniz?')) {
+            return;
+        }
+
+        csrfFetch('{% url "tahsilat:update_teslim_durumu" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tahsilat_ids: [tahsilatId], new_status: newStatus })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('Kayıt güncellendi.');
+                window.location.reload();
+            } else {
+                alert('Güncelleme hatası: ' + (data.message || 'Bilinmeyen hata'));
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Sunucu hatası oluştu');
+        });
+    }
+
+    // Seçili kayıtların durumunu güncelle
+    function updateSelectedRecordsStatus(newStatus) {
+        const selectedCheckboxes = document.querySelectorAll('.tahsilat-checkbox:checked');
+        
+        if (selectedCheckboxes.length === 0) {
+            alert('Lütfen güncellenecek kayıtları seçin.');
+            return;
+        }
+
+        const tahsilatIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+        const statusText = newStatus === 'TESLİM EDİLDİ' ? 'Teslim Edildi' : 'Hesap Görüldü';
+        
+        if (!confirm(`${selectedCheckboxes.length} kaydın durumunu "${statusText}" olarak güncellemek istediğinizden emin misiniz?`)) {
+            return;
+        }
+
+        // AJAX ile durum güncelleme isteği gönder
+        csrfFetch('{% url "tahsilat:update_teslim_durumu" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                tahsilat_ids: tahsilatIds,
+                new_status: newStatus
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`${data.updated_count} kayıt başarıyla güncellendi.`);
+                // Sayfayı yenile
+                window.location.reload();
+            } else {
+                alert('Güncelleme hatası: ' + (data.message || 'Bilinmeyen hata'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Sunucu hatası oluştu');
+        });
+    }
+
+    // Logo durumu sağ tık menüsü
+    function showLogoDurumMenu(event, tahsilatId, currentDurum) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // Eski menüleri temizle
+        const oldMenu = document.querySelector('.logo-durum-context-menu');
+        if (oldMenu) {
+            oldMenu.remove();
+        }
+        
+        // Context menü oluştur
+        const menu = document.createElement('div');
+        menu.className = 'logo-durum-context-menu';
+        
+        // Menüyü önce oluştur ki boyutunu ölçebilelim
+        menu.style.cssText = `
+            position: fixed;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 10000;
+            min-width: 200px;
+            padding: 8px 0;
+            visibility: hidden;
+        `;
+        
+        // Menü öğesi ekle - sadece "LOGO'DA İŞLENDİ" değilse göster
+        if (currentDurum !== "LOGO'DA İŞLENDİ") {
+            const menuItem = document.createElement('div');
+            menuItem.style.cssText = `
+                padding: 10px 16px;
+                cursor: pointer;
+                transition: background 0.2s;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            `;
+            menuItem.innerHTML = '<i class="bi bi-check-circle text-success"></i> Logo\'da İşlendi Yap';
+            
+            menuItem.onmouseover = () => menuItem.style.background = '#f8f9fa';
+            menuItem.onmouseout = () => menuItem.style.background = 'white';
+            
+            menuItem.onclick = () => {
+                updateLogoDurumu(tahsilatId);
+                menu.remove();
+            };
+            
+            menu.appendChild(menuItem);
+        } else {
+            // Zaten işlendi ise bilgilendirme mesajı
+            const infoItem = document.createElement('div');
+            infoItem.style.cssText = `
+                padding: 10px 16px;
+                color: #6c757d;
+                font-size: 14px;
+            `;
+            infoItem.innerHTML = '<i class="bi bi-info-circle me-2"></i>Bu kayıt zaten Logo\'da işlendi';
+            menu.appendChild(infoItem);
+        }
+        
+        document.body.appendChild(menu);
+        
+        // Menü boyutunu al ve pozisyonu ayarla
+        const menuRect = menu.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        let menuX = event.clientX;
+        let menuY = event.clientY;
+        
+        // Sağa taşma kontrolü
+        if (menuX + menuRect.width > viewportWidth) {
+            menuX = viewportWidth - menuRect.width - 10;
+        }
+        
+        // Alta taşma kontrolü
+        if (menuY + menuRect.height > viewportHeight) {
+            menuY = viewportHeight - menuRect.height - 10;
+        }
+        
+        // Sol ve üst sınır kontrolü
+        menuX = Math.max(10, menuX);
+        menuY = Math.max(10, menuY);
+        
+        // Pozisyonu ayarla ve görünür yap
+        menu.style.left = menuX + 'px';
+        menu.style.top = menuY + 'px';
+        menu.style.visibility = 'visible';
+        
+        // Menü dışına tıklandığında kapat
+        const closeMenu = (e) => {
+            if (!menu.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+        
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+        }, 100);
+    }
+    
+    // Logo durumu güncelleme fonksiyonu
+    function updateLogoDurumu(tahsilatId) {
+        if (!confirm('Bu kaydın durumunu "Logo\'da İşlendi" olarak güncellemek istediğinizden emin misiniz?')) {
+            return;
+        }
+        
+        // AJAX ile durum güncelleme isteği gönder
+        window.csrfFetch('{% url "tahsilat:update_logo_durumu" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                tahsilat_id: tahsilatId,
+                new_status: "LOGO'DA İŞLENDİ"
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                // Sayfayı yenile
+                window.location.reload();
+            } else {
+                alert('Güncelleme hatası: ' + (data.message || 'Bilinmeyen hata'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Sunucu hatası oluştu');
+        });
+    }
+
+    // Checkbox değişikliklerini dinle
+    function updateSelectAllState() {
+        const checkboxes = document.querySelectorAll('.tahsilat-checkbox');
+        const selectAllCheckbox = document.getElementById('selectAll');
+        const checkedCheckboxes = document.querySelectorAll('.tahsilat-checkbox:checked');
+        
+        // Tümünü seç durumunu güncelle
+        if (checkedCheckboxes.length === 0) {
+            selectAllCheckbox.indeterminate = false;
+            selectAllCheckbox.checked = false;
+        } else if (checkedCheckboxes.length === checkboxes.length) {
+            selectAllCheckbox.indeterminate = false;
+            selectAllCheckbox.checked = true;
+        } else {
+            selectAllCheckbox.indeterminate = true;
+        }
+
+        // Satır renklerini güncelle
+        checkboxes.forEach(checkbox => {
+            const row = checkbox.closest('tr');
+            if (checkbox.checked) {
+                row.classList.add('selected');
+            } else {
+                row.classList.remove('selected');
+            }
+        });
+    }
+
+    // Tümünü seç/seçme
+    function toggleSelectAll() {
+        const selectAllCheckbox = document.getElementById('selectAll');
+        const checkboxes = document.querySelectorAll('.tahsilat-checkbox');
+        
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = selectAllCheckbox.checked;
+            const row = checkbox.closest('tr');
+            if (selectAllCheckbox.checked) {
+                row.classList.add('selected');
+            } else {
+                row.classList.remove('selected');
+            }
+        });
+    }
+
+    // Sayfa yüklendiğinde event listener'ları ekle
+    document.addEventListener('DOMContentLoaded', function() {
+        // Tablo satırlarına sağ tuş event listener ekle ve durum class'larını ekle
+        const tableRows = document.querySelectorAll('#tahsilat-table tbody tr');
+        tableRows.forEach(row => {
+            // Teslim durumunu kontrol et ve uygun class ekle
+            const teslimDurumuCell = row.querySelector('td:nth-child(14)'); // Teslim Durumu kolonu
+            if (teslimDurumuCell) {
+                const teslimDurumu = teslimDurumuCell.textContent.trim().toUpperCase();
+                console.log('Teslim Durumu:', teslimDurumu); // Debug
+                
+                if (teslimDurumu === 'TESLİM EDİLDİ') {
+                    teslimDurumuCell.classList.add('teslim-edildi-text');
+                    teslimDurumuCell.style.color = '#198754'; // Yeşil
+                    teslimDurumuCell.style.fontWeight = 'normal';
+                    console.log('TESLİM EDİLDİ - Yeşil class eklendi');
+                } else if (teslimDurumu === 'TESLİM EDİLMEDİ') {
+                    teslimDurumuCell.classList.add('teslim-edilmedi-text');
+                    teslimDurumuCell.style.color = '#dc3545'; // Kırmızı
+                    teslimDurumuCell.style.fontWeight = 'bold';
+                    console.log('TESLİM EDİLMEDİ - Kırmızı class eklendi');
+                } else if (teslimDurumu === 'HESAP GÖRÜLDÜ') {
+                    teslimDurumuCell.classList.add('hesap-goruldu-text');
+                    teslimDurumuCell.style.color = '#0dcaf0'; // Mavi
+                    teslimDurumuCell.style.fontWeight = 'normal';
+                    console.log('HESAP GÖRÜLDÜ - Mavi class eklendi');
+                } else if (teslimDurumu === "LOGO'DA İŞLENDİ") {
+                    teslimDurumuCell.classList.add('logo-islendi-text');
+                    teslimDurumuCell.style.color = '#6f42c1'; // Mor
+                    teslimDurumuCell.style.fontWeight = 'normal';
+                    console.log('LOGO\'DA İŞLENDİ - Mor class eklendi');
+                } else if (teslimDurumu === 'BEKLEMEDE') {
+                    teslimDurumuCell.classList.add('beklemede-text');
+                    teslimDurumuCell.style.color = '#fd7e14'; // Turuncu
+                    teslimDurumuCell.style.fontWeight = 'normal';
+                    console.log('BEKLEMEDE - Turuncu class eklendi');
+                } else if (teslimDurumu === 'İPTAL') {
+                    teslimDurumuCell.classList.add('iptal-text');
+                    teslimDurumuCell.style.color = '#dc3545'; // Kırmızı
+                    teslimDurumuCell.style.fontWeight = 'bold';
+                    console.log('İPTAL - Kırmızı class eklendi');
+                } else {
+                    // Diğer durumlar için varsayılan siyah
+                    teslimDurumuCell.style.color = '#000000'; // Siyah
+                    teslimDurumuCell.style.fontWeight = 'normal';
+                    console.log('Diğer durum - Siyah:', teslimDurumu);
+                }
+            }
+
+            // Sağ tuş event listener ekle
+            row.addEventListener('contextmenu', function(e) {
+                const checkbox = row.querySelector('.tahsilat-checkbox');
+                if (checkbox) {
+                    const tahsilatId = checkbox.value;
+                    const teslimDurumu = teslimDurumuCell ? teslimDurumuCell.textContent.trim() : '';
+                    showContextMenu(e, tahsilatId, teslimDurumu, row);
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}
+
+{% endblock %}

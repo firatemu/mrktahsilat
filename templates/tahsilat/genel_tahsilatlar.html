@@ -1,0 +1,1001 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}{{ sayfa_baslik }} - Genel Görünüm - MRK OTOMOTİV{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stats-card {
+        border-left: 4px solid #007bff;
+        transition: all 0.3s ease;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    }
+
+    .stats-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .plasiyer-card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        background: white;
+    }
+
+    .plasiyer-card:hover {
+        border-color: #007bff;
+        box-shadow: 0 2px 10px rgba(0, 123, 255, 0.15);
+    }
+
+    .plasiyer-header {
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        color: white;
+        font-weight: bold;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .stat-item {
+        border-bottom: 1px solid #f8f9fa;
+        padding: 0.75rem;
+        transition: all 0.3s ease;
+        border-radius: 6px;
+        margin-bottom: 0.25rem;
+    }
+
+    .stat-item:hover {
+        background: rgba(0, 123, 255, 0.05);
+        transform: translateX(2px);
+        border-left: 3px solid #007bff;
+    }
+
+    .stat-item:last-child {
+        border-bottom: none;
+    }
+
+    .stat-label {
+        font-size: 0.9rem;
+        color: #495057;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .stat-value {
+        font-size: 1.1rem;
+        font-weight: 700;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    .toplam-section {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+    }
+
+    .toplam-item {
+        text-align: center;
+        padding: 1rem;
+    }
+
+    .toplam-label {
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+
+    .toplam-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-top: 0.25rem;
+    }
+
+    .admin-badge {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: bold;
+    }
+
+    /* Satış sayfası için mavi tema */
+    .satis-theme .plasiyer-header {
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    }
+
+    .satis-theme .toplam-section {
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    }
+
+    /* Tahsilat sayfası için yeşil tema */
+    .tahsilat-theme .plasiyer-header {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    }
+
+    .tahsilat-theme .toplam-section {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    }
+
+    /* Tab Content Ekleme */
+    .tab-content {
+        margin-top: 1.5rem;
+    }
+
+    .nav-tabs .nav-link {
+        border: 1px solid transparent;
+        border-radius: 0.375rem 0.375rem 0 0;
+        color: #495057;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        margin-right: 0.25rem;
+    }
+
+    .nav-tabs .nav-link:hover {
+        border-color: #e9ecef #e9ecef #dee2e6;
+        isolation: isolate;
+        background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+    }
+
+    .nav-tabs .nav-link.active {
+        color: #495057;
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        color: white;
+        border-color: #007bff #007bff #fff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 satis-theme">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2>
+                    <i class="{{ sayfa_ikon }} me-2"></i>
+                    Genel Görünüm - {{ sayfa_baslik }}
+                    <span class="admin-badge ms-2">ADMIN</span>
+                </h2>
+                <div class="text-muted">
+                    <i class="bi bi-calendar3 me-1"></i>
+                    {{ "now"|date:"d.m.Y" }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Breadcrumb -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'tahsilat:dashboard' %}">Dashboard</a></li>
+                    <li class="breadcrumb-item">Genel Görünüm</li>
+                    <li class="breadcrumb-item active">{{ sayfa_baslik }}</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Sekmeler -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <ul class="nav nav-tabs" id="tahsilatTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="ozet-tab" data-bs-toggle="tab" data-bs-target="#ozet"
+                        type="button" role="tab">
+                        <i class="bi bi-bar-chart me-1"></i>Tahsilat Özeti
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="liste-tab" data-bs-toggle="tab" data-bs-target="#liste" type="button"
+                        role="tab">
+                        <i class="bi bi-list-ul me-1"></i>Detaylı Tahsilat Listesi
+                    </button>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Sekme İçerikleri -->
+    <div class="tab-content" id="tahsilatTabContent">
+
+        <!-- Tahsilat Listesi Sekmesi -->
+        <div class="tab-pane fade" id="liste" role="tabpanel">
+            {% if not load_list_tab %}
+            <div class="alert alert-info mb-3">
+                <i class="bi bi-info-circle me-1"></i>
+                Detaylı listeyi görmek için bu sekmeye tıklayın; veriler bir kez yüklenecektir.
+            </div>
+            {% endif %}
+
+            <!-- Filtreleme Formu -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Detaylı Tahsilat Listesi Filtreleme</h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="GET" id="tahsilatFilterForm">
+                                <input type="hidden" name="tab" value="liste">
+                                <div class="row g-3">
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold text-primary">
+                                            <i class="bi bi-calendar-date me-1"></i>Tarih Aralığı
+                                        </label>
+                                        <div class="row g-1">
+                                            <div class="col-12 mb-1">
+                                                <input type="date" class="form-control form-control-sm"
+                                                    name="baslangic_tarihi"
+                                                    value="{{ request.GET.baslangic_tarihi|default:today }}">
+                                            </div>
+                                            <div class="col-12">
+                                                <input type="date" class="form-control form-control-sm"
+                                                    name="bitis_tarihi"
+                                                    value="{{ request.GET.bitis_tarihi|default:today }}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold text-primary">
+                                            <i class="bi bi-person-badge me-1"></i>Plasiyer
+                                        </label>
+                                        <select class="form-select" name="plasiyer">
+                                            <option value="">Tümü</option>
+                                            {% for plasiyer in plasiyer_listesi %}
+                                            <option value="{{ plasiyer }}" {% if request.GET.plasiyer == plasiyer %}selected{% endif %}>
+                                                {{ plasiyer }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold text-primary">
+                                            <i class="bi bi-bank me-1"></i>Banka
+                                        </label>
+                                        <select class="form-select" name="banka">
+                                            <option value="">Tümü</option>
+                                            {% for banka in banka_listesi %}
+                                            <option value="{{ banka }}" {% if request.GET.banka == banka %}selected{% endif %}>
+                                                {{ banka }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold text-primary">
+                                            <i class="bi bi-hash me-1"></i>Cari Kod
+                                        </label>
+                                        <input type="text" class="form-control" name="cari_kod"
+                                            value="{{ request.GET.cari_kod|default:'' }}" placeholder="Cari Kod">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold text-primary">
+                                            <i class="bi bi-building me-1"></i>Cari Ünvan
+                                        </label>
+                                        <input type="text" class="form-control" name="cari_unvan"
+                                            value="{{ request.GET.cari_unvan|default:'' }}" placeholder="Cari Ünvan">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold text-primary">
+                                            <i class="bi bi-gear me-1"></i>İşlemler
+                                        </label>
+                                        <div class="d-grid gap-2">
+                                            <button type="submit" class="btn btn-primary btn-sm">
+                                                <i class="bi bi-search me-1"></i>Filtrele
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                                onclick="clearTahsilatFilters()">
+                                                <i class="bi bi-x-circle me-1"></i>Temizle
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tahsilat Listesi - Satış listesi gibi -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-primary text-white">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-list-ul me-2"></i>
+                                    Detaylı Tahsilat Listesi
+                                </h5>
+                                <div class="d-flex align-items-center gap-2">
+                                    <a class="btn btn-success btn-sm"
+                                        href="?{% if list_pagination_qs %}{{ list_pagination_qs }}&{% endif %}export=excel#liste">
+                                        <i class="bi bi-file-earmark-excel me-1"></i>Excel
+                                    </a>
+                                    {% if pagination_info.total_count %}
+                                    <span class="badge bg-light text-dark">
+                                        {{ pagination_info.total_count }} kayıt
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 110px;">Tarih</th>
+                                            <th style="width: 100px;" class="text-center">Plasiyer</th>
+                                            <th style="width: 120px;" class="text-center">Cari Kod</th>
+                                            <th>Cari Ünvan</th>
+                                            <th style="width: 130px;">Tahsilat Türü</th>
+                                            <th style="width: 130px;">Banka</th>
+                                            <th style="width: 80px;" class="text-center">Taksit</th>
+                                            <th style="width: 130px;" class="text-end">Tutar</th>
+                                            <th style="width: 100px;" class="text-center">Durum</th>
+                                            <th style="width: 120px;">Evrak No</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for kayit in tahsilat_listesi %}
+                                        <tr>
+                                            <td>
+                                                <span class="fw-medium">{{ kayit.FormattedDate|default:"-" }}</span>
+                                            </td>
+                                            <td class="text-center">
+                                                {% if kayit.Plasiyer %}
+                                                <span class="badge bg-warning text-dark">{{ kayit.Plasiyer }}</span>
+                                                {% else %}
+                                                <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge bg-secondary">{{ kayit.CariKod|default:"-" }}</span>
+                                            </td>
+                                            <td>
+                                                <div class="fw-medium">{{ kayit.CariUnvan|default:"Bilinmeyen Cari" }}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                {% if kayit.TahsilatTuru %}
+                                                <span class="badge bg-primary">{{ kayit.TahsilatTuru }}</span>
+                                                {% else %}
+                                                <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if kayit.BANKAADI %}
+                                                <span class="fw-medium">{{ kayit.BANKAADI }}</span>
+                                                {% else %}
+                                                <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-center">
+                                                {% if kayit.Taksit %}
+                                                <span class="badge bg-info">{{ kayit.Taksit }}</span>
+                                                {% else %}
+                                                <span class="badge bg-secondary">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-end">
+                                                <span class="fw-bold text-success">{{ kayit.Tutar|currency_display }}</span>
+                                            </td>
+                                            <td class="text-center">
+                                                {% if kayit.Durum|default:"" == "Onaylandı" %}
+                                                <span class="badge bg-success">{{ kayit.Durum }}</span>
+                                                {% elif kayit.Durum|default:"" == "İŞLENMEDİ" %}
+                                                <span class="badge bg-warning">{{ kayit.Durum }}</span>
+                                                {% else %}
+                                                <span class="badge bg-info">{{ kayit.Durum }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if kayit.EvrakNo %}
+                                                <span class="fw-medium">{{ kayit.EvrakNo }}</span>
+                                                {% else %}
+                                                <span class="text-muted">Evrak Yok</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="10" class="text-center py-5">
+                                                <div class="text-muted">
+                                                    <i class="bi bi-inbox"
+                                                        style="font-size: 2rem; margin-bottom: 1rem; display: block;"></i>
+                                                    <p class="mb-0">Henüz tahsilat kaydı bulunmuyor.</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                    <tfoot class="table-light">
+                                        <tr>
+                                            <td colspan="7" class="text-end fw-bold">
+                                                <i class="bi bi-calculator me-1"></i>Toplam:
+                                            </td>
+                                            <td class="text-end fw-bold text-success">
+                                                <span id="totalAmount">{{ total_tutar|currency_display }}</span>
+                                            </td>
+                                            <td colspan="2"></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sayfalama -->
+            {% if pagination_info.total_pages > 1 %}
+            <nav aria-label="Sayfa navegasyonu" class="mt-4">
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <!-- Sayfa Bilgisi -->
+                    <div>
+                        <small class="text-muted">
+                            Sayfa {{ pagination_info.current_page }} / {{ pagination_info.total_pages }}
+                            ({{ pagination_info.total_count }} kayıt)
+                        </small>
+                    </div>
+
+                    <!-- Sayfa Butonları -->
+                    <ul class="pagination mb-0">
+                        <!-- İlk Sayfa -->
+                        {% if pagination_info.current_page > 1 %}
+                        <li class="page-item">
+                            <a class="page-link" href="?{{ list_pagination_qs }}&page=1#liste">
+                                <i class="bi bi-chevron-double-left"></i>
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        <!-- Önceki Sayfa -->
+                        {% if pagination_info.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?{{ list_pagination_qs }}&page={{ pagination_info.previous_page }}#liste">
+                                <i class="bi bi-chevron-left"></i>
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        <!-- Mevcut Sayfa -->
+                        <li class="page-item active">
+                            <span class="page-link">{{ pagination_info.current_page }}</span>
+                        </li>
+
+                        <!-- Sonraki Sayfa -->
+                        {% if pagination_info.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?{{ list_pagination_qs }}&page={{ pagination_info.next_page }}#liste">
+                                <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        <!-- Son Sayfa -->
+                        {% if pagination_info.current_page < pagination_info.total_pages %} <li class="page-item">
+                            <a class="page-link" href="?{{ list_pagination_qs }}&page={{ pagination_info.total_pages }}#liste">
+                                <i class="bi bi-chevron-double-right"></i>
+                            </a>
+                            </li>
+                            {% endif %}
+                    </ul>
+                </div>
+            </nav>
+            {% endif %}
+        </div>
+
+        <!-- Tahsilat Özeti Sekmesi -->
+        <div class="tab-pane fade show active" id="ozet" role="tabpanel">
+
+            <!-- Ay Seçimi -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="bi bi-calendar3 me-2"></i>Ay Bazlı Filtreleme (Satış & Tahsilat)
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="GET" id="monthFilterForm">
+                                <div class="row">
+                                    <div class="col-12">
+                                        <label class="form-label fw-bold text-primary mb-3">
+                                            <i class="bi bi-calendar-month me-1"></i>Ayları Seçin (Çoklu Seçim)
+                                        </label>
+                                        <div class="row g-1 month-grid">
+                                            <div class="col-1 month-checkbox-container">
+                                                <input type="checkbox" class="btn-check" name="selected_months"
+                                                    value="1" id="month1" autocomplete="off" {% if '1' in selected_months %}checked{% endif %}>
+                                                <label class="btn btn-outline-primary w-100" for="month1">Ocak</label>
+                                            </div>
+                                            <div class="col-1 month-checkbox-container">
+                                                <input type="checkbox" class="btn-check" name="selected_months"
+                                                    value="2" id="month2" autocomplete="off" {% if '2' in selected_months %}checked{% endif %}>
+                                                <label class="btn btn-outline-primary w-100" for="month2">Şubat</label>
+                                            </div>
+                                            <div class="col-1 month-checkbox-container">
+                                                <input type="checkbox" class="btn-check" name="selected_months"
+                                                    value="3" id="month3" autocomplete="off" {% if '3' in selected_months %}checked{% endif %}>
+                                                <label class="btn btn-outline-primary w-100" for="month3">Mart</label>
+                                            </div>
+                                            <div class="col-1 month-checkbox-container">
+                                                <input type="checkbox" class="btn-check" name="selected_months"
+                                                    value="4" id="month4" autocomplete="off" {% if '4' in selected_months %}checked{% endif %}>
+                                                <label class="btn btn-outline-primary w-100" for="month4">Nisan</label>
+                                            </div>
+                                            <div class="col-1 month-checkbox-container">
+                                                <input type="checkbox" class="btn-check" name="selected_months"
+                                                    value="5" id="month5" autocomplete="off" {% if '5' in selected_months %}checked{% endif %}>
+                                                <label class="btn btn-outline-primary w-100" for="month5">Mayıs</label>
+                                            </div>
+                                            <div class="col-1 month-checkbox-container">
+                                                <input type="checkbox" class="btn-check" name="selected_months"
+                                                    value="6" id="month6" autocomplete="off" {% if '6' in selected_months %}checked{% endif %}>
+                                                <label class="btn btn-outline-primary w-100"
+                                                    for="month6">Haziran</label>
+                                            </div>
+                                            <div class="col-1 month-checkbox-container">
+                                                <input type="checkbox" class="btn-check" name="selected_months"
+                                                    value="7" id="month7" autocomplete="off" {% if '7' in selected_months %}checked{% endif %}>
+                                                <label class="btn btn-outline-primary w-100" for="month7">Temmuz</label>
+                                            </div>
+                                            <div class="col-1 month-checkbox-container">
+                                                <input type="checkbox" class="btn-check" name="selected_months"
+                                                    value="8" id="month8" autocomplete="off" {% if '8' in selected_months %}checked{% endif %}>
+                                                <label class="btn btn-outline-primary w-100"
+                                                    for="month8">Ağustos</label>
+                                            </div>
+                                            <div class="col-1 month-checkbox-container">
+                                                <input type="checkbox" class="btn-check" name="selected_months"
+                                                    value="9" id="month9" autocomplete="off" {% if '9' in selected_months %}checked{% endif %}>
+                                                <label class="btn btn-outline-primary w-100" for="month9">Eylül</label>
+                                            </div>
+                                            <div class="col-1 month-checkbox-container">
+                                                <input type="checkbox" class="btn-check" name="selected_months"
+                                                    value="10" id="month10" autocomplete="off" {% if '10' in selected_months %}checked{% endif %}>
+                                                <label class="btn btn-outline-primary w-100" for="month10">Ekim</label>
+                                            </div>
+                                            <div class="col-1 month-checkbox-container">
+                                                <input type="checkbox" class="btn-check" name="selected_months"
+                                                    value="11" id="month11" autocomplete="off" {% if '11' in selected_months %}checked{% endif %}>
+                                                <label class="btn btn-outline-primary w-100" for="month11">Kasım</label>
+                                            </div>
+                                            <div class="col-1 month-checkbox-container">
+                                                <input type="checkbox" class="btn-check" name="selected_months"
+                                                    value="12" id="month12" autocomplete="off" {% if '12' in selected_months %}checked{% endif %}>
+                                                <label class="btn btn-outline-primary w-100"
+                                                    for="month12">Aralık</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row mt-3">
+                                    <div class="col-12 text-center">
+                                        <button type="submit" class="btn btn-primary me-2">
+                                            <i class="bi bi-search me-1"></i>Filtrele
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary"
+                                            onclick="clearMonthSelection()">
+                                            <i class="bi bi-x-circle me-1"></i>Temizle
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Toplam İstatistikler -->
+            <div class="toplam-section p-4 mb-4">
+                <h4 class="text-center mb-4">
+                    <i class="{{ sayfa_ikon }} me-2"></i>
+                    Tüm Plasiyer {{ sayfa_baslik }} Toplamları
+                </h4>
+                <div class="row">
+                    <div class="col-md-2">
+                        <div class="toplam-item">
+                            <div class="toplam-label">Günlük {{ sayfa_baslik }}</div>
+                            <div class="toplam-value">{{ toplam_stats.gunluk_tutar|currency_display }}</div>
+                            <small>({{ toplam_stats.gunluk_adet }} adet)</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="toplam-item">
+                            <div class="toplam-label">Haftalık {{ sayfa_baslik }}</div>
+                            <div class="toplam-value">{{ toplam_stats.haftalik_tutar|currency_display }}</div>
+                            <small>({{ toplam_stats.haftalik_adet }} adet)</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="toplam-item">
+                            <div class="toplam-label">Aylık {{ sayfa_baslik }}</div>
+                            <div class="toplam-value">{{ toplam_stats.aylik_tutar|currency_display }}</div>
+                            <small>({{ toplam_stats.aylik_adet }} adet)</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="toplam-item">
+                            <div class="toplam-label">Aktif Plasiyer</div>
+                            <div class="toplam-value">{{ plasiyer_verileri|length }}</div>
+                            <small>kişi</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="toplam-item">
+                            <div class="toplam-label">Ortalama Günlük</div>
+                            <div class="toplam-value">
+                                {% if plasiyer_verileri %}
+                                ₺{% widthratio toplam_stats.gunluk_tutar plasiyer_verileri|length 1 %} {% else %}
+                                ₺0,00
+                                {% endif %}
+                            </div>
+                            <small>plasiyer başı</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="toplam-item">
+                            <div class="toplam-label">Ortalama Aylık</div>
+                            <div class="toplam-value">
+                                {% if plasiyer_verileri %}
+                                ₺{% widthratio toplam_stats.aylik_tutar plasiyer_verileri|length 1 %} {% else %}
+                                ₺0,00
+                                {% endif %}
+                            </div>
+                            <small>plasiyer başı</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Plasiyer Kartları -->
+            <div class="row">
+                {% for plasiyer_veri in plasiyer_verileri %}
+                <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
+                    <div class="plasiyer-card h-100">
+                        <!-- Plasiyer Header -->
+                        <div class="plasiyer-header p-3 text-center">
+                            <h5 class="mb-0">
+                                <i class="bi bi-person-circle me-2"></i>
+                                {{ plasiyer_veri.plasiyer }}
+                            </h5>
+                        </div>
+
+                        <!-- Tahsilat İstatistikleri -->
+                        <div class="p-3">
+                            <h6 class="text-primary mb-3">
+                                <i class="{{ sayfa_ikon }} me-1"></i>
+                                {{ sayfa_baslik }} Performansı
+                            </h6>
+
+                            <div class="stat-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="stat-label fw-bold">💰 Günlük</span>
+                                        <br>
+                                        <small class="text-muted">{{ plasiyer_veri.tahsilat.gunluk_adet }} işlem</small>
+                                    </div>
+                                    <span class="stat-value text-success fw-bold">{{ plasiyer_veri.tahsilat.gunluk_tutar|currency_display }}</span>
+                                </div>
+                            </div>
+
+                            <div class="stat-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="stat-label fw-bold">📊 Haftalık</span>
+                                        <br>
+                                        <small class="text-muted">{{ plasiyer_veri.tahsilat.haftalik_adet }}
+                                            işlem</small>
+                                    </div>
+                                    <span class="stat-value text-info fw-bold">{{ plasiyer_veri.tahsilat.haftalik_tutar|currency_display }}</span>
+                                </div>
+                            </div>
+
+                            <div class="stat-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="stat-label fw-bold">🎯 Aylık</span>
+                                        <br>
+                                        <small class="text-muted">{{ plasiyer_veri.tahsilat.aylik_adet }} işlem</small>
+                                    </div>
+                                    <span class="stat-value text-primary fw-bold">{{ plasiyer_veri.tahsilat.aylik_tutar|currency_display }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Performans Göstergesi -->
+                        <div class="p-3 pt-0">
+                            {% if plasiyer_veri.tahsilat.aylik_tutar > 0 %}
+                            {% widthratio plasiyer_veri.tahsilat.aylik_tutar toplam_stats.aylik_tutar 100 as percentage %}
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-success" style="width: {{ percentage }}%"></div>
+                            </div>
+                            <small class="text-muted">
+                                Toplam içindeki payı: %{{ percentage }}
+                            </small>
+                            {% else %}
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-light" style="width: 100%"></div>
+                            </div>
+                            <small class="text-muted">Henüz {{ sayfa_baslik|lower }} yok</small>
+                            {% endif %}
+                        </div>
+
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12">
+                    <div class="alert alert-info text-center">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Henüz plasiyer verisi bulunmuyor.
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Footer İstatistikler -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-md-3">
+                                    <h6 class="text-muted">En Yüksek Günlük</h6>
+                                    <h4 class="text-success">
+                                        {% for pv in plasiyer_verileri %}
+                                        {% if forloop.first %}{{ pv.tahsilat.gunluk_tutar|currency_display }}{% endif %}
+                                        {% endfor %}
+                                    </h4>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6 class="text-muted">En Yüksek Haftalık</h6>
+                                    <h4 class="text-info">
+                                        {% for pv in plasiyer_verileri %}
+                                        {% if forloop.first %}{{ pv.tahsilat.haftalik_tutar|currency_display }}{% endif %}
+                                        {% endfor %}
+                                    </h4>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6 class="text-muted">En Yüksek Aylık</h6>
+                                    <h4 class="text-primary">
+                                        {% for pv in plasiyer_verileri %}
+                                        {% if forloop.first %}{{ pv.tahsilat.aylik_tutar|currency_display }}{% endif %}
+                                        {% endfor %}
+                                    </h4>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6 class="text-muted">Toplam İşlem</h6>
+                                    <h4 class="text-dark">{{ toplam_stats.aylik_adet }}</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div> <!-- Tahsilat Özeti Sekmesi Sonu -->
+
+
+
+        </div> <!-- Tab Content Sonu -->
+    </div>
+
+    <!-- CSS Override for Tab Issues -->
+    <style>
+        /* Force show active tab pane */
+        .tab-pane.fade {
+            opacity: 0;
+            transition: opacity 0.15s linear;
+        }
+
+        .tab-pane.fade.show {
+            opacity: 1;
+        }
+
+        /* Ay Seçimi Stilleri */
+        .month-grid {
+            display: flex;
+            flex-wrap: nowrap;
+            /* Tek satırda tut */
+            gap: 0.1rem;
+            justify-content: space-between;
+        }
+
+        .month-checkbox-container {
+            flex: 1;
+            /* Eşit genişlik dağılımı */
+            min-width: 0;
+            /* Flexbox overflow sorununu çöz */
+        }
+
+        .month-checkbox-container .btn {
+            font-size: 0.7rem;
+            padding: 0.4rem 0.1rem;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+        }
+
+        .month-checkbox-container .btn-check:checked+.btn {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+            color: white;
+            transform: scale(1.05);
+            box-shadow: 0 2px 8px rgba(13, 110, 253, 0.3);
+        }
+
+        .month-checkbox-container .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Responsive ay seçimi - küçük ekranlarda wrap yap */
+        @media (max-width: 992px) {
+            .month-grid {
+                flex-wrap: wrap;
+            }
+
+            .month-checkbox-container {
+                flex: 0 0 16.66%;
+                /* 6 ay yan yana */
+            }
+        }
+
+        @media (max-width: 768px) {
+            .month-checkbox-container {
+                flex: 0 0 25%;
+                /* 4 ay yan yana */
+            }
+
+            .month-checkbox-container .btn {
+                font-size: 0.6rem;
+                padding: 0.3rem 0.1rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .month-checkbox-container {
+                flex: 0 0 33.33%;
+                /* 3 ay yan yana */
+            }
+        }
+    </style>
+
+    <!-- JavaScript -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Tooltip'leri etkinleştir
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle=" tooltip\]'));
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+
+            // Otomatik tam sayfa yenileme kaldırıldı (form/sekme kesintisi önlendi); güncel veri için Yenile kullanın.
+
+            // Refresh butonu
+            const refreshBtn = document.createElement('button');
+            refreshBtn.className = 'btn btn-outline-primary btn-sm position-fixed';
+            refreshBtn.style.cssText = 'top: 100px; right: 20px; z-index: 1000;';
+            refreshBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Yenile';
+            refreshBtn.onclick = () => location.reload();
+            document.body.appendChild(refreshBtn);
+
+            // Bootstrap Tab yönetimi
+            document.querySelectorAll('[data-bs-toggle="tab"]').forEach(function (tabButton) {
+                try {
+                    new bootstrap.Tab(tabButton);
+                } catch (e) {
+                    console.log('Bootstrap Tab error:', e);
+                }
+            });
+
+            // URL hash kontrolü — #liste için tab=liste yoksa tam yükleme gerekir
+            function checkHash() {
+                const hash = window.location.hash;
+                if (hash === '#liste') {
+                    const u = new URL(window.location.href);
+                    if (u.searchParams.get('tab') !== 'liste') {
+                        u.searchParams.set('tab', 'liste');
+                        window.location.replace(u.pathname + '?' + u.searchParams.toString() + '#liste');
+                        return;
+                    }
+                    const listTab = document.getElementById('liste-tab');
+                    if (listTab) {
+                        const tab = new bootstrap.Tab(listTab);
+                        tab.show();
+                    }
+                }
+            }
+
+            // Sayfa yüklendiğinde hash kontrol et
+            checkHash();
+
+            // Hash değişikliklerini dinle
+            window.addEventListener('hashchange', checkHash);
+
+            const listeTabBtn = document.getElementById('liste-tab');
+            if (listeTabBtn) {
+                listeTabBtn.addEventListener('shown.bs.tab', function () {
+                    const u = new URL(window.location.href);
+                    if (u.searchParams.get('tab') !== 'liste') {
+                        u.searchParams.set('tab', 'liste');
+                        window.location.href = u.pathname + '?' + u.searchParams.toString() + '#liste';
+                    }
+                });
+            }
+        });
+
+        // Excel Export Fonksiyonu
+        // Ay seçimi fonksiyonları
+        function clearMonthSelection() {
+            // Tüm ay checkbox'larını temizle
+            const monthCheckboxes = document.querySelectorAll('input[name="selected_months"]');
+            monthCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+
+            // Formu gönder
+            document.getElementById('monthFilterForm').submit();
+        }
+
+        // Ay seçimi değiştiğinde otomatik filtreleme (opsiyonel)
+        document.addEventListener('DOMContentLoaded', function () {
+            const monthCheckboxes = document.querySelectorAll('input[name="selected_months"]');
+
+            // Her checkbox için change event listener ekle
+            monthCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function () {
+                    // İsteğe bağlı: Otomatik filtreleme için
+                    // document.getElementById('monthFilterForm').submit();
+                });
+            });
+        });
+
+        // Tahsilat filtrelerini temizle
+        function clearTahsilatFilters() {
+            // Bugünün tarihini al
+            const today = new Date().toISOString().split('T')[0];
+
+            // Form elemanlarını temizle
+            document.querySelector('input[name="baslangic_tarihi"]').value = today;
+            document.querySelector('input[name="bitis_tarihi"]').value = today;
+            document.querySelector('select[name="plasiyer"]').value = '';
+            document.querySelector('input[name="cari_kod"]').value = '';
+            document.querySelector('input[name="cari_unvan"]').value = '';
+
+            // Formu gönder
+            document.getElementById('tahsilatFilterForm').submit();
+        }
+
+        // Sayfa yüklendiğinde sekme kontrolü
+        document.addEventListener('DOMContentLoaded', function () {
+            // URL'deki tab parametresini kontrol et
+            const urlParams = new URLSearchParams(window.location.search);
+            const tab = urlParams.get('tab');
+
+            if (tab === 'liste') {
+                // Liste sekmesini aktif yap
+                const ozetTab = document.getElementById('ozet-tab');
+                const listeTab = document.getElementById('liste-tab');
+                const ozetPane = document.getElementById('ozet');
+                const listePane = document.getElementById('liste');
+
+                if (ozetTab && listeTab && ozetPane && listePane) {
+                    ozetTab.classList.remove('active');
+                    listeTab.classList.add('active');
+                    ozetPane.classList.remove('show', 'active');
+                    listePane.classList.add('show', 'active');
+                }
+            }
+        });
+    </script>
+
+    {% endblock %}

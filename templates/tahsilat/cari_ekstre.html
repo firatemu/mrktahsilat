@@ -1,0 +1,515 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}Cari Ekstre - MRK OTOMOTİV{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Cari ekstre tablosu için gelişmiş stil */
+    .table-compact {
+        table-layout: fixed !important;
+        width: 100% !important;
+        border-collapse: collapse !important;
+    }
+    
+    /* Tüm border'ları kaldır */
+    .table-compact,
+    .table-compact th,
+    .table-compact td,
+    .table-compact thead,
+    .table-compact tbody,
+    .table-compact tr {
+        border: none !important;
+    }
+    
+    .table-compact th,
+    .table-compact td {
+        padding: 0.1rem 0.15rem !important;
+        vertical-align: top !important;
+        border-right: none !important;
+        border-left: none !important;
+    }
+    
+    /* Başlık satırları */
+    .table-compact th {
+        font-weight: 600;
+        border-bottom: none !important;
+        font-size: 0.9rem !important;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: white !important;
+    }
+    
+    .table-compact td {
+        font-size: 1rem !important;
+    }
+    
+    /* Even-Odd satır renklendirmesi */
+    .table-compact tbody tr:nth-child(even) td {
+        background-color: #e8edf7 !important;
+    }
+    
+    .table-compact tbody tr:nth-child(odd) td {
+        background-color: #ffffff !important;
+    }
+    
+    /* Hover efekti - turuncu renkler */
+    .table-compact tbody tr:hover td {
+        background: linear-gradient(135deg, #ffe4d1 0%, #ffd4b3 100%) !important;
+        transition: all 0.2s ease;
+    }
+    
+    .table-compact tbody tr:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(255, 140, 0, 0.25);
+    }
+    
+    /* Kolon genişlikleri */
+    .table-compact .col-code { 
+        width: 10% !important;
+        font-family: monospace;
+        font-size: 0.9rem !important;
+    }
+    
+    .table-compact .col-definition {
+        width: 35% !important;
+        overflow: visible !important;
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        text-overflow: unset !important;
+    }
+    
+    .table-compact .col-bolge { 
+        width: 12% !important;
+        text-align: center !important;
+    }
+    
+    .table-compact .col-tarih { 
+        width: 10% !important;
+        font-size: 0.9rem !important;
+        text-align: center !important;
+    }
+    
+    .table-compact .col-gecen-sure {
+        width: 10% !important;
+        text-align: center !important;
+        font-weight: bold;
+    }
+    
+    .table-compact .col-bakiye {
+        width: 13% !important;
+        text-align: right !important;
+        font-weight: bold;
+        font-family: 'Courier New', monospace;
+    }
+    
+    /* Filtre butonları */
+    .filter-select {
+        border-radius: 0.5rem;
+        border: 2px solid #667eea;
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+    }
+    
+    .filter-select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+    }
+    
+    /* PDF export butonu */
+    .export-btn {
+        background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+        border: none;
+        border-radius: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        color: white;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .export-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(255, 107, 53, 0.4);
+        color: white;
+    }
+    
+    /* İstatistik kartları */
+    .stats-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+    
+    .stats-number {
+        font-size: 2rem;
+        font-weight: bold;
+        font-family: 'Courier New', monospace;
+    }
+    
+    /* Mobile-First Responsive Design */
+    @media (max-width: 1200px) {
+        .table-compact th,
+        .table-compact td {
+            padding: 0.3rem 0.2rem !important;
+            font-size: 0.85rem !important;
+        }
+    }
+    
+    @media (max-width: 992px) {
+        .table-compact th,
+        .table-compact td {
+            padding: 0.25rem 0.15rem !important;
+            font-size: 0.8rem !important;
+        }
+        
+        .stats-card {
+            padding: 1.2rem;
+            margin-bottom: 1rem;
+        }
+        
+        .stats-number {
+            font-size: 1.8rem;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .container-fluid {
+            padding: 0.5rem;
+        }
+        
+        .table-compact th,
+        .table-compact td {
+            padding: 0.2rem 0.1rem !important;
+            font-size: 0.75rem !important;
+        }
+        
+        .stats-card {
+            padding: 1rem;
+            margin-bottom: 0.8rem;
+        }
+        
+        .stats-number {
+            font-size: 1.5rem;
+        }
+        
+        .stats-label {
+            font-size: 0.8rem;
+        }
+        
+        /* Mobile için tablo scroll */
+        .table-responsive {
+            border: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow-x: auto; /* ensure horizontal scrolling on small screens */
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Allow table to shrink on small screens; rely on horizontal scroll instead of forcing min-width */
+        .table-compact {
+            min-width: 0 !important;
+            width: 100% !important;
+        }
+    }
+    
+    @media (max-width: 576px) {
+        .container-fluid {
+            padding: 0.25rem;
+        }
+        
+        .table-compact th,
+        .table-compact td {
+            padding: 0.15rem 0.08rem !important;
+            font-size: 0.7rem !important;
+        }
+        
+        .stats-card {
+            padding: 0.8rem;
+            margin-bottom: 0.6rem;
+        }
+        
+        .stats-number {
+            font-size: 1.3rem;
+        }
+        
+        .stats-label {
+            font-size: 0.75rem;
+        }
+        
+        /* Çok küçük ekranlar için */
+        .table-compact {
+            min-width: 0 !important;
+        }
+        
+        /* Başlık alanı mobile */
+        .page-header {
+            padding: 1rem 0.5rem;
+        }
+        
+        .page-header h1 {
+            font-size: 1.5rem;
+        }
+        
+        .page-header p {
+            font-size: 0.9rem;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .table-compact th,
+        .table-compact td {
+            padding: 0.1rem 0.05rem !important;
+            font-size: 0.65rem !important;
+        }
+        
+        .stats-card {
+            padding: 0.6rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stats-number {
+            font-size: 1.1rem;
+        }
+        
+        .stats-label {
+            font-size: 0.7rem;
+        }
+        
+        .table-compact {
+            min-width: 0 !important;
+        }
+    }
+    
+    /* Mobile için ek iyileştirmeler */
+    @media (max-width: 768px) {
+        .filter-select {
+            width: 100% !important;
+            min-width: auto !important;
+        }
+        
+        .export-btn {
+            font-size: 0.9rem;
+            padding: 0.5rem 1rem;
+        }
+        
+        .card-custom {
+            margin: 0;
+            border-radius: 8px;
+        }
+        
+        .card-header {
+            padding: 0.75rem;
+        }
+        
+        .card-body {
+            padding: 0.5rem;
+        }
+    }
+
+    /* Mobile card list - hidden on desktop */
+    .mobile-cards { display: none; }
+    .mobile-card {
+        background: #fff;
+        border-radius: 0.75rem;
+        padding: 0.75rem;
+        margin-bottom: 0.6rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        border: 1px solid rgba(0,0,0,0.04);
+    }
+    .mobile-card .meta { font-size: 0.85rem; color: #6c757d; }
+    .mobile-card .title { font-weight: 700; font-size: 1rem; margin-bottom: 0.25rem; }
+    .mobile-card .badge-bolge { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
+
+    @media (max-width: 768px) {
+        .table-responsive { display: none !important; }
+        .mobile-cards { display: block; }
+    }
+    
+    @media (max-width: 576px) {
+        .export-btn {
+            font-size: 0.8rem;
+            padding: 0.4rem 0.8rem;
+        }
+        
+        .card-header h5 {
+            font-size: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid main-content">
+    <!-- Başlık -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <h3 class="fw-bold mb-1">
+                <i class="bi bi-table me-2"></i>Cari Ekstre
+            </h3>
+            <p class="text-muted mb-0">
+                {{ plasiyer }} plasiyerine ait cari bakiye listesi
+            </p>
+        </div>
+    </div>
+    
+    <!-- İstatistik Kartları -->
+    <div class="row mb-4">
+        <div class="col-6 col-md-6 mb-2">
+            <div class="stats-card">
+                <div class="stats-number">{{ toplam_kayit }}</div>
+                <div class="stats-label">Toplam Kayıt</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-6 mb-2">
+            <div class="stats-card">
+                <div class="stats-number currency">{{ toplam_bakiye|currency_display }}</div>
+                <div class="stats-label">Toplam Bakiye</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filtreler ve Export -->
+    <div class="row mb-3">
+        <div class="col-12 col-md-8 mb-2 mb-md-0">
+            <form method="get" class="d-flex flex-column flex-md-row gap-2 align-items-start align-items-md-center">
+                <label for="bolge" class="form-label mb-0 fw-bold">Bölge Filtresi:</label>
+                <select name="bolge" id="bolge" class="form-select filter-select" style="width: auto; min-width: 150px;" onchange="this.form.submit()">
+                    <option value="all" {% if selected_bolge == 'all' %}selected{% endif %}>Tüm Bölgeler</option>
+                    {% for bolge in bolgeler %}
+                        <option value="{{ bolge }}" {% if selected_bolge == bolge %}selected{% endif %}>{{ bolge }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+        <div class="col-12 col-md-4 text-start text-md-end">
+            <a href="?{% if selected_bolge != 'all' %}bolge={{ selected_bolge }}&{% endif %}export=pdf" class="btn export-btn w-100 w-md-auto" onclick="window.hideGlobalLoading(); return true;" target="_blank">
+                <i class="bi bi-file-earmark-pdf me-2"></i>PDF İndir
+            </a>
+        </div>
+    </div>
+    <!-- Mobile card list (shown only on small screens) -->
+    <div class="row mb-3 mobile-cards">
+        <div class="col-12">
+            {% if cari_bakiye_list %}
+                {% for item in cari_bakiye_list %}
+                <div class="mobile-card">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="title">{{ item.DEFINITION_|truncatechars:60 }}</div>
+                            <div class="meta">Kod: <strong>{{ item.CODE }}</strong> • <span class="badge badge-info badge-bolge">{{ item.BOLGE|default:'-' }}</span></div>
+                        </div>
+                        <div class="text-end">
+                            <div class="fw-bold currency">{{ item.BAKİYE|default:0|currency_display }}</div>
+                            <div class="meta">Kayıt: {% if item.TARIHS %}{{ item.TARIHS|date:'d.m.Y' }}{% else %}-{% endif %}</div>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-2">
+                        <div class="meta">Satış G.Süre: {% if item.SATISGECENSURE %}{{ item.SATISGECENSURE }} gün{% else %}-{% endif %}</div>
+                        <div class="meta">Tahsilat G.Süre: {% if item.TAHSILATGECENSURE %}{{ item.TAHSILATGECENSURE }} gün{% else %}-{% endif %}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="text-center py-3 text-muted">Cari bakiye kaydı bulunamadı.</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Cari Ekstre Listesi -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card card-custom">
+                <div class="card-header bg-transparent">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-list-check me-2"></i>
+                            Cari Bakiye Listesi
+                            {% if selected_bolge != 'all' %}
+                                <span class="badge bg-primary">{{ selected_bolge }}</span>
+                            {% endif %}
+                        </h5>
+                        <span class="badge bg-success">{{ cari_bakiye_list|length }} kayıt</span>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if cari_bakiye_list %}
+                        <div class="table-responsive">
+                            <table class="table table-compact mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="col-code">Cari Kod</th>
+                                        <th class="col-definition">Cari Ünvan</th>
+                                        <th class="col-bolge">Bölge</th>
+                                        <th class="col-tarih">Satış Tarihi</th>
+                                        <th class="col-gecen-sure">Satış G.Süre</th>
+                                        <th class="col-tarih">Tahsilat Tarihi</th>
+                                        <th class="col-gecen-sure">Tahsilat G.Süre</th>
+                                        <th class="col-bakiye">Bakiye</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in cari_bakiye_list %}
+                                    <tr>
+                                        <td class="col-code">{{ item.CODE }}</td>
+                                        <td class="col-definition" title="{{ item.DEFINITION_ }}">{{ item.DEFINITION_ }}</td>
+                                        <td class="col-bolge">
+                                            <span class="badge bg-info">{{ item.BOLGE|default:"-" }}</span>
+                                        </td>
+                                        <td class="col-tarih">
+                                            {% if item.TARIHS %}
+                                                <small>{{ item.TARIHS|date:"d.m.Y" }}</small>
+                                            {% else %}
+                                                <small class="text-muted">-</small>
+                                            {% endif %}
+                                        </td>
+                                        <td class="col-gecen-sure">
+                                            {% if item.SATISGECENSURE %}
+                                                <span class="badge bg-warning">{{ item.SATISGECENSURE }} gün</span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="col-tarih">
+                                            {% if item.TARIHT %}
+                                                <small>{{ item.TARIHT|date:"d.m.Y" }}</small>
+                                            {% else %}
+                                                <small class="text-muted">-</small>
+                                            {% endif %}
+                                        </td>
+                                        <td class="col-gecen-sure">
+                                            {% if item.TAHSILATGECENSURE %}
+                                                <span class="badge bg-secondary">{{ item.TAHSILATGECENSURE }} gün</span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="col-bakiye">
+                                            {% if item.BAKİYE %}
+                                                <strong class="{% if item.BAKİYE > 0 %}text-danger{% else %}text-success{% endif %} currency">
+                                                    {{ item.BAKİYE|currency_display }}
+                                                </strong>
+                                            {% else %}
+                                                <span class="text-muted">0,00 ₺</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="bi bi-inbox fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">Cari bakiye kaydı bulunamadı</h5>
+                            <p class="text-muted">{{ plasiyer }} plasiyerine ait cari bakiye kaydı bulunmuyor.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+---
+description: Backend veya üretim şablonu değişince Gunicorn’u yeniden başlat
+globs: tahsilat/**/*.py,mrktahsilat/**/*.py,templates/**/*.html
+alwaysApply: false
+---
+
+# Gunicorn yeniden başlatma
+
+Bu projede uygulama **systemd** üzerinden `gunicorn_mrktahsilat` ile çalışıyor. Python veya şablon değişiklikleri worker belleğine yansımaz; değişiklik kullanıcıya geçsin diye servis **yeniden başlatılmalı**.
+
+`systemctl reload` bu kurulumda güvenilir değil; **`restart` kullan**.
+
+## Ne zaman
+
+- `tahsilat/`, `mrktahsilat/` altında `.py` düzenlendiyse
+- `templates/` altındaki HTML şablonları üretimde önbellekleniyorsa veya emin olmak için
+
+## Komut (sunucuda, değişiklikleri kaydettikten sonra)
+
+```bash
+sudo systemctl restart gunicorn_mrktahsilat
+```
+
+Alternatif:
+
+```bash
+bash /var/www/mrktahsilat/scripts/restart_mrktahsilat.sh
+```
+
+## Görev akışı
+
+Kod veya ilgili şablonlarda değişiklik yaptıktan sonra, görevi tamamlamadan önce yukarıdaki restart komutunu **kendin çalıştır** (kullanıcıya “siz çalıştırın” deme). Komut başarısız olursa çıktıyı inceleyip tekrar dene veya `journalctl -u gunicorn_mrktahsilat -n 50` ile log kontrol et.

@@ -1,0 +1,673 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load tahsilat_extras %}
+
+{% block title %}Yetkilendirme{% endblock %}
+
+{% block extra_css %}
+<style>
+    .auth-container {
+        padding: 30px;
+        background-color: #f8f9fa;
+        min-height: 80vh;
+    }
+    
+    .auth-header {
+        background: linear-gradient(45deg, #dc3545, #c82333);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .auth-header h1 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0;
+    }
+    
+    .auth-header .subtitle {
+        font-size: 1.1rem;
+        opacity: 0.9;
+        margin-top: 5px;
+    }
+    
+    .users-table {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+    
+    .table-header {
+        background: #f8f9fa;
+        padding: 15px 20px;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        justify-content: between;
+        align-items: center;
+    }
+    
+    .table-header h3 {
+        margin: 0;
+        color: #495057;
+        font-size: 1.2rem;
+        flex: 1;
+    }
+    
+    .refresh-btn {
+        background: linear-gradient(45deg, #28a745, #20c997);
+        border: none;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .refresh-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+    }
+    
+    .table-responsive {
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+    
+    .permission-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    
+    .permission-table th {
+        background: #e9ecef;
+        border: none;
+        font-weight: 600;
+        color: #495057;
+        padding: 15px 12px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        text-align: center;
+        vertical-align: middle;
+    }
+    
+    .permission-table th:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 11;
+        background: #e9ecef;
+        text-align: left;
+        min-width: 180px;
+    }
+    
+    .permission-table td {
+        border: none;
+        padding: 12px;
+        vertical-align: top;
+        border-bottom: 1px solid #f1f3f4;
+        text-align: center;
+    }
+    
+    .permission-table td:first-child {
+        position: sticky;
+        left: 0;
+        background: white;
+        z-index: 9;
+        text-align: left;
+        border-right: 2px solid #e9ecef;
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .permission-table tbody tr:hover td:first-child {
+        background: #f8f9fa;
+    }
+    
+    .permission-table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .permission-table tbody tr:hover td:first-child {
+        background: #f8f9fa;
+    }
+    
+    .menu-group-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 12px 8px;
+        margin: 0;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        margin-bottom: 8px;
+    }
+    
+    .menu-item-container {
+        background: #f8f9fa;
+        border-radius: 6px;
+        padding: 8px;
+        margin: 4px 0;
+        border: 1px solid #e9ecef;
+        transition: all 0.2s ease;
+    }
+    
+    .menu-item-container:hover {
+        background: #e9ecef;
+        border-color: #dee2e6;
+    }
+    
+    .menu-item-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 0;
+    }
+    
+    .menu-item-name {
+        font-size: 0.8rem;
+        color: #495057;
+        font-weight: 500;
+        flex: 1;
+        text-align: left;
+    }
+    
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 24px;
+        margin-left: 8px;
+    }
+    
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: .4s;
+        border-radius: 24px;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .4s;
+        border-radius: 50%;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    input:checked + .slider {
+        background-color: #28a745;
+    }
+    
+    input:checked + .slider:before {
+        transform: translateX(20px);
+    }
+    
+    input:disabled + .slider {
+        background-color: #6c757d;
+        cursor: not-allowed;
+    }
+    
+    .user-badge {
+        display: inline-block;
+        background: linear-gradient(45deg, #007bff, #0056b3);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-left: 8px;
+    }
+    
+    .superuser-badge {
+        background: linear-gradient(45deg, #dc3545, #c82333);
+    }
+    
+    .loading {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.9);
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+    }
+    
+    .loading.show {
+        display: flex;
+    }
+    
+    .loading-spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #007bff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .loading-text {
+        margin-top: 15px;
+        font-size: 1.1rem;
+        color: #007bff;
+        font-weight: 600;
+    }
+    
+    .alert {
+        border-radius: 8px;
+        border: none;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+    }
+    
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .auth-container {
+            padding: 15px;
+        }
+        
+        .permission-table th:first-child,
+        .permission-table td:first-child {
+            min-width: 120px;
+        }
+        
+        .menu-item-name {
+            font-size: 0.7rem;
+        }
+        
+        .toggle-switch {
+            width: 36px;
+            height: 20px;
+        }
+        
+        .slider:before {
+            height: 14px;
+            width: 14px;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(16px);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="auth-container">
+        <!-- Başlık -->
+        <div class="auth-header">
+            <h1><i class="bi bi-shield-check me-2"></i>Kullanıcı Yetkilendirme</h1>
+            <div class="subtitle">
+                <i class="bi bi-person-gear me-1"></i>
+                Kullanıcıların menü erişim yetkilerini yönetin
+            </div>
+        </div>
+        
+        <!-- Mesajlar -->
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        <!-- Kullanıcı Yetki Tablosu -->
+        <div class="users-table">
+            <div class="table-header">
+                <h3><i class="bi bi-table me-2"></i>Yetkilendirme Matrisi</h3>
+                <button class="refresh-btn" onclick="syncUsers()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Kullanıcıları Yenile
+                </button>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="permission-table">
+                    <thead>
+                        <tr>
+                            <th>Kullanıcı Adı</th>
+                            {% for menu_group, menus in menu_hierarchy.items %}
+                                <th>
+                                    <div class="menu-group-header">{{ menu_group }}</div>
+                                </th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for kullanici in kullanicilar %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex flex-column">
+                                        <div class="d-flex align-items-center mb-1">
+                                            <strong>
+                                                {% if mssql_username_map|get_item:kullanici.username %}
+                                                    {{ mssql_username_map|get_item:kullanici.username }}
+                                                {% else %}
+                                                    {{ kullanici.username }}
+                                                {% endif %}
+                                            </strong>
+                                            {% if kullanici.is_superuser %}
+                                                <span class="user-badge superuser-badge">Süper Kullanıcı</span>
+                                            {% endif %}
+                                        </div>
+                                        {% if kullanici.id %}
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-info mt-1" 
+                                                onclick="showUserPermissions('{% if mssql_username_map|get_item:kullanici.username %}{{ mssql_username_map|get_item:kullanici.username }}{% else %}{{ kullanici.username }}{% endif %}', {{ kullanici.id }})"
+                                                style="font-size: 0.7rem; padding: 2px 6px;">
+                                            <i class="bi bi-eye me-1"></i>Yetkileri Gör
+                                        </button>
+                                        {% else %}
+                                        <span class="badge bg-secondary" style="font-size: 0.7rem;">Django User Yok</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                {% for menu_group, menus in menu_hierarchy.items %}
+                                    <td>
+                                        {% for menu in menus %}
+                                            <div class="menu-item-container">
+                                                <div class="menu-item-row">
+                                                    <span class="menu-item-name">{{ menu.1 }}</span>
+                                                    <label class="toggle-switch">
+                                                        {% if kullanici.id %}
+                                                        <input type="checkbox" 
+                                                               data-kullanici-id="{{ kullanici.id }}" 
+                                                               data-menu-adi="{{ menu.0 }}"
+                                                               {% if kullanici.is_superuser %}
+                                                                   checked disabled
+                                                               {% else %}
+                                                                   {% for yetki_key, yetki_value in kullanici_yetkileri.items %}
+                                                                       {% if yetki_key == kullanici.id %}
+                                                                           {% for menu_key, menu_value in yetki_value.items %}
+                                                                               {% if menu_key == menu.0 and menu_value %}
+                                                                                   checked
+                                                                               {% endif %}
+                                                                           {% endfor %}
+                                                                       {% endif %}
+                                                                   {% endfor %}
+                                                               {% endif %}
+                                                               onchange="updatePermission(this)">
+                                                        <span class="slider"></span>
+                                                        {% else %}
+                                                        <span class="badge bg-secondary" style="font-size: 0.7rem;">-</span>
+                                                        {% endif %}
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </td>
+                                {% endfor %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Loading -->
+        <div class="loading" id="loading">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Yetki güncelleniyor...</div>
+        </div>
+        
+        <!-- Yetki Detay Modal -->
+        <div class="modal fade" id="permissionModal" tabindex="-1" aria-labelledby="permissionModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title" id="permissionModalLabel">
+                            <i class="bi bi-shield-check me-2"></i>Kullanıcı Yetkileri
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <h6><strong id="modalUsername"></strong> kullanıcısının yetkili olduğu sayfalar:</h6>
+                            <div id="permissionList" class="list-group"></div>
+                            <div id="noPermission" class="alert alert-warning mt-3" style="display: none;">
+                                <i class="bi bi-exclamation-triangle me-2"></i>Bu kullanıcının henüz yetkisi bulunmamaktadır.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function updatePermission(checkbox) {
+    const kullaniciId = checkbox.dataset.kullaniciId;
+    const menuAdi = checkbox.dataset.menuAdi;
+    const erisimIzni = checkbox.checked;
+    
+    // Loading göster
+    document.getElementById('loading').classList.add('show');
+    
+    // AJAX isteği
+    fetch('{% url "tahsilat:yetkilendirme" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: `kullanici_id=${kullaniciId}&menu_adi=${menuAdi}&erisim_izni=${erisimIzni}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Başarı mesajı göster
+            showAlert('Yetki başarıyla güncellendi!', 'success');
+        } else {
+            // Hata mesajı göster
+            showAlert(data.message || 'Yetki güncellenirken hata oluştu!', 'danger');
+            // Checkbox'ı eski haline döndür
+            checkbox.checked = !erisimIzni;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Sunucu hatası oluştu!', 'danger');
+        // Checkbox'ı eski haline döndür
+        checkbox.checked = !erisimIzni;
+    })
+    .finally(() => {
+        // Loading gizle
+        document.getElementById('loading').classList.remove('show');
+    });
+}
+
+function syncUsers() {
+    if (!confirm('Kullanıcıları senkronize etmek istediğinizden emin misiniz? Bu işlem yeni kullanıcıları ekler, mevcut kullanıcıların şifrelerini günceller ve artık GO3\'te olmayan kullanıcıları siler (FIRAT hariç).')) {
+        return;
+    }
+
+    document.getElementById('loading').classList.add('show');
+    document.querySelector('.loading-text').innerText = 'Kullanıcılar senkronize ediliyor...';
+
+    fetch('{% url "tahsilat:sync_users" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            // Sayfayı yeniden yükle
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showAlert(data.message || 'Kullanıcı senkronizasyonu sırasında hata oluştu!', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Sunucu hatası oluştu!', 'danger');
+    })
+    .finally(() => {
+        document.getElementById('loading').classList.remove('show');
+        document.querySelector('.loading-text').innerText = 'Yetki güncelleniyor...'; // Reset text
+    });
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Mevcut alert'leri kaldır
+    const existingAlerts = document.querySelectorAll('.alert');
+    existingAlerts.forEach(alert => alert.remove());
+    
+    // Yeni alert'i ekle
+    const container = document.querySelector('.auth-container');
+    container.insertBefore(alertDiv, container.children[1]);
+    
+    // 3 saniye sonra otomatik kapat
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 3000);
+}
+
+function showUserPermissions(username, userId) {
+    // Modal'ı aç
+    const modal = new bootstrap.Modal(document.getElementById('permissionModal'));
+    document.getElementById('modalUsername').textContent = username;
+    
+    // Kullanıcının yetkilerini topla
+    const permissions = [];
+    const menuHierarchy = {
+        {% for menu_group, menus in menu_hierarchy.items %}
+        '{{ menu_group }}': [
+            {% for menu in menus %}
+            {code: '{{ menu.0 }}', name: '{{ menu.1 }}'},
+            {% endfor %}
+        ],
+        {% endfor %}
+    };
+    
+    // Tablodaki checkbox'ları kontrol et
+    const checkboxes = document.querySelectorAll(`input[data-kullanici-id="${userId}"]`);
+    checkboxes.forEach(checkbox => {
+        if (checkbox.checked && !checkbox.disabled) {
+            const menuCode = checkbox.dataset.menuAdi;
+            // Menu name'i bul
+            let menuName = menuCode;
+            for (const [group, menus] of Object.entries(menuHierarchy)) {
+                const menu = menus.find(m => m.code === menuCode);
+                if (menu) {
+                    menuName = menu.name;
+                    permissions.push({group: group, name: menuName});
+                    break;
+                }
+            }
+        }
+    });
+    
+    // Süper kullanıcı kontrolü
+    const userCheckbox = document.querySelector(`input[data-kullanici-id="${userId}"]`);
+    const userRow = userCheckbox ? userCheckbox.closest('tr') : null;
+    const isSuperuser = userRow && userRow.querySelector('.superuser-badge') !== null;
+    
+    // Listeyi oluştur
+    const permissionList = document.getElementById('permissionList');
+    const noPermission = document.getElementById('noPermission');
+    permissionList.innerHTML = '';
+    
+    if (isSuperuser) {
+        permissionList.innerHTML = `
+            <div class="list-group-item bg-success text-white">
+                <i class="bi bi-check-circle me-2"></i><strong>Tüm Sayfalara Erişim</strong>
+                <div class="small mt-1">Süper kullanıcı tüm sayfalara erişebilir.</div>
+            </div>
+        `;
+        noPermission.style.display = 'none';
+    } else if (permissions.length === 0) {
+        permissionList.style.display = 'none';
+        noPermission.style.display = 'block';
+    } else {
+        permissionList.style.display = 'block';
+        noPermission.style.display = 'none';
+        
+        // Gruplara göre organize et
+        const grouped = {};
+        permissions.forEach(p => {
+            if (!grouped[p.group]) {
+                grouped[p.group] = [];
+            }
+            grouped[p.group].push(p.name);
+        });
+        
+        // Her grup için list item oluştur
+        for (const [group, names] of Object.entries(grouped)) {
+            const groupHeader = document.createElement('div');
+            groupHeader.className = 'list-group-item bg-light fw-bold';
+            groupHeader.textContent = group;
+            permissionList.appendChild(groupHeader);
+            
+            names.forEach(name => {
+                const item = document.createElement('div');
+                item.className = 'list-group-item';
+                item.innerHTML = `<i class="bi bi-check-circle text-success me-2"></i>${name}`;
+                permissionList.appendChild(item);
+            });
+        }
+        
+        // Toplam sayı
+        const totalItem = document.createElement('div');
+        totalItem.className = 'list-group-item bg-info text-white mt-2';
+        totalItem.innerHTML = `<strong><i class="bi bi-list-check me-2"></i>Toplam: ${permissions.length} sayfa</strong>`;
+        permissionList.appendChild(totalItem);
+    }
+    
+    modal.show();
+}
+</script>
+{% endblock %}

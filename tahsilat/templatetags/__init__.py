@@ -1,0 +1,1 @@
+# Bu dosya templatetags dizinini Python paketi yapar

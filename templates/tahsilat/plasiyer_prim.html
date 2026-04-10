@@ -1,0 +1,235 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+{% load currency_filters %}
+
+{% block title %}Plasiyer Prim Hesaplama{% endblock %}
+
+{% block extra_css %}
+<style>
+  .prim-table-header-yellow { background-color: #f5e6a3 !important; color: #000; text-align: center; font-weight: 700; }
+  .prim-table-header-red { background-color: #c0392b !important; color: #fff !important; text-align: center; font-weight: 700; }
+  .prim-table-label { background-color: #f5e6a3 !important; color: #000; text-align: left; font-weight: 700; }
+  .prim-table-label-gecikme { background-color: #f5e6a3 !important; color: #c0392b !important; text-align: left; font-weight: 700; }
+  .prim-table-tutar { background-color: #fff !important; color: #000; text-align: right; }
+  .prim-table-hakedis { background-color: #27ae60 !important; color: #000; text-align: right; }
+  .prim-table-hakedis-neg { background-color: #27ae60 !important; color: #c0392b !important; text-align: right; font-weight: 600; }
+  .prim-table-total-hakedis { background-color: #fff !important; color: #000; text-align: right; font-weight: 700; }
+  .plasiyer-prim-table { border-collapse: collapse; }
+  .plasiyer-prim-table th, .plasiyer-prim-table td { border: 1px solid #dee2e6; padding: 0.4rem 0.6rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0 text-primary">
+                        <i class="bi bi-calculator me-2"></i>Plasiyer Prim Hesaplama
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="get" action="{% url 'tahsilat:plasiyer_prim_list' %}" id="filterForm" class="row g-3 align-items-end">
+                        <div class="col-md-2">
+                            <label class="form-label">Ay</label>
+                            <select name="ay" id="monthSelect" class="form-select">
+                                {% for m in months %}
+                                <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}. Ay</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Yıl</label>
+                            <select name="yil" id="yearSelect" class="form-select">
+                                {% for y in years %}
+                                <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-eye me-2"></i>Göster
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-12 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 text-muted">Plasiyer Bazında Tahsilat ve Prim Hakedişi ({{ selected_month }}/{{ selected_year }})</h6>
+            <button type="button" id="btnKaydet" class="btn btn-success btn-sm">
+                <i class="bi bi-save me-1"></i>Tümünü Kaydet
+            </button>
+        </div>
+    </div>
+
+    <div class="row g-4" id="primTablesContainer">
+        {% for row in plasiyer_data %}
+        <div class="col-12 col-lg-6 col-xl-4">
+            <div class="card shadow-sm border h-100">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0 plasiyer-prim-table w-100" data-plasiyer="{{ row.plasiyer }}" data-toplam-hakedis="{{ row.toplam_hakedis }}" style="font-size: 0.875rem;">
+                            <thead>
+                                <tr>
+                                    <th colspan="3" class="prim-table-header-yellow">{{ row.plasiyer }}</th>
+                                </tr>
+                                <tr>
+                                    <th class="prim-table-header-red"></th>
+                                    <th class="prim-table-header-red">TUTAR</th>
+                                    <th class="prim-table-header-red">HAKEDİŞ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for d in row.display_rows %}
+                                <tr>
+                                    {% if d.type == 'gecikme_tutar' %}
+                                    <td class="prim-table-label-gecikme">{{ d.label|default:"" }}</td>
+                                    <td class="prim-table-tutar gecikme-tutar-display">{{ d.gecikme_tutari|default:0|number_format_decimal:2 }} ₺</td>
+                                    <td class="prim-table-hakedis">—</td>
+                                    {% elif d.type == 'gecikme' %}
+                                    <td class="prim-table-label-gecikme">{{ d.label|default:"" }}</td>
+                                    <td class="prim-table-tutar">
+                                        <input type="number" class="form-control form-control-sm gecikme-input d-inline-block" data-plasiyer="{{ row.plasiyer }}" data-toplam-hakedis="{{ row.toplam_hakedis }}" value="{{ d.gecikme_tutari|default:0|floatformat:2 }}" step="0.01" min="0" placeholder="0" style="max-width: 110px;">
+                                        <button type="button" class="btn btn-sm btn-outline-primary ms-1 hesapla-gecikme-btn" title="Gecikme kesintisi ve net primi hesapla">Hesapla</button>
+                                    </td>
+                                    <td class="prim-table-hakedis-neg gecikme-kesintisi">-₺{{ d.gecikme_kesintisi|default:0|number_format_decimal:2 }}</td>
+                                    {% elif d.type == 'tur' %}
+                                    <td class="prim-table-label">{{ d.label|default:"" }}</td>
+                                    <td class="prim-table-tutar tutar-cell" data-tur="{{ d.tur }}">{{ d.tutar|default:0|number_format_decimal:2 }} ₺</td>
+                                    <td class="prim-table-hakedis">₺{{ d.hakedis|default:0|number_format_decimal:2 }}</td>
+                                    {% else %}
+                                    <td class="prim-table-label">{{ d.label|default:"" }}</td>
+                                    <td class="prim-table-tutar">{{ d.tutar|default:0|number_format_decimal:2 }} ₺</td>
+                                    <td class="prim-table-total-hakedis net-prim">₺{{ d.net_hakedis|default:0|number_format_decimal:2 }}</td>
+                                    {% endif %}
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="3" class="text-center text-muted">Veri yok</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info mb-0">Dönem seçip Göster butonuna tıklayın.</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const container = document.getElementById('primTablesContainer');
+    const btnKaydet = document.getElementById('btnKaydet');
+    const monthSelect = document.getElementById('monthSelect');
+    const yearSelect = document.getElementById('yearSelect');
+
+    function formatNumberTR(num) {
+        return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
+    }
+
+    function parseNum(val) {
+        if (typeof val === 'number' && !isNaN(val)) return val;
+        const s = String(val).replace(/\s*₺\s*/g, '').replace(/\./g, '').replace(',', '.');
+        const n = parseFloat(s);
+        return isNaN(n) ? 0 : n;
+    }
+
+    // Hesapla butonuna basınca ilgili tablodaki gecikme kesintisi ve net prim hesaplansın
+    if (container) {
+        function updateGecikmeInTable(table, toplamHakedis, gecikmeTutari) {
+            const gecikmeKesintisi = Math.round(gecikmeTutari * 0.01 * 100) / 100;
+            const netPrim = Math.round((toplamHakedis - gecikmeKesintisi) * 100) / 100;
+            const kesintiCell = table.querySelector('td.gecikme-kesintisi');
+            const netCell = table.querySelector('td.net-prim');
+            if (kesintiCell) kesintiCell.textContent = '-₺' + formatNumberTR(gecikmeKesintisi);
+            if (netCell) netCell.textContent = '₺' + formatNumberTR(netPrim);
+        }
+        container.addEventListener('click', function (e) {
+            if (!e.target.classList.contains('hesapla-gecikme-btn')) return;
+            const table = e.target.closest('table.plasiyer-prim-table');
+            if (!table) return;
+            const input = table.querySelector('input.gecikme-input');
+            if (!input) return;
+            const gecikmeTutari = parseNum(input.value);
+            updateGecikmeInTable(table, parseNum(input.dataset.toplamHakedis), gecikmeTutari);
+            var displayCell = table.querySelector('td.gecikme-tutar-display');
+            if (displayCell) displayCell.textContent = formatNumberTR(gecikmeTutari) + ' ₺';
+        });
+    }
+
+    // Tümünü Kaydet: her plasiyer tablosundan veri topla
+    btnKaydet.addEventListener('click', function () {
+        const tables = container ? container.querySelectorAll('table.plasiyer-prim-table') : [];
+        if (!tables.length) {
+            alert('Kaydedilecek veri yok.');
+            return;
+        }
+        if (!confirm('Tüm plasiyer prim kayıtlarını kaydetmek istediğinize emin misiniz?')) return;
+
+        const month = parseInt(monthSelect.value, 10);
+        const year = parseInt(yearSelect.value, 10);
+        const kayitlar = [];
+
+        tables.forEach(function (table) {
+            const plasiyer = table.dataset.plasiyer;
+            const totals = {};
+            table.querySelectorAll('td.tutar-cell').forEach(function (cell) {
+                const tur = cell.getAttribute('data-tur');
+                if (tur) totals[tur] = parseNum(cell.textContent);
+            });
+            const gecikmeInput = table.querySelector('input.gecikme-input');
+            const netPrimEl = table.querySelector('td.net-prim');
+            const gecikmeTutari = parseNum(gecikmeInput ? gecikmeInput.value : 0);
+            const netHakedis = parseNum(netPrimEl ? netPrimEl.textContent : 0);
+
+            kayitlar.push({
+                plasiyer: plasiyer,
+                totals: totals,
+                gecikme_tutari: gecikmeTutari,
+                net_hakedis: netHakedis
+            });
+        });
+
+        btnKaydet.disabled = true;
+        btnKaydet.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Kaydediliyor...';
+
+        fetch('{% url "tahsilat:plasiyer_prim_kaydet" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ month: month, year: year, kayitlar: kayitlar })
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.success) {
+                    alert(data.message || 'Kayıt başarılı!');
+                } else {
+                    alert('Hata: ' + (data.error || 'Bilinmeyen hata'));
+                }
+            })
+            .catch(function (err) {
+                console.error(err);
+                alert('Kaydetme sırasında bir hata oluştu.');
+            })
+            .finally(function () {
+                btnKaydet.disabled = false;
+                btnKaydet.innerHTML = '<i class="bi bi-save me-1"></i>Tümünü Kaydet';
+            });
+    });
+});
+</script>
+{% endblock %}

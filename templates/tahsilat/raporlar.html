@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}Tahsilat Raporları - MRK OTOMOTİV{% endblock %}
+
+{% block content %}
+<div class="container-fluid main-content">
+    <!-- Başlık -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="display-5 fw-bold mb-1">
+                <i class="bi bi-file-earmark-text me-3"></i>Tahsilat Raporları
+            </h1>
+            <p class="text-muted">{{ plasiyer }} plasiyerine ait raporlama sayfası</p>
+        </div>
+    </div>
+    
+    <!-- Rapor Kartları -->
+    <div class="row">
+        <div class="col-lg-6 mb-4">
+            <div class="card card-custom">
+                <div class="card-body text-center">
+                    <i class="bi bi-person-check fa-3x text-primary mb-3"></i>
+                    <h5 class="card-title">Tahsilatlarım</h5>
+                    <p class="card-text">Tüm tahsilat kayıtlarınızı görüntüleyebilirsiniz.</p>
+                    <a href="{% url 'tahsilat:tahsilatlarim' %}" class="btn btn-primary btn-custom">
+                        <i class="bi bi-arrow-right me-1"></i>Görüntüle
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-6 mb-4">
+            <div class="card card-custom">
+                <div class="card-body text-center">
+                    <i class="bi bi-calendar-month fa-3x text-success mb-3"></i>
+                    <h5 class="card-title">Periyodik Raporlar</h5>
+                    <p class="card-text">Günlük, haftalık ve aylık detay raporları.</p>
+                    <button class="btn btn-success btn-custom" disabled>
+                        <i class="bi bi-arrow-right me-1"></i>Yakında
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Rapor Açıklamaları -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card card-custom">
+                <div class="card-header bg-transparent">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Rapor Bilgileri
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="bi bi-check-circle text-success me-2"></i>Mevcut Raporlar</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="bi bi-dot"></i> Tahsilatlarım - Tüm tahsilat kayıtları</li>
+                                <li><i class="bi bi-dot"></i> Dashboard İstatistikleri - Günlük/Haftalık/Aylık toplamlar</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="bi bi-clock text-warning me-2"></i>Gelecek Özellikler</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="bi bi-dot"></i> Detaylı Periyodik Raporlar</li>
+                                <li><i class="bi bi-dot"></i> Excel/PDF Dışa Aktarma</li>
+                                <li><i class="bi bi-dot"></i> Grafik ve Analiz Araçları</li>
+                                <li><i class="bi bi-dot"></i> Karşılaştırmalı Raporlar</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

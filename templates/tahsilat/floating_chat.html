@@ -1,0 +1,877 @@
+<!-- Floating Chat Box -->
+<div id="floating-chat" class="floating-chat">
+    <!-- Chat Toggle Button -->
+    <div id="chat-toggle" class="chat-toggle">
+        <i class="bi bi-chat-dots"></i>
+        <span id="unread-count-badge" class="unread-count-badge" style="display: none;">0</span>
+    </div>
+
+    <!-- Chat Window -->
+    <div id="chat-window" class="chat-window" style="display: none;">
+        <!-- Chat Header -->
+        <div class="chat-header">
+            <div class="chat-title">
+                <i class="bi bi-chat-dots me-2"></i>
+                <span>Mesajlaşma</span>
+            </div>
+            <div class="chat-controls">
+                <button id="chat-minimize" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-dash"></i>
+                </button>
+                <button id="chat-close" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Chat Content -->
+        <div class="chat-content">
+            <!-- User List -->
+            <div id="chat-user-list" class="chat-user-list">
+                <div class="chat-section-title">
+                    <i class="bi bi-people me-2"></i>
+                    Aktif Kullanıcılar
+                </div>
+                <div id="users-container" class="users-container">
+                    <!-- Users will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Chat Messages -->
+            <div id="chat-messages" class="chat-messages" style="display: none;">
+                <div class="chat-message-header">
+                    <button id="back-to-users" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1"></i>Geri
+                    </button>
+                    <div class="selected-user-info">
+                        <span id="selected-username"></span>
+                        <span id="selected-user-status" class="user-status"></span>
+                    </div>
+                    <div class="chat-actions">
+                        <button id="clear-chat-btn" class="btn btn-sm btn-outline-danger" title="Sohbeti Temizle">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="messages-container" class="messages-container">
+                    <!-- Messages will be loaded here -->
+                </div>
+
+                <div class="chat-input-area">
+                    <div class="input-group">
+                        <textarea id="message-input" class="form-control" placeholder="Mesajınızı yazın..."
+                            rows="2"></textarea>
+                        <button id="send-message-btn" class="btn btn-primary">
+                            <i class="bi bi-send"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Floating Chat Styles */
+    .floating-chat {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 9999;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .chat-toggle {
+        width: 60px;
+        height: 60px;
+        background: linear-gradient(135deg, #007bff, #0056b3);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .chat-toggle:hover {
+        transform: scale(1.1);
+        box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+    }
+
+    .chat-toggle i {
+        color: white;
+        font-size: 24px;
+    }
+
+    .unread-count-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: #dc3545;
+        color: white;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: bold;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0% {
+            transform: scale(1);
+        }
+
+        50% {
+            transform: scale(1.1);
+        }
+
+        100% {
+            transform: scale(1);
+        }
+    }
+
+    .chat-window {
+        position: absolute;
+        bottom: 70px;
+        right: 0;
+        width: 400px;
+        height: 600px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+        border: 1px solid #e9ecef;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .chat-header {
+        background: linear-gradient(135deg, #007bff, #0056b3);
+        color: white;
+        padding: 15px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-radius: 12px 12px 0 0;
+    }
+
+    .chat-title {
+        font-weight: 600;
+        font-size: 16px;
+    }
+
+    .chat-controls {
+        display: flex;
+        gap: 5px;
+    }
+
+    .chat-controls .btn {
+        padding: 4px 8px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+    }
+
+    .chat-controls .btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.5);
+    }
+
+    .chat-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .chat-user-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 15px;
+    }
+
+    .chat-section-title {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 15px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #e9ecef;
+    }
+
+    .users-container {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .user-item {
+        padding: 12px 15px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 1px solid transparent;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .user-item:hover {
+        background: #f8f9fa;
+        border-color: #dee2e6;
+    }
+
+    .user-item.active {
+        background: #e3f2fd;
+        border-color: #2196f3;
+    }
+
+    .user-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .user-status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        position: relative;
+    }
+
+    .user-status-indicator.online {
+        background: #28a745;
+        box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
+    }
+
+    .user-status-indicator.offline {
+        background: #6c757d;
+    }
+
+    .user-name {
+        font-weight: 500;
+        color: #495057;
+    }
+
+    .user-unread {
+        background: #dc3545;
+        color: white;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: bold;
+    }
+
+    .chat-messages {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .chat-message-header {
+        padding: 15px 20px;
+        border-bottom: 1px solid #e9ecef;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #f8f9fa;
+    }
+
+    .selected-user-info {
+        flex: 1;
+        margin: 0 15px;
+    }
+
+    .selected-user-info span:first-child {
+        font-weight: 600;
+        color: #495057;
+    }
+
+    .user-status {
+        font-size: 12px;
+        color: #6c757d;
+        margin-left: 8px;
+    }
+
+    .messages-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 15px;
+        background: #ffffff;
+    }
+
+    .message-item {
+        margin-bottom: 15px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .message-item.sent {
+        align-items: flex-end;
+    }
+
+    .message-item.received {
+        align-items: flex-start;
+    }
+
+    .message-bubble {
+        max-width: 80%;
+        padding: 10px 15px;
+        border-radius: 18px;
+        word-wrap: break-word;
+        position: relative;
+    }
+
+    .message-item.sent .message-bubble {
+        background: linear-gradient(135deg, #007bff, #0056b3);
+        color: white;
+        border-bottom-right-radius: 4px;
+    }
+
+    .message-item.received .message-bubble {
+        background: #f1f3f4;
+        color: #495057;
+        border-bottom-left-radius: 4px;
+    }
+
+    .message-time {
+        font-size: 11px;
+        color: #6c757d;
+        margin-top: 4px;
+        text-align: center;
+    }
+
+    .chat-input-area {
+        padding: 15px 20px;
+        border-top: 1px solid #e9ecef;
+        background: #f8f9fa;
+    }
+
+    .input-group {
+        display: flex;
+        gap: 10px;
+    }
+
+    #message-input {
+        flex: 1;
+        border: 1px solid #ced4da;
+        border-radius: 20px;
+        padding: 8px 15px;
+        resize: none;
+        font-size: 14px;
+    }
+
+    #message-input:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+
+    #send-message-btn {
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .chat-window {
+            width: 350px;
+            height: 500px;
+        }
+
+        .floating-chat {
+            bottom: 10px;
+            right: 10px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .chat-window {
+            width: 300px;
+            height: 450px;
+        }
+    }
+</style>
+
+<script>
+    // Floating Chat JavaScript
+    class FloatingChat {
+        constructor() {
+            this.isOpen = false;
+            this.selectedUserId = null;
+            this.selectedUsername = null;
+            this.messageInterval = null;
+            this.statusInterval = null;
+            this.unreadCounts = {};
+
+            this.init();
+        }
+
+        init() {
+            this.bindEvents();
+            this.loadUnreadCounts();
+            this.startStatusUpdates();
+            // Arka planda chat kapalıyken de rozeti güncelle
+            this.startUnreadPolling();
+        }
+
+        bindEvents() {
+            const toggleBtn = document.getElementById('chat-toggle');
+            if (!toggleBtn) return; // Eksik UI elemanı varsa bağlanmayı iptal et
+
+            // Toggle chat
+            toggleBtn.addEventListener('click', () => {
+                this.toggleChat();
+            });
+
+            // Close chat
+            document.getElementById('chat-close').addEventListener('click', () => {
+                this.closeChat();
+            });
+
+            // Minimize chat
+            document.getElementById('chat-minimize').addEventListener('click', () => {
+                this.minimizeChat();
+            });
+
+            // Back to users
+            document.getElementById('back-to-users').addEventListener('click', () => {
+                this.showUserList();
+            });
+
+            // Send message
+            document.getElementById('send-message-btn').addEventListener('click', () => {
+                this.sendMessage();
+            });
+
+            // Enter key to send
+            document.getElementById('message-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendMessage();
+                }
+            });
+
+            // Clear chat
+            document.getElementById('clear-chat-btn').addEventListener('click', () => {
+                this.clearChat();
+            });
+        }
+
+        toggleChat() {
+            if (this.isOpen) {
+                this.closeChat();
+            } else {
+                this.openChat();
+            }
+        }
+
+        openChat() {
+            this.isOpen = true;
+            document.getElementById('chat-window').style.display = 'flex';
+            document.getElementById('chat-toggle').style.display = 'none';
+            this.loadUsers();
+            this.startMessageRefresh();
+        }
+
+        closeChat() {
+            this.isOpen = false;
+            document.getElementById('chat-window').style.display = 'none';
+            document.getElementById('chat-toggle').style.display = 'flex';
+            this.stopMessageRefresh();
+        }
+
+        minimizeChat() {
+            this.closeChat();
+        }
+
+        showUserList() {
+            document.getElementById('chat-user-list').style.display = 'block';
+            document.getElementById('chat-messages').style.display = 'none';
+            this.selectedUserId = null;
+            this.selectedUsername = null;
+        }
+
+        async loadUsers() {
+            try {
+                const response = await fetch('{% url "tahsilat:get_chat_users" %}');
+                const data = await response.json();
+
+                if (data.success) {
+                    this.updateUserList(data.users);
+                }
+            } catch (error) {
+                console.error('Kullanıcılar yüklenirken hata:', error);
+            }
+        }
+
+        updateUserList(users) {
+            const container = document.getElementById('users-container');
+            container.innerHTML = '';
+
+            users.forEach(user => {
+                const userDiv = document.createElement('div');
+                userDiv.className = 'user-item';
+                userDiv.dataset.userId = user.id;
+                userDiv.dataset.username = user.username;
+
+                userDiv.innerHTML = `
+                <div class="user-info">
+                    <div class="user-status-indicator ${user.is_online ? 'online' : 'offline'}" id="status-${user.id}"></div>
+                    <span class="user-name">${user.username}</span>
+                </div>
+                <div class="user-unread" id="unread-${user.id}" style="display: ${user.unread_count > 0 ? 'flex' : 'none'};">${user.unread_count}</div>
+            `;
+
+                userDiv.addEventListener('click', () => {
+                    this.selectUser(user.id, user.username);
+                });
+
+                container.appendChild(userDiv);
+            });
+
+            // Okunmamış sayıları güncelle
+            this.updateUnreadBadge();
+        }
+
+        selectUser(userId, username) {
+            this.selectedUserId = userId;
+            this.selectedUsername = username;
+
+            // UI güncelle
+            document.querySelectorAll('.user-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            document.querySelector(`[data-user-id="${userId}"]`).classList.add('active');
+
+            // Mesaj görünümüne geç
+            document.getElementById('chat-user-list').style.display = 'none';
+            document.getElementById('chat-messages').style.display = 'flex';
+
+            // Seçili kullanıcı bilgisini göster
+            document.getElementById('selected-username').textContent = username;
+            this.updateSelectedUserStatus(userId);
+
+            // Mesajları yükle
+            this.loadMessages(userId);
+
+            // Mesajları okundu olarak işaretle
+            this.markMessagesAsRead(userId);
+        }
+
+        async loadMessages(userId) {
+            try {
+                const response = await fetch(`{% url "tahsilat:get_messages" %}?user_id=${userId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    this.displayMessages(data.messages);
+                }
+            } catch (error) {
+                console.error('Mesajlar yüklenirken hata:', error);
+            }
+        }
+
+        displayMessages(messages) {
+            const container = document.getElementById('messages-container');
+            container.innerHTML = '';
+
+            messages.forEach(message => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message-item ${message.is_sent ? 'sent' : 'received'}`;
+
+                const timeAgo = this.formatTimeAgo(message.olusturma_tarihi);
+
+                messageDiv.innerHTML = `
+                <div class="message-bubble">${this.escapeHtml(message.mesaj)}</div>
+                <div class="message-time">${timeAgo}</div>
+            `;
+
+                container.appendChild(messageDiv);
+            });
+
+            // En alta kaydır
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async sendMessage() {
+            const messageText = document.getElementById('message-input').value.trim();
+
+            if (!messageText || !this.selectedUserId) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('alici_id', this.selectedUserId);
+            formData.append('mesaj', messageText);
+
+            try {
+                const response = await fetch('{% url "tahsilat:send_message" %}', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': this.getCSRFToken()
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('message-input').value = '';
+                    this.loadMessages(this.selectedUserId);
+                    this.updateUserActivity();
+                } else {
+                    alert('Mesaj gönderilemedi: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Mesaj gönderilirken hata:', error);
+                alert('Mesaj gönderilirken hata oluştu');
+            }
+        }
+
+        async markMessagesAsRead(userId) {
+            try {
+                await fetch('{% url "tahsilat:mark_messages_read" %}', {
+                    method: 'POST',
+                    body: JSON.stringify({ user_id: userId }),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.getCSRFToken()
+                    }
+                });
+
+                // Okunmamış sayısını güncelle
+                this.updateUnreadCount(userId, 0);
+            } catch (error) {
+                console.error('Mesajlar okundu olarak işaretlenirken hata:', error);
+            }
+        }
+
+        async clearChat() {
+            if (confirm('Tüm mesajları silmek istediğinizden emin misiniz?')) {
+                try {
+                    const response = await fetch('{% url "tahsilat:clear_chat" %}', {
+                        method: 'POST',
+                        body: JSON.stringify({ user_id: this.selectedUserId }),
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': this.getCSRFToken()
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.loadMessages(this.selectedUserId);
+                    }
+                } catch (error) {
+                    console.error('Sohbet temizlenirken hata:', error);
+                }
+            }
+        }
+
+        async loadUnreadCounts() {
+            try {
+                const response = await fetch('{% url "tahsilat:get_unread_counts" %}');
+
+                // Response başarılı değilse veya JSON değilse sessizce devam et
+                if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) {
+                    this.unreadCounts = {};
+                    this.updateUnreadBadge();
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (data.success && data.unread_counts) {
+                    this.unreadCounts = data.unread_counts;
+                    this.updateUnreadBadge();
+                } else {
+                    // Veri yoksa boş obje kullan
+                    this.unreadCounts = {};
+                    this.updateUnreadBadge();
+                }
+            } catch (error) {
+                // Hataları sessizce yakala - konsola yazma (gereksiz log spam'ini önle)
+                this.unreadCounts = {};
+                this.updateUnreadBadge();
+            }
+        }
+
+        updateUnreadBadge() {
+            // unreadCounts null veya undefined ise boş obje kullan
+            const counts = this.unreadCounts || {};
+            const totalUnread = Object.values(counts).reduce((sum, count) => sum + count, 0);
+            const badge = document.getElementById('unread-count-badge');
+
+            if (totalUnread > 0) {
+                badge.textContent = totalUnread;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        updateUnreadCount(userId, count) {
+            // unreadCounts null veya undefined ise boş obje oluştur
+            if (!this.unreadCounts) {
+                this.unreadCounts = {};
+            }
+            this.unreadCounts[userId] = count;
+            this.updateUnreadBadge();
+
+            const unreadElement = document.getElementById(`unread-${userId}`);
+            if (unreadElement) {
+                if (count > 0) {
+                    unreadElement.textContent = count;
+                    unreadElement.style.display = 'flex';
+                } else {
+                    unreadElement.style.display = 'none';
+                }
+            }
+        }
+
+        async updateUserStatuses() {
+            try {
+                const response = await fetch('{% url "tahsilat:get_user_statuses" %}');
+                const data = await response.json();
+
+                if (data.success) {
+                    Object.entries(data.statuses).forEach(([userId, isOnline]) => {
+                        this.updateUserStatus(userId, isOnline);
+                    });
+                }
+            } catch (error) {
+                console.error('Kullanıcı durumları güncellenirken hata:', error);
+            }
+        }
+
+        updateUserStatus(userId, isOnline) {
+            const statusElement = document.getElementById(`status-${userId}`);
+            if (statusElement) {
+                statusElement.className = `user-status-indicator ${isOnline ? 'online' : 'offline'}`;
+            }
+
+            // Seçili kullanıcının durumunu güncelle
+            if (userId == this.selectedUserId) {
+                this.updateSelectedUserStatus(userId);
+            }
+        }
+
+        updateSelectedUserStatus(userId) {
+            const statusElement = document.getElementById(`status-${userId}`);
+            const statusText = document.getElementById('selected-user-status');
+
+            if (statusElement && statusText) {
+                const isOnline = statusElement.classList.contains('online');
+                statusText.textContent = isOnline ? 'Çevrimiçi' : 'Çevrimdışı';
+                statusText.className = `user-status ${isOnline ? 'text-success' : 'text-muted'}`;
+            }
+        }
+
+        async updateUserActivity() {
+            try {
+                await fetch('{% url "tahsilat:update_user_status" %}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': this.getCSRFToken()
+                    }
+                });
+            } catch (error) {
+                console.error('Kullanıcı aktivitesi güncellenirken hata:', error);
+            }
+        }
+
+        startMessageRefresh() {
+            if (this.messageInterval) {
+                clearInterval(this.messageInterval);
+            }
+
+            this.messageInterval = setInterval(() => {
+                if (this.selectedUserId) {
+                    this.loadMessages(this.selectedUserId);
+                }
+                this.loadUnreadCounts();
+            }, 3000);
+        }
+
+        stopMessageRefresh() {
+            if (this.messageInterval) {
+                clearInterval(this.messageInterval);
+                this.messageInterval = null;
+            }
+        }
+
+        startStatusUpdates() {
+            if (this.statusInterval) {
+                clearInterval(this.statusInterval);
+            }
+
+            this.statusInterval = setInterval(() => {
+                this.updateUserStatuses();
+                this.updateUserActivity();
+            }, 5000);
+        }
+
+        startUnreadPolling() {
+            if (this.unreadInterval) {
+                clearInterval(this.unreadInterval);
+            }
+            // Chat kapalıyken de toplam okunmamışı çekip buton rozeti güncelle
+            this.unreadInterval = setInterval(() => {
+                if (!this.isOpen) {
+                    this.loadUnreadCounts();
+                }
+            }, 4000);
+        }
+
+        getCSRFToken() {
+            const token = document.querySelector('meta[name="csrf-token"]');
+            return token ? token.getAttribute('content') : '';
+        }
+
+        escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        formatTimeAgo(dateString) {
+            const now = new Date();
+            const date = new Date(dateString);
+            const diffInSeconds = Math.floor((now - date) / 1000);
+
+            if (diffInSeconds < 60) {
+                return 'Az önce';
+            } else if (diffInSeconds < 3600) {
+                const minutes = Math.floor(diffInSeconds / 60);
+                return `${minutes} dakika önce`;
+            } else if (diffInSeconds < 86400) {
+                const hours = Math.floor(diffInSeconds / 3600);
+                return `${hours} saat önce`;
+            } else {
+                const days = Math.floor(diffInSeconds / 86400);
+                return `${days} gün önce`;
+            }
+        }
+    }
+
+    // Initialize floating chat when DOM is loaded
+    document.addEventListener('DOMContentLoaded', function () {
+        window.floatingChat = new FloatingChat();
+    });
+</script>

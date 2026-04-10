@@ -1,0 +1,1363 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}{{ sayfa_baslik }} - Genel Görünüm - MRK OTOMOTİV{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Genel font boyutu minimal */
+    .container-fluid {
+        font-size: 0.9rem;
+    }
+    
+    h2 {
+        font-size: 1.4rem !important;
+    }
+    
+    h4 {
+        font-size: 1.2rem !important;
+    }
+    
+    h5 {
+        font-size: 1.1rem !important;
+    }
+    
+    h6 {
+        font-size: 1rem !important;
+    }
+    
+    .breadcrumb {
+        font-size: 0.85rem !important;
+    }
+    
+    .text-muted {
+        font-size: 0.85rem !important;
+    }
+    
+    .stats-card {
+        border-left: 4px solid #007bff;
+        transition: all 0.3s ease;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        font-size: 0.9rem;
+        padding: 0.5rem !important;
+    }
+
+    .stats-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .plasiyer-card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        background: white;
+        margin-bottom: 1.5rem;
+    }
+
+    .plasiyer-card:hover {
+        border-color: #007bff;
+        box-shadow: 0 4px 15px rgba(0, 123, 255, 0.15);
+    }
+
+    .plasiyer-header {
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        color: white;
+        font-weight: bold;
+        border-radius: 8px 8px 0 0;
+        padding: 0.5rem !important;
+        font-size: 0.9rem !important;
+    }
+    
+    .stat-item {
+        border-bottom: 1px solid #f8f9fa;
+        padding: 0.4rem !important;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .stat-item:last-child {
+        border-bottom: none;
+    }
+    
+    .stat-label {
+        font-size: 0.85rem !important;
+        color: #6c757d;
+        font-weight: 500;
+    }
+    
+    .stat-value {
+        font-weight: bold;
+        color: #495057;
+        font-size: 0.95rem !important;
+    }
+    
+    .stat-value strong {
+        font-size: 1rem !important;
+    }
+
+    /* Ay Bazlı Filtreleme - kart ve başlık */
+    .month-filter-card .card-header {
+        font-size: 1rem;
+        padding: 0.75rem 1rem;
+    }
+    
+    .month-filter-card .card-body {
+        padding: 1rem 1.25rem;
+    }
+    
+    .month-filter-card .form-label {
+        font-size: 0.95rem !important;
+        margin-bottom: 0.75rem;
+    }
+    
+    .month-filter-card .month-help-text {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-top: 0.75rem;
+        line-height: 1.4;
+        max-width: 100%;
+    }
+
+    /* Ay seçimi - net etiketler, belirgin seçim durumu */
+    .month-checkbox-container {
+        position: relative;
+        margin-bottom: 0;
+    }
+
+    .month-checkbox-container .btn {
+        height: auto !important;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.875rem !important;
+        font-weight: 500;
+        padding: 0.5rem 0.4rem !important;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        border: 2px solid #dee2e6;
+        background: #fff;
+        color: #495057;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .month-checkbox-container .btn:hover {
+        border-color: #007bff;
+        background: #f0f7ff;
+        color: #007bff;
+        box-shadow: 0 2px 6px rgba(0, 123, 255, 0.2);
+    }
+
+    .month-checkbox-container .btn-check:checked + .btn {
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
+        border-color: #007bff !important;
+        color: #fff !important;
+        font-weight: 600;
+        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.4);
+    }
+    
+    .month-filter-card .month-checkbox-container .btn {
+        font-size: 0.875rem !important;
+    }
+    
+    /* Ay grid - tüm aylar eşit ve okunaklı */
+    .month-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 0.5rem;
+    }
+
+    /* Responsive düzenlemeler */
+    @media (max-width: 1200px) {
+        .container-fluid {
+            padding: 0.5rem;
+        }
+        
+        h2 {
+            font-size: 1.2rem !important;
+        }
+        
+        .plasiyer-card .col-4 {
+            font-size: 0.85rem;
+        }
+        
+        .plasiyer-card strong.fs-5 {
+            font-size: 1.2rem !important;
+        }
+    }
+
+    @media (max-width: 992px) {
+        .month-grid {
+            grid-template-columns: repeat(4, 1fr) !important;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .month-grid {
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 0.5rem;
+        }
+
+        .month-checkbox-container .btn {
+            min-height: 40px;
+            padding: 0.4rem 0.3rem !important;
+            font-size: 0.8rem !important;
+        }
+        
+        .month-filter-card .card-body {
+            padding: 0.75rem 1rem;
+        }
+        
+        .month-filter-card .month-help-text {
+            font-size: 0.8rem;
+        }
+        
+        /* Header responsive */
+        .d-flex.justify-content-between {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 0.5rem;
+        }
+        
+        h2 {
+            font-size: 1.1rem !important;
+        }
+        
+        .admin-badge {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+        }
+        
+        /* Stat kartları */
+        .stat-item {
+            flex-direction: column;
+            align-items: flex-start !important;
+            gap: 0.25rem;
+        }
+        
+        .stat-label {
+            font-size: 0.8rem !important;
+        }
+        
+        .stat-value {
+            font-size: 0.85rem !important;
+        }
+        
+        /* Plasiyer kartları */
+        .plasiyer-card .col-4 {
+            padding: 0.25rem !important;
+        }
+        
+        .plasiyer-card small {
+            font-size: 0.7rem !important;
+        }
+        
+        .plasiyer-card strong.fs-5 {
+            font-size: 1rem !important;
+        }
+        
+        .plasiyer-card .text-success,
+        .plasiyer-card .text-danger {
+            font-size: 0.75rem !important;
+        }
+        
+        /* Tablo */
+        .table {
+            font-size: 0.75rem !important;
+        }
+        
+        .table th,
+        .table td {
+            padding: 0.4rem 0.2rem !important;
+            font-size: 0.7rem !important;
+        }
+        
+        .table tfoot td {
+            font-size: 0.85rem !important;
+            padding: 0.5rem 0.25rem !important;
+        }
+        
+        /* Butonlar */
+        .btn {
+            font-size: 0.85rem !important;
+            padding: 0.4rem 0.8rem;
+        }
+        
+        .btn-group .btn {
+            font-size: 0.75rem !important;
+            padding: 0.3rem 0.6rem;
+        }
+        
+        /* Grafik container */
+        .card-body > div[style*="height: 800px"] {
+            height: 400px !important;
+        }
+        
+        /* Chart.js responsive */
+        #monthlyChart {
+            max-height: 400px !important;
+        }
+    }
+
+    @media (max-width: 576px) {
+        .month-grid {
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 0.4rem;
+        }
+
+        .month-checkbox-container .btn {
+            min-height: 38px;
+            font-size: 0.75rem !important;
+            padding: 0.35rem 0.25rem !important;
+        }
+        
+        h2 {
+            font-size: 1rem !important;
+        }
+        
+        h4 {
+            font-size: 1rem !important;
+        }
+        
+        h5 {
+            font-size: 0.9rem !important;
+        }
+        
+        /* Plasiyer kartları tam genişlik */
+        .plasiyer-card {
+            margin-bottom: 1rem;
+        }
+        
+        .plasiyer-header h5 {
+            font-size: 0.9rem !important;
+        }
+        
+        /* Performans çubuğu */
+        .progress {
+            height: 6px !important;
+        }
+        
+        /* Tablo daha da küçük */
+        .table th,
+        .table td {
+            font-size: 0.65rem !important;
+            padding: 0.3rem 0.15rem !important;
+        }
+        
+        .table tfoot td {
+            font-size: 0.75rem !important;
+        }
+        
+        /* Breadcrumb */
+        .breadcrumb {
+            font-size: 0.75rem !important;
+        }
+        
+        /* Form label */
+        .form-label {
+            font-size: 0.9rem !important;
+        }
+        
+        /* Grafik daha küçük */
+        .card-body > div[style*="height"] {
+            height: 300px !important;
+        }
+        
+        #monthlyChart {
+            max-height: 300px !important;
+        }
+        
+        /* Plasiyer kartları içindeki kolonlar */
+        .plasiyer-card .row .col-4 {
+            flex: 0 0 33.333333%;
+            max-width: 33.333333%;
+        }
+    }
+    
+    /* Ekstra küçük ekranlar için */
+    @media (max-width: 400px) {
+        .month-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 0.35rem;
+        }
+        
+        .month-checkbox-container .btn {
+            font-size: 0.7rem !important;
+        }
+        
+        .admin-badge {
+            display: block;
+            margin-top: 0.25rem;
+            margin-left: 0 !important;
+        }
+    }
+
+    .satis-section {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+    }
+
+    .tahsilat-section {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: white;
+    }
+
+    .toplam-section {
+        background: linear-gradient(135deg, #6f42c1 0%, #5a32a3 100%);
+        color: white;
+    }
+
+    .admin-badge {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: bold;
+    }
+
+    .period-tabs .nav-link {
+        border-radius: 20px;
+        margin-right: 0.5rem;
+        border: 2px solid transparent;
+    }
+
+    .period-tabs .nav-link.active {
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        border-color: #007bff;
+        color: white;
+    }
+
+    .metric-card {
+        background: white;
+        border-radius: 10px;
+        padding: 0.5rem !important;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 0.5rem !important;
+    }
+
+    /* Font boyutları minimal */
+    .plasiyer-header h5 {
+        font-size: 1rem !important;
+        font-weight: 700;
+    }
+
+    .stat-value {
+        font-size: 0.95rem !important;
+        font-weight: 600;
+    }
+
+    .stat-label {
+        font-size: 0.85rem !important;
+    }
+
+    /* Plasiyer kartlarındaki tutarlar için özel stil */
+    .plasiyer-card .text-success,
+    .plasiyer-card .text-danger {
+        font-size: 0.9rem !important;
+    }
+
+    .plasiyer-card strong.fs-5 {
+        font-size: 1.6rem !important;
+    }
+    
+    .plasiyer-card small {
+        font-size: 1rem !important;
+    }
+    
+    
+    .list-view.active {
+        display: block !important;
+    }
+    
+    .list-view.show {
+        display: block !important;
+    }
+    
+    .card-view {
+        display: block !important;
+    }
+    
+    .card-view.hidden {
+        display: none !important;
+    }
+    
+    .card-view.hide {
+        display: none !important;
+    }
+    
+    /* JavaScript ile kontrol edilen görünümler */
+    .list-view.show {
+        display: block !important;
+    }
+    
+    .card-view.hide {
+        display: none !important;
+    }
+    
+    /* Test için zorla görünür */
+    .list-view.force-show {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        height: auto !important;
+    }
+    
+    
+    .list-card:hover {
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        transform: translateY(-1px);
+    }
+    
+    .list-card-header {
+        display: flex;
+        justify-content-between;
+        align-items: center;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    
+    .list-card-body {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 6px !important;
+    }
+    
+    .list-card {
+        padding: 0.5rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+    
+    .list-card-item {
+        display: flex;
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .list-card-label {
+        font-size: 0.75rem !important;
+        color: #6c757d;
+        margin-bottom: 2px !important;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+    
+    .list-card-value {
+        font-size: 0.85rem !important;
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .list-card-value.currency {
+        color: #28a745;
+    }
+    
+    .list-card-value.text-danger {
+        color: #dc3545;
+    }
+    
+    /* Responsive liste görünümü */
+    @media (max-width: 1200px) {
+        .list-card-body {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .list-card-body {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        
+        .list-card-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+        }
+        
+    
+    @media (max-width: 576px) {
+        .list-card-body {
+            grid-template-columns: 1fr;
+            gap: 6px;
+        }
+        
+        .list-card {
+            padding: 10px;
+        }
+    }
+    
+    
+    
+    
+    
+    .list-card-body {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 20px;
+    }
+    
+    .list-card-item {
+        display: flex;
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .list-card-label {
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-bottom: 8px;
+        font-weight: 500;
+    }
+    
+    .list-card-value {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .list-card-value.currency {
+        color: #28a745;
+    }
+    
+    .list-card-value.text-danger {
+        color: #dc3545;
+    }
+    
+    /* Responsive liste görünümü */
+    @media (max-width: 768px) {
+        .list-card-body {
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+        
+    
+    /* Tablo Görünümü Stilleri */
+    .table-responsive {
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .table-bordered {
+        border: 2px solid #dee2e6;
+    }
+    
+    .table-bordered th,
+    .table-bordered td {
+        border: 1px solid #dee2e6;
+        padding: 6px 4px !important;
+        font-size: 0.85rem !important;
+    }
+    
+    .table-light th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        color: #495057;
+        border-bottom: 2px solid #dee2e6;
+    }
+    
+    .table-hover tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .table-hover tbody tr:hover td {
+        background-color: #f8f9fa;
+    }
+    
+    /* Tablo başlık stilleri */
+    .table th[rowspan="2"] {
+        background-color: #e9ecef;
+        font-weight: 700;
+        color: #495057;
+    }
+    
+    .table th[colspan="3"] {
+        background-color: #e9ecef;
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    /* Toplam satırı stilleri */
+    .table tfoot tr {
+        background-color: #f8f9fa;
+        border-top: 2px solid #dee2e6;
+    }
+    
+    .table tfoot td {
+        font-weight: 700;
+        font-size: 1.4rem;
+        padding: 15px 8px;
+    }
+    
+    .table td {
+        font-size: 1.15rem !important;
+    }
+    
+    .table th {
+        font-size: 1.2rem !important;
+    }
+    
+    .form-label {
+        font-size: 1.2rem !important;
+    }
+    
+    .btn {
+        font-size: 1.1rem !important;
+    }
+    
+    .table tfoot td:first-child {
+        background-color: #e9ecef;
+        color: #495057;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-3 mb-md-4">
+        <div class="col-12">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+                <h2 class="mb-0">
+                    <i class="{{ sayfa_ikon }} me-2"></i>
+                    <span class="d-none d-md-inline">Genel Görünüm - </span>{{ sayfa_baslik }}
+                    <span class="admin-badge ms-2">ADMIN</span>
+                </h2>
+                <div class="d-flex gap-2 align-items-center">
+                    <div class="text-muted">
+                        <i class="bi bi-calendar3 me-1"></i>
+                        {{ "now"|date:"d.m.Y" }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Breadcrumb -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'tahsilat:dashboard' %}">Dashboard</a></li>
+                    <li class="breadcrumb-item">Genel Görünüm</li>
+                    <li class="breadcrumb-item active">{{ sayfa_baslik }}</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Genel Toplam İstatistikleri -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4><i class="bi bi-bar-chart me-2"></i>Genel Toplam İstatistikleri</h4>
+        </div>
+    </div>
+
+    <!-- Toplam Satış ve Tahsilat Kartları -->
+    <div class="row mb-3 mb-md-4">
+        <!-- Toplam Satışlar -->
+        <div class="col-12 col-md-6 mb-3 mb-md-0">
+            <div class="card stats-card">
+                <div class="card-header satis-section">
+                    <h5 class="mb-0">
+                        <i class="bi bi-cart-check me-2"></i>
+                        Toplam Satışlar
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="stat-item">
+                        <span class="stat-label">Günlük</span>
+                        <span class="stat-value">
+                            <strong>{{ toplam_satis.gunluk_adet }}</strong> adet - <strong>{{ toplam_satis.gunluk_tutar|currency_display }}</strong>
+                        </span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Haftalık</span>
+                        <span class="stat-value">
+                            <strong>{{ toplam_satis.haftalik_adet }}</strong> adet - <strong>{{ toplam_satis.haftalik_tutar|currency_display }}</strong>
+                        </span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Aylık</span>
+                        <span class="stat-value">
+                            <strong>{{ toplam_satis.aylik_adet }}</strong> adet - <strong>{{ toplam_satis.aylik_tutar|currency_display }}</strong>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toplam Tahsilatlar -->
+        <div class="col-12 col-md-6">
+            <div class="card stats-card">
+                <div class="card-header tahsilat-section">
+                    <h5 class="mb-0">
+                        <i class="bi bi-wallet2 me-2"></i>
+                        Toplam Tahsilatlar
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="stat-item">
+                        <span class="stat-label">Günlük</span>
+                        <span class="stat-value">
+                            <strong>{{ toplam_tahsilat.gunluk_adet }}</strong> adet - <strong>{{ toplam_tahsilat.gunluk_tutar|currency_display }}</strong>
+                        </span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Haftalık</span>
+                        <span class="stat-value">
+                            <strong>{{ toplam_tahsilat.haftalik_adet }}</strong> adet - <strong>{{ toplam_tahsilat.haftalik_tutar|currency_display }}</strong>
+                        </span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Aylık</span>
+                        <span class="stat-value">
+                            <strong>{{ toplam_tahsilat.aylik_adet }}</strong> adet - <strong>{{ toplam_tahsilat.aylik_tutar|currency_display }}</strong>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detaylı İstatistikler -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4><i class="bi bi-graph-up me-2"></i>Detaylı İstatistikler</h4>
+        </div>
+    </div>
+
+    <!-- Ay Bazlı Filtreleme -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card month-filter-card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-calendar3 me-2"></i>Ay Bazlı Filtreleme (Satış & Tahsilat)</h5>
+                </div>
+                <div class="card-body">
+                    <form method="GET" id="monthFilterForm">
+                        <label class="form-label fw-bold text-primary d-block">
+                            <i class="bi bi-calendar-month me-1"></i>Ayları Seçin (Çoklu Seçim)
+                        </label>
+                        <div class="month-grid">
+                            <div class="month-checkbox-container">
+                                <input type="checkbox" class="btn-check" name="selected_months" value="1" id="month1" autocomplete="off" {% if '1' in selected_months %}checked{% endif %}>
+                                <label class="btn w-100" for="month1">Ocak</label>
+                            </div>
+                            <div class="month-checkbox-container">
+                                <input type="checkbox" class="btn-check" name="selected_months" value="2" id="month2" autocomplete="off" {% if '2' in selected_months %}checked{% endif %}>
+                                <label class="btn w-100" for="month2">Şubat</label>
+                            </div>
+                            <div class="month-checkbox-container">
+                                <input type="checkbox" class="btn-check" name="selected_months" value="3" id="month3" autocomplete="off" {% if '3' in selected_months %}checked{% endif %}>
+                                <label class="btn w-100" for="month3">Mart</label>
+                            </div>
+                            <div class="month-checkbox-container">
+                                <input type="checkbox" class="btn-check" name="selected_months" value="4" id="month4" autocomplete="off" {% if '4' in selected_months %}checked{% endif %}>
+                                <label class="btn w-100" for="month4">Nisan</label>
+                            </div>
+                            <div class="month-checkbox-container">
+                                <input type="checkbox" class="btn-check" name="selected_months" value="5" id="month5" autocomplete="off" {% if '5' in selected_months %}checked{% endif %}>
+                                <label class="btn w-100" for="month5">Mayıs</label>
+                            </div>
+                            <div class="month-checkbox-container">
+                                <input type="checkbox" class="btn-check" name="selected_months" value="6" id="month6" autocomplete="off" {% if '6' in selected_months %}checked{% endif %}>
+                                <label class="btn w-100" for="month6">Haziran</label>
+                            </div>
+                            <div class="month-checkbox-container">
+                                <input type="checkbox" class="btn-check" name="selected_months" value="7" id="month7" autocomplete="off" {% if '7' in selected_months %}checked{% endif %}>
+                                <label class="btn w-100" for="month7">Temmuz</label>
+                            </div>
+                            <div class="month-checkbox-container">
+                                <input type="checkbox" class="btn-check" name="selected_months" value="8" id="month8" autocomplete="off" {% if '8' in selected_months %}checked{% endif %}>
+                                <label class="btn w-100" for="month8">Ağustos</label>
+                            </div>
+                            <div class="month-checkbox-container">
+                                <input type="checkbox" class="btn-check" name="selected_months" value="9" id="month9" autocomplete="off" {% if '9' in selected_months %}checked{% endif %}>
+                                <label class="btn w-100" for="month9">Eylül</label>
+                            </div>
+                            <div class="month-checkbox-container">
+                                <input type="checkbox" class="btn-check" name="selected_months" value="10" id="month10" autocomplete="off" {% if '10' in selected_months %}checked{% endif %}>
+                                <label class="btn w-100" for="month10">Ekim</label>
+                            </div>
+                            <div class="month-checkbox-container">
+                                <input type="checkbox" class="btn-check" name="selected_months" value="11" id="month11" autocomplete="off" {% if '11' in selected_months %}checked{% endif %}>
+                                <label class="btn w-100" for="month11">Kasım</label>
+                            </div>
+                            <div class="month-checkbox-container">
+                                <input type="checkbox" class="btn-check" name="selected_months" value="12" id="month12" autocomplete="off" {% if '12' in selected_months %}checked{% endif %}>
+                                <label class="btn w-100" for="month12">Aralık</label>
+                            </div>
+                        </div>
+                        <p class="month-help-text mb-0">Birden fazla ay seçebilirsiniz. Örn: Ocak, Şubat ve Mart'ı birlikte seçebilirsiniz.</p>
+                        <div class="d-flex flex-column flex-sm-row justify-content-center gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-funnel me-1"></i>Filtrele
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
+                                <i class="bi bi-x-circle me-1"></i>Temizle
+                            </button>
+                            <button type="button" class="btn btn-outline-success" onclick="selectAllMonths()">
+                                <i class="bi bi-check-all me-1"></i>Tümünü Seç
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Plasiyer Kartları -->
+    <div class="card-view">
+        <div class="row">
+            {% for plasiyer in plasiyer_data %}
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="plasiyer-card">
+                <!-- Plasiyer Başlığı -->
+                <div class="plasiyer-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person-badge me-2"></i>
+                        {{ plasiyer.plasiyer }}
+                    </h5>
+                </div>
+
+                <!-- Satış İstatistikleri -->
+                <div class="p-3">
+                    <h6 class="text-success mb-2">
+                        <i class="bi bi-cart-check me-1"></i>Satışlar
+                    </h6>
+                    <div class="row">
+                        <div class="col-4 text-center">
+                            <small class="text-muted d-block">Günlük</small>
+                            <strong class="text-success fs-5">{{ plasiyer.satis.gunluk_adet }}</strong>
+                            <br>
+                            <span class="text-success fw-bold" style="font-size: 0.95rem;">{{ plasiyer.satis.gunluk_tutar|currency_display }}</span>
+                        </div>
+                        <div class="col-4 text-center">
+                            <small class="text-muted d-block">Haftalık</small>
+                            <strong class="text-success fs-5">{{ plasiyer.satis.haftalik_adet }}</strong>
+                            <br>
+                            <span class="text-success fw-bold" style="font-size: 0.95rem;">{{ plasiyer.satis.haftalik_tutar|currency_display }}</span>
+                        </div>
+                        <div class="col-4 text-center">
+                            <small class="text-muted d-block">Aylık</small>
+                            <strong class="text-success fs-5">{{ plasiyer.satis.aylik_adet }}</strong>
+                            <br>
+                            <span class="text-success fw-bold" style="font-size: 0.95rem;">{{ plasiyer.satis.aylik_tutar|currency_display }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tahsilat İstatistikleri -->
+                <div class="p-3 border-top">
+                    <h6 class="text-danger mb-2">
+                        <i class="bi bi-wallet2 me-1"></i>Tahsilatlar
+                    </h6>
+                    <div class="row">
+                        <div class="col-4 text-center">
+                            <small class="text-muted d-block">Günlük</small>
+                            <strong class="text-danger fs-5">{{ plasiyer.tahsilat.gunluk_adet }}</strong>
+                            <br>
+                            <span class="text-danger fw-bold" style="font-size: 0.95rem;">{{ plasiyer.tahsilat.gunluk_tutar|currency_display }}</span>
+                        </div>
+                        <div class="col-4 text-center">
+                            <small class="text-muted d-block">Haftalık</small>
+                            <strong class="text-danger fs-5">{{ plasiyer.tahsilat.haftalik_adet }}</strong>
+                            <br>
+                            <span class="text-danger fw-bold" style="font-size: 0.95rem;">{{ plasiyer.tahsilat.haftalik_tutar|currency_display }}</span>
+                        </div>
+                        <div class="col-4 text-center">
+                            <small class="text-muted d-block">Aylık</small>
+                            <strong class="text-danger fs-5">{{ plasiyer.tahsilat.aylik_adet }}</strong>
+                            <br>
+                            <span class="text-danger fw-bold" style="font-size: 0.95rem;">{{ plasiyer.tahsilat.aylik_tutar|currency_display }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performans Oranı -->
+                <div class="p-3 border-top bg-light">
+                    {% if plasiyer.satis.aylik_tutar > 0 %}
+                    {% widthratio plasiyer.tahsilat.aylik_tutar plasiyer.satis.aylik_tutar 100 as tahsilat_orani %}
+                    <small class="text-muted">Aylık Tahsilat Oranı</small>
+                    <div class="progress mt-1" style="height: 8px;">
+                        <div class="progress-bar bg-info" style="width: {{ tahsilat_orani }}%"></div>
+                    </div>
+                    <small class="text-info">%{{ tahsilat_orani }}</small>
+                    {% else %}
+                    <small class="text-muted">Performans Verisi Yok</small>
+                    {% endif %}
+                </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Plasiyer Performans Tablosu -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-table me-2"></i>
+                            Plasiyer Performans Tablosu
+                        </h5>
+                        <div class="btn-group" role="group">
+                            <a href="{% url 'tahsilat:export_plasiyer_performans_excel' %}?{{ request.GET.urlencode }}" 
+                               class="btn btn-success btn-sm">
+                                <i class="bi bi-file-earmark-excel me-1"></i><span class="d-none d-sm-inline">Excel</span>
+                            </a>
+                            <a href="{% url 'tahsilat:export_plasiyer_performans_pdf' %}?{{ request.GET.urlencode }}" 
+                               class="btn btn-danger btn-sm">
+                                <i class="bi bi-file-earmark-pdf me-1"></i><span class="d-none d-sm-inline">PDF</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th rowspan="2" class="text-center align-middle">Plasiyer</th>
+                                    <th colspan="3" class="text-center">Tahsilat (TAHSILAT_LOGO)</th>
+                                    <th colspan="3" class="text-center">Satış (FATURA)</th>
+                                </tr>
+                                <tr>
+                                    <th class="text-center">Günlük</th>
+                                    <th class="text-center">Haftalık</th>
+                                    <th class="text-center">Aylık</th>
+                                    <th class="text-center">Günlük</th>
+                                    <th class="text-center">Haftalık</th>
+                                    <th class="text-center">Aylık</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for plasiyer in plasiyer_data %}
+                                <tr>
+                                    <td class="fw-bold">{{ plasiyer.plasiyer }}</td>
+                                    <td class="text-end text-danger">{{ plasiyer.tahsilat.gunluk_tutar|currency_display }}</td>
+                                    <td class="text-end text-danger">{{ plasiyer.tahsilat.haftalik_tutar|currency_display }}</td>
+                                    <td class="text-end text-danger">{{ plasiyer.tahsilat.aylik_tutar|currency_display }}</td>
+                                    <td class="text-end text-success">{{ plasiyer.satis.gunluk_tutar|currency_display }}</td>
+                                    <td class="text-end text-success">{{ plasiyer.satis.haftalik_tutar|currency_display }}</td>
+                                    <td class="text-end text-success">{{ plasiyer.satis.aylik_tutar|currency_display }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td class="fw-bold text-center">TOPLAM</td>
+                                    <td class="text-end text-danger fw-bold">{{ toplam_tahsilat.gunluk_tutar|currency_display }}</td>
+                                    <td class="text-end text-danger fw-bold">{{ toplam_tahsilat.haftalik_tutar|currency_display }}</td>
+                                    <td class="text-end text-danger fw-bold">{{ toplam_tahsilat.aylik_tutar|currency_display }}</td>
+                                    <td class="text-end text-success fw-bold">{{ toplam_satis.gunluk_tutar|currency_display }}</td>
+                                    <td class="text-end text-success fw-bold">{{ toplam_satis.haftalik_tutar|currency_display }}</td>
+                                    <td class="text-end text-success fw-bold">{{ toplam_satis.aylik_tutar|currency_display }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aylık Satış ve Tahsilat Grafiği -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-bar-chart-fill me-2"></i>
+                        Aylık Satış ve Tahsilat Grafiği
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div style="height: 800px; position: relative;">
+                        <canvas id="monthlyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    // Aylık Satış ve Tahsilat Grafiği
+    document.addEventListener('DOMContentLoaded', function() {
+        const monthlyStats = JSON.parse('{{ monthly_stats_json|escapejs }}');
+        
+        // Ay isimleri
+        const ayIsimleri = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+                           'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+        
+        // Veri hazırlama
+        const labels = [];
+        const satisData = [];
+        const tahsilatData = [];
+        
+        for (let month = 1; month <= 12; month++) {
+            labels.push(ayIsimleri[month - 1]);
+            satisData.push(monthlyStats[month]?.satis || 0);
+            tahsilatData.push(monthlyStats[month]?.tahsilat || 0);
+        }
+        
+        // Chart oluştur
+        const ctx = document.getElementById('monthlyChart').getContext('2d');
+        const monthlyChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Satış',
+                        data: satisData,
+                        backgroundColor: 'rgba(40, 167, 69, 0.8)',
+                        borderColor: 'rgba(40, 167, 69, 1)',
+                        borderWidth: 3,
+                        borderRadius: 8,
+                        borderSkipped: false,
+                        maxBarThickness: 100,
+                    },
+                    {
+                        label: 'Tahsilat',
+                        data: tahsilatData,
+                        backgroundColor: 'rgba(220, 53, 69, 0.8)',
+                        borderColor: 'rgba(220, 53, 69, 1)',
+                        borderWidth: 3,
+                        borderRadius: 8,
+                        borderSkipped: false,
+                        maxBarThickness: 100,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            padding: window.innerWidth < 768 ? 10 : 20,
+                            font: {
+                                size: window.innerWidth < 768 ? 11 : 14,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                label += new Intl.NumberFormat('tr-TR', {
+                                    style: 'currency',
+                                    currency: 'TRY',
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                }).format(context.parsed.y);
+                                return label;
+                            }
+                        },
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: {
+                            size: 14,
+                            weight: 'bold'
+                        },
+                        bodyFont: {
+                            size: 13
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        categoryPercentage: 0.9,
+                        barPercentage: 0.95,
+                    },
+                    y: {
+                        beginAtZero: true,
+                        min: 0,
+                        ticks: {
+                            callback: function(value) {
+                                if (value >= 1000000) {
+                                    return (value / 1000000).toFixed(1) + 'M ₺';
+                                } else if (value >= 1000) {
+                                    return (value / 1000).toFixed(0) + 'K ₺';
+                                }
+                                return value.toLocaleString('tr-TR') + ' ₺';
+                            },
+                            font: {
+                                size: window.innerWidth < 768 ? 10 : 16,
+                                weight: 'bold'
+                            },
+                            color: '#495057',
+                            maxTicksLimit: window.innerWidth < 768 ? 8 : 15,
+                            padding: window.innerWidth < 768 ? 5 : 10
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)',
+                            drawBorder: true,
+                            lineWidth: 2
+                        },
+                        title: {
+                            display: true,
+                            text: 'Tutar (₺)',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            },
+                            color: '#495057',
+                            padding: {
+                                top: 10,
+                                bottom: 10
+                            }
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            font: {
+                                size: window.innerWidth < 768 ? 10 : 12
+                            },
+                            color: '#495057',
+                            maxRotation: window.innerWidth < 768 ? 45 : 0,
+                            minRotation: window.innerWidth < 768 ? 45 : 0
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                }
+            }
+        });
+    });
+
+    function clearFilters() {
+        // Tüm checkbox'ları temizle
+        const checkboxes = document.querySelectorAll('input[name="selected_months"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+
+        // Form'u submit et
+        document.getElementById('monthFilterForm').submit();
+    }
+
+    function selectAllMonths() {
+        // Tüm checkbox'ları seç
+        const checkboxes = document.querySelectorAll('input[name="selected_months"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = true;
+        });
+    }
+
+    // Sayfa yüklendiğinde checkbox'ları güzelleştir
+    document.addEventListener('DOMContentLoaded', function () {
+        // Eğer hiç ay seçilmemişse, mevcut ayı otomatik seç
+        const checkboxes = document.querySelectorAll('input[name="selected_months"]');
+        const checkedBoxes = document.querySelectorAll('input[name="selected_months"]:checked');
+
+        if (checkedBoxes.length === 0) {
+            // Mevcut ayı bul ve seç
+            const currentDate = new Date();
+            const currentMonth = currentDate.getMonth() + 1; // JavaScript'te ay 0-11 arası
+
+            checkboxes.forEach(checkbox => {
+                if (parseInt(checkbox.value) === currentMonth) {
+                    checkbox.checked = true;
+                    // Container stilini güncelle
+                    const container = checkbox.closest('.month-checkbox-container');
+                    const checkDiv = checkbox.closest('.form-check');
+                    if (container && checkDiv) {
+                        updateContainerStyle(checkbox, container, checkDiv);
+                    }
+                }
+            });
+
+            // Form'u otomatik submit et
+            setTimeout(() => {
+                document.getElementById('monthFilterForm').submit();
+            }, 500);
+        }
+
+        // Checkbox'lar için görsel iyileştirmeler
+
+        checkboxes.forEach(checkbox => {
+            // Checkbox değiştiğinde form otomatik submit etme (opsiyonel)
+            /*
+            checkbox.addEventListener('change', function() {
+                setTimeout(() => {
+                    document.getElementById('monthFilterForm').submit();
+                }, 300);
+            });
+            */
+
+            // Checkbox container'ını bul
+            const container = checkbox.closest('.month-checkbox-container');
+            const checkDiv = checkbox.closest('.form-check');
+
+            if (container && checkDiv) {
+                // Checkbox seçili ise container stilini değiştir
+                updateContainerStyle(checkbox, container, checkDiv);
+
+                // Checkbox değiştiğinde container stilini güncelle
+                checkbox.addEventListener('change', function () {
+                    updateContainerStyle(this, container, checkDiv);
+                });
+            }
+        });
+
+        function updateContainerStyle(checkbox, container, checkDiv) {
+            if (checkbox.checked) {
+                checkDiv.style.backgroundColor = '#007bff';
+                checkDiv.style.color = 'white';
+                checkDiv.style.borderColor = '#007bff';
+                checkDiv.style.boxShadow = '0 3px 6px rgba(0,123,255,0.3)';
+            } else {
+                checkDiv.style.backgroundColor = '#f8f9fa';
+                checkDiv.style.color = '#495057';
+                checkDiv.style.borderColor = '#dee2e6';
+                checkDiv.style.boxShadow = 'none';
+            }
+        }
+        
+        // Sayfa yüklendiğinde görünüm kontrolü
+        document.addEventListener('DOMContentLoaded', function() {
+            // Ay seçimi kontrolü
+            const urlParams = new URLSearchParams(window.location.search);
+            const monthParam = urlParams.get('month');
+            if (monthParam) {
+                const monthSelect = document.getElementById('monthFilter');
+                if (monthSelect) {
+                    monthSelect.value = monthParam;
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

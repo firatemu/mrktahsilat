@@ -1,0 +1,661 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+{% load humanize %}
+{% load tahsilat_extras %}
+
+{% block title %}Cari Bakiyeler - MRK OTOMOTİV{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Modern Gradient Cards */
+    .stats-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 0.75rem !important;
+        margin-bottom: 0.75rem !important;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: none;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stats-card::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+        animation: pulse 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 0.5; }
+        50% { transform: scale(1.1); opacity: 0.8; }
+    }
+
+    .stats-card:hover {
+        transform: translateY(-4px) scale(1.01);
+        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .stats-card.success {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        box-shadow: 0 10px 30px rgba(17, 153, 142, 0.3);
+    }
+
+    .stats-card.danger {
+        background: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%);
+        box-shadow: 0 10px 30px rgba(252, 70, 107, 0.3);
+    }
+
+    .stats-card.warning {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        box-shadow: 0 10px 30px rgba(240, 147, 251, 0.3);
+    }
+
+    .stats-card.info {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        box-shadow: 0 10px 30px rgba(79, 172, 254, 0.3);
+    }
+
+    .stats-card .card-icon {
+        font-size: 1.5rem !important;
+        opacity: 0.9;
+        margin-bottom: 0.25rem !important;
+    }
+
+    .stats-card .card-value {
+        font-size: 1.2rem !important;
+        font-weight: 700;
+        margin: 0.25rem 0 !important;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .stats-card .card-label {
+        font-size: 0.75rem !important;
+        opacity: 0.95;
+        font-weight: 500;
+    }
+
+    /* Modern Table Design */
+    .data-table-wrapper {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+        margin-top: 1rem !important;
+    }
+
+    .data-table-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 0.75rem !important;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .data-table-header h5 {
+        margin: 0;
+        font-weight: 600;
+        font-size: 1rem !important;
+    }
+
+    .table-modern {
+        margin: 0;
+        width: 100%;
+    }
+
+    .table-modern thead {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    }
+
+    .table-modern thead th {
+        border: none;
+        padding: 0.75rem 0.5rem !important;
+        font-weight: 600;
+        font-size: 0.8rem !important;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        color: #495057;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .table-modern tbody tr {
+        transition: all 0.2s ease;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .table-modern tbody tr:hover {
+        background: linear-gradient(90deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+        transform: scale(1.01);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .table-modern tbody td {
+        padding: 0.6rem 0.5rem !important;
+        vertical-align: middle;
+        border: none;
+        font-size: 0.85rem !important;
+    }
+
+    .table-modern tbody td:first-child {
+        font-weight: 600;
+        color: #667eea;
+    }
+
+    /* Badge Styles */
+    .bakiye-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 25px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        display: inline-block;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .bakiye-positive {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
+    }
+
+    .bakiye-negative {
+        background: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%);
+        color: white;
+    }
+
+    .bakiye-zero {
+        background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+        color: white;
+    }
+
+    /* Search and Filter Section */
+    .filter-section {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 20px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    .search-input-wrapper {
+        position: relative;
+    }
+
+    .search-input-wrapper i {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+    }
+
+    .search-input-wrapper input {
+        padding-left: 3rem;
+        border-radius: 15px;
+        border: 2px solid #e9ecef;
+        transition: all 0.3s ease;
+    }
+
+    .search-input-wrapper input:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+
+    /* Page Header */
+    .page-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1rem 0 !important;
+        margin-bottom: 1rem !important;
+        border-radius: 0 0 20px 20px;
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+    }
+
+    .page-header h1 {
+        font-size: 1.5rem !important;
+        font-weight: 700;
+        margin: 0;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .page-header p {
+        opacity: 0.95;
+        font-size: 0.85rem !important;
+        margin-top: 0.25rem !important;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .stats-card .card-value {
+            font-size: 1rem !important;
+        }
+
+        .page-header h1 {
+            font-size: 1.2rem !important;
+        }
+
+        .table-modern {
+            font-size: 0.75rem !important;
+        }
+
+        .table-modern thead th,
+        .table-modern tbody td {
+            padding: 0.5rem 0.4rem !important;
+        }
+    }
+
+    /* Loading Animation */
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.9);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .loading-overlay.show {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .spinner {
+        width: 50px;
+        height: 50px;
+        border: 5px solid #f3f3f3;
+        border-top: 5px solid #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: #6c757d;
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1>
+                        <i class="bi bi-wallet2 me-2"></i>Cari Bakiyeler
+                    </h1>
+                    <p class="mb-0">Tüm cari hesapların bakiye durumları</p>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-light btn-sm" onclick="window.location.reload()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Yenile
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row g-2 mb-2">
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card">
+                <div class="card-icon">
+                    <i class="bi bi-wallet2"></i>
+                </div>
+                <div class="card-value">{{ toplam_bakiye|currency_display }}</div>
+                <div class="card-label">Toplam Bakiye</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card danger">
+                <div class="card-icon">
+                    <i class="bi bi-arrow-down-circle"></i>
+                </div>
+                <div class="card-value">{{ toplam_borc|currency_display }}</div>
+                <div class="card-label">Toplam Borç</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card success">
+                <div class="card-icon">
+                    <i class="bi bi-arrow-up-circle"></i>
+                </div>
+                <div class="card-value">{{ toplam_alacak|currency_display }}</div>
+                <div class="card-label">Toplam Alacak</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card info">
+                <div class="card-icon">
+                    <i class="bi bi-people"></i>
+                </div>
+                <div class="card-value">{{ toplam_kayit|intcomma }}</div>
+                <div class="card-label">Toplam Cari</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Additional Stats -->
+    <div class="row g-2 mb-2">
+        <div class="col-lg-4 col-md-4">
+            <div class="stats-card success">
+                <div class="card-icon">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+                <div class="card-value">{{ pozitif_bakiye_sayisi|intcomma }}</div>
+                <div class="card-label">Pozitif Bakiye</div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-4">
+            <div class="stats-card danger">
+                <div class="card-icon">
+                    <i class="bi bi-x-circle"></i>
+                </div>
+                <div class="card-value">{{ negatif_bakiye_sayisi|intcomma }}</div>
+                <div class="card-label">Negatif Bakiye</div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-4">
+            <div class="stats-card warning">
+                <div class="card-icon">
+                    <i class="bi bi-dash-circle"></i>
+                </div>
+                <div class="card-value">{{ sifir_bakiye_sayisi|intcomma }}</div>
+                <div class="card-label">Sıfır Bakiye</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filter -->
+    <div class="filter-section">
+        <div class="row g-2">
+            <div class="col-md-6">
+                <label class="form-label fw-bold">
+                    <i class="bi bi-search me-2"></i>Arama
+                </label>
+                <div class="search-input-wrapper">
+                    <i class="bi bi-search"></i>
+                    <input type="text" class="form-control form-control-lg" id="searchInput" 
+                           placeholder="Cari kod, ünvan, plasiyer veya bölge ara...">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold">
+                    <i class="bi bi-funnel me-2"></i>Bakiye Durumu
+                </label>
+                <select class="form-select form-select-lg" id="bakiyeFilter">
+                    <option value="all">Tümü</option>
+                    <option value="positive">Pozitif</option>
+                    <option value="negative">Negatif</option>
+                    <option value="zero">Sıfır</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold">
+                    <i class="bi bi-sort-down me-2"></i>Sıralama
+                </label>
+                <select class="form-select form-select-lg" id="sortFilter">
+                    <option value="bakiye-desc">Bakiye (Yüksek → Düşük)</option>
+                    <option value="bakiye-asc">Bakiye (Düşük → Yüksek)</option>
+                    <option value="cari-kod">Cari Kod</option>
+                    <option value="cari-unvan">Cari Ünvan</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="data-table-wrapper">
+        <div class="data-table-header">
+            <h5>
+                <i class="bi bi-table me-2"></i>Cari Bakiye Listesi
+                <span class="badge bg-light text-dark ms-2" id="recordCount">{{ toplam_kayit|intcomma }} kayıt</span>
+            </h5>
+            <div>
+                <button class="btn btn-light btn-sm" onclick="exportToExcel()">
+                    <i class="bi bi-file-earmark-excel me-1"></i>Excel'e Aktar
+                </button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-modern" id="cariBakiyelerTable">
+                <thead>
+                    <tr>
+                        <th>Cari Kod</th>
+                        <th>Cari Ünvan</th>
+                        <th>Plasiyer</th>
+                        <th>Bölge</th>
+                        <th class="text-end">Borç</th>
+                        <th class="text-end">Alacak</th>
+                        <th class="text-end">Bakiye</th>
+                        <th class="text-center">İşlemler</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if error_message %}
+                    <tr>
+                        <td colspan="8" class="text-center text-danger py-5">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            {{ error_message }}
+                        </td>
+                    </tr>
+                    {% elif not cari_bakiyeler_list %}
+                    <tr>
+                        <td colspan="8" class="empty-state">
+                            <i class="bi bi-inbox"></i>
+                            <h5 class="mt-3">Veri bulunamadı</h5>
+                            <p class="text-muted">Henüz cari bakiye kaydı bulunmamaktadır.</p>
+                        </td>
+                    </tr>
+                    {% else %}
+                    {% for item in cari_bakiyeler_list %}
+                    <tr data-cari-kod="{{ item|get_item:'CARİ KOD'|default:''|upper }}" 
+                        data-cari-unvan="{{ item|get_item:'CARİ ÜNVAN'|default:''|upper }}"
+                        data-plasiyer="{{ item|get_item:'PLASİYER'|default:''|upper }}"
+                        data-bolge="{{ item|get_item:'BÖLGE'|default:''|upper }}"
+                        data-bakiye="{{ item|get_item:'BAKİYE'|default:0 }}">
+                        <td>
+                            <strong class="text-primary">{{ item|get_item:'CARİ KOD'|default:'-' }}</strong>
+                        </td>
+                        <td>{{ item|get_item:'CARİ ÜNVAN'|default:'-' }}</td>
+                        <td>
+                            <span class="badge bg-info">{{ item|get_item:'PLASİYER'|default:'-' }}</span>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">{{ item|get_item:'BÖLGE'|default:'-' }}</span>
+                        </td>
+                        <td class="text-end">
+                            <span class="text-danger fw-bold">{{ item|get_item:'BORÇ'|default:0|currency_display }}</span>
+                        </td>
+                        <td class="text-end">
+                            <span class="text-success fw-bold">{{ item|get_item:'ALACAK'|default:0|currency_display }}</span>
+                        </td>
+                        <td class="text-end">
+                            {% with bakiye=item|get_item:'BAKİYE'|default:0 %}
+                            {% if bakiye > 0 %}
+                                <span class="bakiye-badge bakiye-positive">{{ bakiye|currency_display }}</span>
+                            {% elif bakiye < 0 %}
+                                <span class="bakiye-badge bakiye-negative">{{ bakiye|currency_display }}</span>
+                            {% else %}
+                                <span class="bakiye-badge bakiye-zero">{{ bakiye|currency_display }}</span>
+                            {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td class="text-center">
+                            {% with cari_kod=item|get_item:'CARİ KOD'|default:'' %}
+                            {% if cari_kod %}
+                            <a href="{% url 'tahsilat:cari_hareketler' cari_kod=cari_kod %}" 
+                               class="btn btn-sm btn-outline-primary" 
+                               title="Cari Ekstre">
+                                <i class="bi bi-file-text me-1"></i>Ekstre
+                            </a>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                            {% endwith %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Search functionality
+    const searchInput = document.getElementById('searchInput');
+    const bakiyeFilter = document.getElementById('bakiyeFilter');
+    const sortFilter = document.getElementById('sortFilter');
+    const table = document.getElementById('cariBakiyelerTable');
+    const recordCount = document.getElementById('recordCount');
+    let allRows = Array.from(table.querySelectorAll('tbody tr'));
+
+    function filterTable() {
+        const searchTerm = searchInput.value.toUpperCase();
+        const bakiyeValue = bakiyeFilter.value;
+        const sortValue = sortFilter.value;
+        
+        let filteredRows = allRows.filter(row => {
+            // Search filter
+            const cariKod = row.getAttribute('data-cari-kod') || '';
+            const cariUnvan = row.getAttribute('data-cari-unvan') || '';
+            const plasiyer = row.getAttribute('data-plasiyer') || '';
+            const bolge = row.getAttribute('data-bolge') || '';
+            
+            const matchesSearch = !searchTerm || 
+                cariKod.includes(searchTerm) || 
+                cariUnvan.includes(searchTerm) || 
+                plasiyer.includes(searchTerm) || 
+                bolge.includes(searchTerm);
+            
+            // Bakiye filter
+            const bakiye = parseFloat(row.getAttribute('data-bakiye') || 0);
+            let matchesBakiye = true;
+            if (bakiyeValue === 'positive') {
+                matchesBakiye = bakiye > 0;
+            } else if (bakiyeValue === 'negative') {
+                matchesBakiye = bakiye < 0;
+            } else if (bakiyeValue === 'zero') {
+                matchesBakiye = bakiye === 0;
+            }
+            
+            return matchesSearch && matchesBakiye;
+        });
+        
+        // Sort
+        filteredRows.sort((a, b) => {
+            const bakiyeA = parseFloat(a.getAttribute('data-bakiye') || 0);
+            const bakiyeB = parseFloat(b.getAttribute('data-bakiye') || 0);
+            const cariKodA = a.getAttribute('data-cari-kod') || '';
+            const cariKodB = b.getAttribute('data-cari-kod') || '';
+            const cariUnvanA = a.getAttribute('data-cari-unvan') || '';
+            const cariUnvanB = b.getAttribute('data-cari-unvan') || '';
+            
+            if (sortValue === 'bakiye-desc') {
+                return bakiyeB - bakiyeA;
+            } else if (sortValue === 'bakiye-asc') {
+                return bakiyeA - bakiyeB;
+            } else if (sortValue === 'cari-kod') {
+                return cariKodA.localeCompare(cariKodB);
+            } else if (sortValue === 'cari-unvan') {
+                return cariUnvanA.localeCompare(cariUnvanB);
+            }
+            return 0;
+        });
+        
+        // Update table
+        const tbody = table.querySelector('tbody');
+        tbody.innerHTML = '';
+        filteredRows.forEach(row => tbody.appendChild(row));
+        
+        // Update count
+        recordCount.textContent = filteredRows.length.toLocaleString('tr-TR') + ' kayıt';
+    }
+
+    searchInput.addEventListener('input', filterTable);
+    bakiyeFilter.addEventListener('change', filterTable);
+    sortFilter.addEventListener('change', filterTable);
+
+    // Export to Excel
+    function exportToExcel() {
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        loadingOverlay.classList.add('show');
+        
+        // Create CSV content
+        let csv = 'Cari Kod,Cari Ünvan,Plasiyer,Bölge,Borç,Alacak,Bakiye\n';
+        
+        const rows = table.querySelectorAll('tbody tr:not(.empty-state)');
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 7) {
+                const cariKod = cells[0].textContent.trim().replace(/,/g, '');
+                const cariUnvan = cells[1].textContent.trim().replace(/,/g, '');
+                const plasiyer = cells[2].textContent.trim().replace(/,/g, '');
+                const bolge = cells[3].textContent.trim().replace(/,/g, '');
+                const borc = cells[4].textContent.trim().replace(/[^\d,.-]/g, '').replace(',', '.');
+                const alacak = cells[5].textContent.trim().replace(/[^\d,.-]/g, '').replace(',', '.');
+                const bakiye = cells[6].textContent.trim().replace(/[^\d,.-]/g, '').replace(',', '.');
+                
+                csv += `${cariKod},${cariUnvan},${plasiyer},${bolge},${borc},${alacak},${bakiye}\n`;
+            }
+        });
+        
+        // Download
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'cari_bakiyeler_' + new Date().toISOString().split('T')[0] + '.csv');
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        setTimeout(() => {
+            loadingOverlay.classList.remove('show');
+        }, 500);
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add smooth scroll behavior
+        document.documentElement.style.scrollBehavior = 'smooth';
+    });
+</script>
+{% endblock %}
+

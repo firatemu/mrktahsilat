@@ -1,0 +1,236 @@
+{% extends 'base.html' %}
+
+{% block title %}Gider Masraf Listesi{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stats-card {
+        transition: all 0.3s ease;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .stats-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .table-hover tbody tr:hover {
+        background-color: rgba(102, 126, 234, 0.1);
+        transition: background-color 0.2s ease;
+    }
+
+    .table-responsive {
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .btn-action {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+        border-radius: 6px;
+    }
+
+    .badge-custom {
+        font-size: 0.85rem;
+        padding: 0.5em 0.8em;
+        border-radius: 8px;
+    }
+
+    .page-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem 0;
+        margin-bottom: 2rem;
+        border-radius: 0 0 20px 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1 class="mb-0">
+                        <i class="bi bi-cash-stack me-3"></i>Gider Masraf Yönetimi
+                    </h1>
+                    <p class="mb-0 mt-2 opacity-75">Gider masraflarınızı görüntüleyin ve yönetin</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <a href="{% url 'tahsilat:gider_masraf_ekle' %}" class="btn btn-light btn-lg">
+                        <i class="bi bi-plus-circle me-2"></i>Yeni Gider Ekle
+                    </a>
+                    {% if user.username == 'FIRAT' %}
+                    <div class="mt-2">
+                        <small class="text-light opacity-75">
+                            <i class="bi bi-shield-check me-1"></i>Yönetici Yetkileri Aktif
+                        </small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card stats-card border-0">
+                <div class="card-body text-center">
+                    <div class="d-flex align-items-center justify-content-center">
+                        <div class="me-3">
+                            <i class="bi bi-list-ul text-primary" style="font-size: 2.5rem;"></i>
+                        </div>
+                        <div>
+                            <h3 class="mb-0 text-primary">{{ page_obj.paginator.count }}</h3>
+                            <p class="text-muted mb-0">Toplam Gider</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card stats-card border-0">
+                <div class="card-body text-center">
+                    <div class="d-flex align-items-center justify-content-center">
+                        <div class="me-3">
+                            <i class="bi bi-currency-dollar text-success" style="font-size: 2.5rem;"></i>
+                        </div>
+                        <div>
+                            <h3 class="mb-0 text-success">{{ toplam_tutar|floatformat:2 }} TL</h3>
+                            <p class="text-muted mb-0">Toplam Tutar</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gider Listesi -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 py-3">
+            <h5 class="mb-0">
+                <i class="bi bi-table me-2"></i>Gider Masraf Listesi
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            {% if giderler %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Gider Adı</th>
+                            <th>Açıklama</th>
+                            <th>Tutar</th>
+                            <th>Tarih</th>
+                            <th>Ekleyen</th>
+                            <th>Eklenen Tarih</th>
+                            <th width="120">İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for gider in giderler %}
+                        <tr>
+                            <td>
+                                <strong>{{ gider.get_gider_adi_display }}</strong>
+                            </td>
+                            <td>
+                                {% if gider.aciklama %}
+                                    {{ gider.aciklama|truncatechars:50 }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-success badge-custom">
+                                    {{ gider.tutar|floatformat:2 }} TL
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-info badge-custom">
+                                    {{ gider.tarih|date:"d.m.Y" }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="text-muted">{{ gider.ekleyen.username }}</span>
+                            </td>
+                            <td>
+                                <small class="text-muted">{{ gider.eklenen_tarih|date:"d.m.Y H:i" }}</small>
+                            </td>
+                            <td>
+                                {% if user.username == 'FIRAT' %}
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'tahsilat:gider_masraf_guncelle' gider.id %}" 
+                                       class="btn btn-outline-primary btn-sm btn-action"
+                                       title="Güncelle">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a href="{% url 'tahsilat:gider_masraf_sil' gider.id %}" 
+                                       class="btn btn-outline-danger btn-sm btn-action"
+                                       onclick="return confirm('Bu gider masrafını silmek istediğinizden emin misiniz?')"
+                                       title="Sil">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </div>
+                                {% else %}
+                                <span class="text-muted">
+                                    <i class="bi bi-lock"></i> Yetki Yok
+                                </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+            <div class="card-footer bg-white border-0 py-3">
+                <nav aria-label="Gider masraf sayfalama">
+                    <ul class="pagination justify-content-center mb-0">
+                        {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1">&laquo; İlk</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Önceki</a>
+                        </li>
+                        {% endif %}
+
+                        <li class="page-item active">
+                            <span class="page-link">
+                                {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+                            </span>
+                        </li>
+
+                        {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Sonraki</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Son &raquo;</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-inbox text-muted" style="font-size: 4rem;"></i>
+                <h4 class="text-muted mt-3">Henüz gider masraf kaydı bulunmuyor</h4>
+                <p class="text-muted">İlk gider masrafınızı eklemek için aşağıdaki butona tıklayın.</p>
+                <a href="{% url 'tahsilat:gider_masraf_ekle' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle me-2"></i>Yeni Gider Ekle
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

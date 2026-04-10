@@ -1,0 +1,704 @@
+{% block content %}
+<div class="container-fluid">
+    <!-- Sayfa Başlığı -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-0">
+                        <i class="bi bi-receipt me-2"></i>
+                        Çek ve Senetler
+                    </h2>
+                    <p class="text-muted mb-0">Çek, senet, kredi ve kredi kartı ödeme takibi - Vade tarihine göre sıralı
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#importModal">
+                        <i class="bi bi-file-earmark-excel me-2"></i>Excel'den İçe Aktar
+                    </button>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#ekleModal">
+                        <i class="bi bi-plus-circle me-2"></i>Yeni Kayıt Ekle
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sekmeler -->
+    <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button"
+                role="tab" aria-controls="list" aria-selected="true">
+                <i class="bi bi-list-ul me-2"></i>Liste Görünümü
+            </button>
+        </li>
+
+    </ul>
+
+    <!-- Sekme İçerikleri -->
+    <div class="tab-content" id="mainTabsContent">
+        <!-- Liste Görünümü -->
+        <div class="tab-pane fade show active" id="list" role="tabpanel" aria-labelledby="list-tab">
+
+            <!-- Dashboard - 2 Kolonlu Yapı -->
+            <div class="row g-3 mb-3">
+                <!-- Sol Kolon - Genel İstatistikler -->
+                <div class="col-lg-6">
+                    <!-- Genel İstatistik Kartları -->
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <div class="stats-card stats-card-gelen text-center">
+                                <h5><i class="bi bi-arrow-down-circle"></i>Gelen Toplam</h5>
+                                <h3>₺{{ gelen_odemeler|floatformat:0|intcomma }}</h3>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-card stats-card-giden text-center">
+                                <h5><i class="bi bi-arrow-up-circle"></i>Giden Toplam</h5>
+                                <h3>₺{{ giden_odemeler|floatformat:0|intcomma }}</h3>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-card text-center">
+                                <h5><i class="bi bi-hourglass-split"></i>Beklemede</h5>
+                                <h3>₺{{ stats.beklemede_tutar|floatformat:0|intcomma }}</h3>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-card text-center">
+                                <h5><i class="bi bi-check-circle"></i>Ödendi</h5>
+                                <h3>₺{{ stats.odendi_tutar|floatformat:0|intcomma }}</h3>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-card text-center">
+                                <h5><i class="bi bi-exclamation-triangle"></i>Vadesi Geçti</h5>
+                                <h3>₺{{ stats.vadesi_gecti_tutar|floatformat:0|intcomma }}</h3>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-card text-center">
+                                <h5><i class="bi bi-list-ul"></i>Toplam Kayıt</h5>
+                                <h3>{{ page_obj.count }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sağ Kolon - Çek/Senet ve Kredi Banka Bazlı Toplamlar -->
+                <div class="col-lg-6">
+                    <!-- Çek ve Senet İstatistik Kartları -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <div class="stats-card stats-card-cek-gelen text-center">
+                                <h5><i class="bi bi-receipt"></i>Çek - Gelen</h5>
+                                <h3>₺{{ odeme_turu_stats.cek.gelen_tutar|floatformat:0|intcomma }}</h3>
+                                <small><i class="bi bi-file-earmark-text me-1"></i>{{ odeme_turu_stats.cek.gelen_adet }}
+                                    kayıt</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-card stats-card-cek-giden text-center">
+                                <h5><i class="bi bi-receipt"></i>Çek - Giden</h5>
+                                <h3>₺{{ odeme_turu_stats.cek.giden_tutar|floatformat:0|intcomma }}</h3>
+                                <small><i class="bi bi-file-earmark-text me-1"></i>{{ odeme_turu_stats.cek.giden_adet }}
+                                    kayıt</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-card stats-card-senet-gelen text-center">
+                                <h5><i class="bi bi-file-earmark-text"></i>Senet - Gelen</h5>
+                                <h3>₺{{ odeme_turu_stats.senet.gelen_tutar|floatformat:0|intcomma }}</h3>
+                                <small><i class="bi bi-file-earmark-text me-1"></i>{{ odeme_turu_stats.senet.gelen_adet
+                                    }} kayıt</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-card stats-card-senet-giden text-center">
+                                <h5><i class="bi bi-file-earmark-text"></i>Senet - Giden</h5>
+                                <h3>₺{{ odeme_turu_stats.senet.giden_tutar|floatformat:0|intcomma }}</h3>
+                                <small><i class="bi bi-file-earmark-text me-1"></i>{{ odeme_turu_stats.senet.giden_adet
+                                    }} kayıt</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Kredi - Banka Bazlı Toplamlar -->
+                    <h5 class="mb-2 fw-bold"><i class="bi bi-bank me-2"></i>Kredi - Banka Bazlı Toplamlar</h5>
+                    <div class="row g-2">
+                        {% if kredi_banka_stats %}
+                        {% for banka, stats in kredi_banka_stats.items %}
+                        {% if stats.tutar > 0 %}
+                        <div class="col-lg-6 col-md-6 col-sm-6 col-6">
+                            <div class="stats-card stats-card-kredi stats-card-compact text-center">
+                                <h6><i class="bi bi-bank"></i>{{ banka }}</h6>
+                                <h4>₺{{ stats.tutar|floatformat:0|intcomma }}</h4>
+                                <small><i class="bi bi-file-earmark-text me-1"></i>{{ stats.adet }} kayıt</small>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% empty %}
+                        <div class="col-12">
+                            <div class="alert alert-info text-center py-2">
+                                <i class="bi bi-info-circle me-2"></i>Kredi kaydı bulunmamaktadır.
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <div class="col-12">
+                            <div class="alert alert-info text-center py-2">
+                                <i class="bi bi-info-circle me-2"></i>Kredi kaydı bulunmamaktadır.
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filtreleme Kartı -->
+            <div class="filter-card">
+                <h5 class="mb-3">
+                    <i class="bi bi-funnel me-2"></i>Filtreleme
+                </h5>
+                <form method="GET" id="filterForm">
+                    <div class="row">
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <label class="form-label">Ödeme Türü</label>
+                            <select name="odeme_turu" class="form-select">
+                                <option value="">Tümü</option>
+                                {% for choice in odeme_turu_choices %}
+                                <option value="{{ choice.0 }}" {% if filters.odeme_turu == choice.0 %}selected{% endif %}>
+                                    {{ choice.1 }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <label class="form-label">Tip</label>
+                            <select name="tip" class="form-select">
+                                <option value="">Tümü</option>
+                                {% for choice in tip_choices %}
+                                <option value="{{ choice.0 }}" {% if filters.tip == choice.0 %}selected{% endif %}>
+                                    {{ choice.1 }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <label class="form-label">Durum</label>
+                            <select name="durum" class="form-select">
+                                <option value="" {% if not filters.durum %}selected{% endif %}>Tümü</option>
+                                {% for choice in durum_choices %}
+                                <option value="{{ choice.0 }}" {% if filters.durum == choice.0 %}selected{% endif %}>
+                                    {{ choice.1 }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <label class="form-label">Cari Kod</label>
+                            <input type="text" name="cari_kod" class="form-control" value="{{ filters.cari_kod }}"
+                                placeholder="Cari kod ara...">
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <label class="form-label">Cari Ünvan</label>
+                            <input type="text" name="cari_unvan" class="form-control" value="{{ filters.cari_unvan }}"
+                                placeholder="Cari ünvan ara...">
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <label class="form-label">Vade Durumu</label>
+                            <select name="vade_durumu" class="form-select">
+                                <option value="">Tümü</option>
+                                <option value="vadesi_gecti" {% if filters.vade_durumu == 'vadesi_gecti' %}selected{%
+                                    endif %}>Vadesi Geçenler</option>
+                                <option value="vade_bugun" {% if filters.vade_durumu == 'vade_bugun' %}selected{% endif
+                                    %}>Vade Bugün</option>
+                                <option value="vade_yarin" {% if filters.vade_durumu == 'vade_yarin' %}selected{% endif
+                                    %}>Vadesi Yarın</option>
+                                <option value="bu_hafta" {% if filters.vade_durumu == 'bu_hafta' %}selected{% endif %}>Bu
+                                    Hafta</option>
+                                <option value="bu_ay" {% if filters.vade_durumu == 'bu_ay' %}selected{% endif %}>Bu Ay
+                                </option>
+                                <option value="gelecek_ay" {% if filters.vade_durumu == 'gelecek_ay' %}selected{% endif
+                                    %}>Gelecek Ay</option>
+                            </select>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <label class="form-label">Banka</label>
+                            <select name="banka_adi" class="form-select">
+                                <option value="">Tümü</option>
+                                {% for banka in banka_listesi %}
+                                <option value="{{ banka }}" {% if filters.banka_adi == banka %}selected{% endif %}>{{
+                                    banka }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <label class="form-label">Ay Seçimi</label>
+                            <div class="dropdown" id="ayDropdown">
+                                <button class="btn btn-outline-secondary form-control text-start dropdown-toggle"
+                                    type="button" id="ayDropdownButton" data-bs-toggle="dropdown" aria-expanded="false"
+                                    style="position: relative;">
+                                    <span id="aySelectedText">Ay seçiniz...</span>
+                                    <span class="badge bg-primary ms-2" id="aySelectedCount"
+                                        style="display: none;">0</span>
+                                </button>
+                                <ul class="dropdown-menu" aria-labelledby="ayDropdownButton"
+                                    style="max-height: 300px; overflow-y: auto; width: 100%;">
+                                    <li>
+                                        <label class="dropdown-item"
+                                            style="cursor: pointer; margin: 0; font-weight: 600; border-bottom: 1px solid #dee2e6;">
+                                            <input type="checkbox" class="form-check-input me-2" id="selectAllMonths">
+                                            Hepsini Seç
+                                        </label>
+                                    </li>
+                                    {% for ym in available_months %}
+                                    <li class="dropdown-header text-primary fw-bold">{{ ym.year }}</li>
+                                    {% for m in ym.months %}
+                                    <li>
+                                        {% with month_str=m.num|stringformat:"02d" %}
+                                        {% with month_value=ym.year|stringformat:"s"|add:"-"|add:month_str %}
+                                        <label class="dropdown-item" style="cursor: pointer; margin: 0;">
+                                            <input type="checkbox" class="form-check-input me-2 ay-checkbox" name="ay"
+                                                value="{{ month_value }}" {% if filters.selected_months and month_value in filters.selected_months %}checked{% endif %}>
+                                            {{ m.name }}
+                                        </label>
+                                        {% endwith %}{% endwith %}
+                                    </li>
+                                    {% endfor %}
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            <small class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>Dropdown'dan ay seçimi yapabilirsiniz.
+                            </small>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-lg-8 col-md-12 mb-3 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary me-2">
+                                <i class="bi bi-search me-1"></i>Filtrele
+                            </button>
+                            <a href="{% url 'tahsilat:cek_senetler' %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Temizle
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Tablo Kartı -->
+            <div class="table-card">
+                <div class="table-responsive" style="overflow: visible;">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Ödeme Türü</th>
+                                <th>Tip</th>
+                                <th>Cari Ünvan</th>
+                                <th>Tutar</th>
+                                <th>İşlem Tarihi</th>
+                                <th>Vade Tarihi</th>
+                                <th>Durum</th>
+                                <th>Kalan Gün</th>
+                                <th>Banka Adı</th>
+                                <th>Açıklama</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for kayit in page_obj %}
+                            <tr>
+                                <td>
+                                    <span class="badge badge-odeme-{{ kayit.odeme_turu }}">{{
+                                        kayit.get_odeme_turu_display }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge badge-tip-{{ kayit.tip }}">{{ kayit.get_tip_display }}</span>
+                                </td>
+                                <td class="cari-unvan-cell">
+                                    <strong>{{ kayit.cari_unvan }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ kayit.cari_kod }}</small>
+                                </td>
+                                <td>
+                                    <strong>₺{{ kayit.tutar|floatformat:0|intcomma }}</strong>
+                                </td>
+                                <td>{{ kayit.islem_tarihi|date:"d.m.Y" }}</td>
+                                <td>{{ kayit.vade_tarihi|date:"d.m.Y" }}</td>
+                                <td>
+                                    {% if kayit.durum == 'beklemede' %}
+                                    <span class="badge bg-warning">{{ kayit.get_durum_display }}</span>
+                                    {% elif kayit.durum == 'ciro' %}
+                                    <span class="badge bg-primary">{{ kayit.get_durum_display }}</span>
+                                    {% elif kayit.durum == 'odendi' %}
+                                    <span class="badge bg-success">{{ kayit.get_durum_display }}</span>
+                                    {% elif kayit.durum == 'iptal' %}
+                                    <span class="badge bg-secondary">{{ kayit.get_durum_display }}</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">{{ kayit.get_durum_display }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if kayit.vade_durumu == 'vadesi_gecti' %}
+                                    <span class="badge bg-danger">{{ kayit.kalan_gun }} gün geçti</span>
+                                    {% elif kayit.vade_durumu == 'vade_bugun' %}
+                                    <span class="badge bg-warning">Bugün</span>
+                                    {% elif kayit.vade_durumu == 'vade_yarin' %}
+                                    <span class="badge bg-info">Yarın</span>
+                                    {% else %}
+                                    <span class="badge bg-success">{{ kayit.kalan_gun }} gün</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if kayit.banka_adi %}
+                                    <span>{{ kayit.banka_adi }}</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if kayit.aciklama and kayit.aciklama != 'nan' %}
+                                    <span class="text-muted" title="{{ kayit.aciklama }}">{{
+                                        kayit.aciklama|truncatechars:30 }}</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="action-buttons">
+                                        {% if kayit.durum != 'ciro' %}
+                                        <button type="button" class="action-btn btn-ciro"
+                                            onclick="showCiroModal({{ kayit.id }})" title="Ciro Et">
+                                            <i class="bi bi-arrow-right-circle"></i>
+                                            <span>Ciro</span>
+                                        </button>
+                                        {% endif %}
+
+                                        {% if kayit.durum != 'odendi' %}
+                                        <button type="button" class="action-btn btn-odendi"
+                                            onclick="changeStatus({{ kayit.id }}, 'odendi')" title="Ödendi">
+                                            <i class="bi bi-check2-circle"></i>
+                                            <span>Ödendi</span>
+                                        </button>
+                                        {% endif %}
+
+                                        {% if kayit.durum != 'beklemede' %}
+                                        <button type="button" class="action-btn btn-beklemede"
+                                            onclick="changeStatus({{ kayit.id }}, 'beklemede')" title="Beklemede">
+                                            <i class="bi bi-clock"></i>
+                                            <span>Beklemede</span>
+                                        </button>
+                                        {% endif %}
+
+                                        {% if kayit.durum != 'iptal' %}
+                                        <button type="button" class="action-btn btn-iptal"
+                                            onclick="changeStatus({{ kayit.id }}, 'iptal')" title="İptal Et">
+                                            <i class="bi bi-x-circle"></i>
+                                            <span>İptal</span>
+                                        </button>
+                                        {% endif %}
+
+                                        <button type="button" class="action-btn btn-edit"
+                                            onclick="editKayit({{ kayit.id }})" title="Düzenle">
+                                            <i class="bi bi-pencil"></i>
+                                            <span>Düzenle</span>
+                                        </button>
+
+                                        <button type="button" class="action-btn btn-delete"
+                                            onclick="deleteKayit({{ kayit.id }})" title="Sil">
+                                            <i class="bi bi-trash"></i>
+                                            <span>Sil</span>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="11" class="text-center py-4">
+                                    <i class="bi bi-inbox display-4 text-muted"></i>
+                                    <p class="text-muted mt-2">Henüz kayıt bulunmuyor.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Ciro Modal -->
+    <div class="modal fade" id="ciroModal" tabindex="-1" aria-labelledby="ciroModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ciroModalLabel">Ciro Et</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="ciroForm">
+                        <div class="mb-3">
+                            <label for="ciroAciklama" class="form-label">Açıklama</label>
+                            <textarea class="form-control" id="ciroAciklama" name="aciklama" rows="3"
+                                placeholder="Ciro işlemi için açıklama yazın..."></textarea>
+                        </div>
+                        <input type="hidden" id="ciroKayitId" name="kayit_id">
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmCiro()">Ciro Et</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Excel İçe Aktar Modal -->
+    <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importModalLabel">
+                        <i class="bi bi-file-earmark-excel me-2"></i>Excel'den İçe Aktar
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <form method="POST" action="{% url 'tahsilat:import_cek_senetler_excel' %}"
+                    enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <h6><i class="bi bi-info-circle me-2"></i>Excel Şablonu Kullanımı</h6>
+                            <ul class="mb-0">
+                                <li>Excel dosyanızı şablona uygun formatta hazırlayın</li>
+                                <li>* işaretli alanlar zorunludur</li>
+                                <li>Tarihler DD.MM.YYYY formatında olmalıdır</li>
+                                <li>Tutar alanı sayısal değer olmalıdır</li>
+                            </ul>
+                            <div class="mt-2">
+                                <a href="{% url 'tahsilat:download_cek_senetler_template' %}"
+                                    class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-download me-2"></i>Excel Şablonunu İndir
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="excel_file" class="form-label">
+                                <i class="bi bi-file-earmark-excel me-2"></i>Excel Dosyası Seçin
+                            </label>
+                            <input type="file" class="form-control" id="excel_file" name="excel_file"
+                                accept=".xlsx,.xls" required>
+                            <div class="form-text">Sadece .xlsx ve .xls dosyaları desteklenir</div>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-exclamation-triangle me-2"></i>Önemli Notlar</h6>
+                            <ul class="mb-0">
+                                <li><strong>Ödeme Türü:</strong> Çek, Senet, Kredi, Kredi Kartı</li>
+                                <li><strong>Tip:</strong> Gelen, Giden</li>
+                                <li><strong>Durum:</strong> Beklemede, Ciro, Ödendi, İptal</li>
+                                <li><strong>Cari Kod:</strong> 320. ile başlayanlar TEDARİKÇİ, 120. ile
+                                    başlayanlar
+                                    MÜŞTERİ</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-2"></i>İptal
+                        </button>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-upload me-2"></i>İçe Aktar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ekleme Modal -->
+    <div class="modal fade" id="ekleModal" tabindex="-1" aria-labelledby="ekleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ekleModalLabel">
+                        <i class="bi bi-plus-circle me-2"></i>Yeni Çek/Senet Ekle
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <form method="POST" action="{% url 'tahsilat:cek_senet_ekle' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Ödeme Türü *</label>
+                                <select name="odeme_turu" class="form-select" required>
+                                    <option value="">Seçiniz</option>
+                                    {% for choice in odeme_turu_choices %}
+                                    <option value="{{ choice.0 }}">{{ choice.1 }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tip *</label>
+                                <select name="tip" class="form-select" required>
+                                    <option value="">Seçiniz</option>
+                                    {% for choice in tip_choices %}
+                                    <option value="{{ choice.0 }}">{{ choice.1 }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tutar *</label>
+                                <input type="number" name="tutar" class="form-control" step="0.01" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">İşlem Tarihi *</label>
+                                <input type="date" name="islem_tarihi" class="form-control"
+                                    value="{{ today|date:'Y-m-d' }}" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Vade Tarihi *</label>
+                                <input type="date" name="vade_tarihi" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <label class="form-label">Cari *</label>
+                                <div class="cari-dropdown-container">
+                                    <input type="text" id="cariSearch" class="form-control"
+                                        placeholder="Cari kod veya ünvan yazın..." autocomplete="off">
+                                    <input type="hidden" name="cari_kod" id="cariKod" required>
+                                    <input type="hidden" name="cari_unvan" id="cariUnvan" required>
+                                    <div class="cari-dropdown" id="cariDropdown"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Banka Adı</label>
+                                <select name="banka_adi" class="form-select">
+                                    <option value="">Banka Seçiniz</option>
+                                    <option value="AKBANK">AKBANK</option>
+                                    <option value="ALBARAKA">ALBARAKA</option>
+
+                                    <option value="DENİZBANK">DENİZBANK</option>
+                                    <option value="GARANTİ BANKASI">GARANTİ BANKASI</option>
+                                    <option value="HALK BANKASI">HALK BANKASI</option>
+                                    <option value="İŞBANKASI">İŞBANKASI</option>
+                                    <option value="KUVEYTTÜRK">KUVEYTTÜRK</option>
+                                    <option value="QNB BANK">QNB BANK</option>
+                                    <option value="ŞEKERBANK">ŞEKERBANK</option>
+                                    <option value="TEB">TEB</option>
+                                    <option value="VAKIFBANK">VAKIFBANK</option>
+                                    <option value="YAPIKREDİ">YAPIKREDİ</option>
+                                    <option value="ZİRAAT BANKASI">ZİRAAT BANKASI</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Çek/Senet No</label>
+                                <input type="text" name="cek_senet_no" class="form-control">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Kredi Türü</label>
+                                <input type="text" name="kredi_turu" class="form-control">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Faiz Oranı (%)</label>
+                                <input type="number" name="faiz_orani" class="form-control" step="0.01">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Taksit Sayısı</label>
+                                <input type="number" name="taksit_sayisi" class="form-control">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <label class="form-label">Açıklama</label>
+                                <textarea name="aciklama" class="form-control" rows="3"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-primary">Kaydet</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Düzenleme Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editModalLabel">
+                        <i class="bi bi-pencil me-2"></i>Çek/Senet Düzenle
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <form method="POST" id="editForm" action="">
+                    {% csrf_token %}
+                    <div class="modal-body" id="editModalBody">
+                        <!-- Düzenleme formu buraya yüklenecek -->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-primary">Güncelle</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sabit Footer -->
+    {% if page_obj %}
+    <div class="fixed-footer">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="total-info">
+                    <span class="total-label">Toplam Kayıt:</span>
+                    <span class="total-value">{{ page_obj.count }}</span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="total-info">
+                    <span class="total-label">Toplam Gelen:</span>
+                    <span class="total-amount">₺{{ gelen_odemeler|floatformat:0|intcomma }}</span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="total-info">
+                    <span class="total-label">Toplam Giden:</span>
+                    <span class="total-amount">₺{{ giden_odemeler|floatformat:0|intcomma }}</span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="total-info">
+                    <span class="total-label">Ödenmesi Gereken:</span>
+                    <span
+                        class="total-amount {% if odenmesi_gereken_tutar > 0 %}text-danger{% elif odenmesi_gereken_tutar < 0 %}text-success{% endif %}">
+                        ₺{{ odenmesi_gereken_tutar|floatformat:0|intcomma }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

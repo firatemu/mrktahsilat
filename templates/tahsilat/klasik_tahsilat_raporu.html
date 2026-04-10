@@ -1,0 +1,709 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}Klasik Tahsilat Raporu - MRK OTOMOTİV{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-container {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+    }
+
+    .report-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+        text-align: center;
+    }
+
+    .report-header h1 {
+        margin: 0;
+        font-size: 1.8rem;
+        font-weight: 600;
+    }
+
+    .report-header .date-info {
+        margin-top: 0.5rem;
+        opacity: 0.9;
+        font-size: 1rem;
+    }
+
+    .filter-section {
+        padding: 1.5rem;
+        background: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .report-table {
+        margin: 0;
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9rem;
+    }
+
+    .report-table th,
+    .report-table td {
+        border: 1px solid #dee2e6;
+        padding: 0.75rem 0.5rem;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .report-table th {
+        background: #ffc107;
+        color: #000;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+
+    .report-table th:first-child {
+        background: #007bff;
+        color: white;
+    }
+
+    .report-table tbody tr:nth-child(even) {
+        background-color: #f8f9fa;
+    }
+
+    .report-table tbody tr:hover {
+        background-color: #e9ecef;
+    }
+
+    .plasiyer-name {
+        font-weight: 600;
+        text-align: left;
+        padding-left: 1rem !important;
+    }
+
+    .total-row {
+        background: #ffc107 !important;
+        font-weight: 600;
+    }
+
+    .total-row td {
+        background: #ffc107 !important;
+        color: #000;
+    }
+
+    .currency-cell {
+        font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #2c3e50;
+    }
+
+    .zero-amount {
+        color: #6c757d;
+    }
+
+    /* Banka tablosu için özel stiller */
+    .banka-table-header {
+        background: linear-gradient(135deg, #28a745, #218838) !important;
+        /* Yeşil gradient */
+        color: white !important;
+    }
+
+    .banka-table-title {
+        color: #28a745;
+        font-weight: 700;
+        margin-bottom: 1rem;
+    }
+
+    /* Nakit Teslim Edilmedi Penceresi Stilleri */
+    .nakit-teslim-penceresi {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+    }
+
+    .nakit-teslim-card {
+        border: 2px solid #ffc107;
+        border-radius: 10px;
+        transition: all 0.3s ease;
+        background: linear-gradient(135deg, #fff9e6, #fff3cd);
+    }
+
+    .nakit-teslim-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(255, 193, 7, 0.3);
+        border-color: #ff9800;
+    }
+
+    .nakit-teslim-card .card-title {
+        color: #856404;
+        font-size: 1.1rem;
+    }
+
+    .nakit-teslim-card .text-danger {
+        color: #dc3545 !important;
+        font-size: 1.3rem;
+    }
+
+    /* Gider Masraf Penceresi Stilleri */
+    .gider-masraf-penceresi {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+    }
+
+    .gider-masraf-card {
+        border: 2px solid #17a2b8;
+        border-radius: 10px;
+        transition: all 0.3s ease;
+        background: linear-gradient(135deg, #e6f7ff, #b3ecff);
+    }
+
+    .gider-masraf-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(23, 162, 184, 0.3);
+        border-color: #138496;
+    }
+
+    .gider-masraf-card .card-title {
+        color: #0c5460;
+        font-size: 1.1rem;
+    }
+
+    .gider-masraf-card .text-info {
+        color: #17a2b8 !important;
+        font-size: 1.3rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .report-table {
+            font-size: 0.8rem;
+        }
+
+        .report-table th,
+        .report-table td {
+            padding: 0.5rem 0.3rem;
+        }
+
+        .report-header h1 {
+            font-size: 1.5rem;
+        }
+
+        .filter-section {
+            padding: 1rem;
+        }
+
+        /* Yan yana pencereler için responsive */
+        .nakit-teslim-penceresi,
+        .gider-masraf-penceresi {
+            margin-bottom: 20px;
+        }
+
+        .nakit-teslim-card,
+        .gider-masraf-card {
+            margin-bottom: 10px;
+        }
+    }
+
+    @media (max-width: 576px) {
+        .report-table {
+            font-size: 0.75rem;
+        }
+
+        .report-table th,
+        .report-table td {
+            padding: 0.4rem 0.2rem;
+        }
+
+        .plasiyer-name {
+            padding-left: 0.5rem !important;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="report-container">
+        <!-- Rapor Başlığı -->
+        <div class="report-header">
+            <h1><i class="bi bi-table me-2"></i>Klasik Tahsilat Raporu</h1>
+            <div class="date-info">
+                <i class="bi bi-calendar3 me-1"></i>
+                {% if baslangic_tarihi == bitis_tarihi %}
+                TARİH: {{ baslangic_tarihi|date:"d.m.Y" }}
+                {% else %}
+                TARİH ARALIĞI: {{ baslangic_tarihi|date:"d.m.Y" }} - {{ bitis_tarihi|date:"d.m.Y" }}
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Tarih Aralığı Filtresi -->
+        <div class="filter-section">
+            <form method="GET" class="row g-3 align-items-center">
+                <div class="col-md-3">
+                    <label for="baslangic_tarihi" class="form-label fw-bold">Başlangıç Tarihi:</label>
+                    <input type="date" class="form-control" id="baslangic_tarihi" name="baslangic_tarihi"
+                        value="{{ baslangic_tarihi }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="bitis_tarihi" class="form-label fw-bold">Bitiş Tarihi:</label>
+                    <input type="date" class="form-control" id="bitis_tarihi" name="bitis_tarihi"
+                        value="{{ bitis_tarihi }}">
+                </div>
+                <div class="col-md-6 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search me-1"></i>Raporu Getir
+                    </button>
+                    <a href="{% url 'tahsilat:klasik_tahsilat_raporu' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Bugün
+                    </a>
+                    <button type="button" class="btn btn-outline-info" onclick="setDateRange('week')">
+                        <i class="bi bi-calendar-week me-1"></i>Bu Hafta
+                    </button>
+                    <button type="button" class="btn btn-outline-info" onclick="setDateRange('month')">
+                        <i class="bi bi-calendar-month me-1"></i>Bu Ay
+                    </button>
+                    <a href="?baslangic_tarihi={{ baslangic_tarihi }}&bitis_tarihi={{ bitis_tarihi }}&export=excel"
+                        class="btn btn-success">
+                        <i class="bi bi-file-earmark-excel me-1"></i>Excel İndir
+                    </a>
+                    <a href="?baslangic_tarihi={{ baslangic_tarihi }}&bitis_tarihi={{ bitis_tarihi }}&export=pdf"
+                        class="btn btn-danger">
+                        <i class="bi bi-file-pdf me-1"></i>PDF İndir
+                    </a>
+
+                </div>
+            </form>
+        </div>
+
+        <!-- Rapor Tablosu -->
+        <div class="table-responsive">
+            <table class="report-table">
+                <thead>
+                    <tr>
+                        <th style="width: 120px;">PLS/THSLT</th>
+                        <th>NAKİT</th>
+                        <th>HAVALE</th>
+                        <th>KREDİ KARTI</th>
+                        <th>ÇEK</th>
+                        <th>SENET</th>
+                        <th style="width: 120px;">TOPLAM</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for plasiyer in plasiyer_listesi %}
+                    <tr>
+                        <td class="plasiyer-name">{{ plasiyer }}</td>
+                        <td class="currency-cell">
+                            {% for plasiyer_key, plasiyer_data in plasiyer_verileri.items %}
+                            {% if plasiyer_key == plasiyer %}
+                            {% for tur_key, tur_value in plasiyer_data.items %}
+                            {% if tur_key == "Nakit Tahsilat" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="currency-cell">
+                            {% for plasiyer_key, plasiyer_data in plasiyer_verileri.items %}
+                            {% if plasiyer_key == plasiyer %}
+                            {% for tur_key, tur_value in plasiyer_data.items %}
+                            {% if tur_key == "Gelen Havale" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="currency-cell">
+                            {% for plasiyer_key, plasiyer_data in plasiyer_verileri.items %}
+                            {% if plasiyer_key == plasiyer %}
+                            {% for tur_key, tur_value in plasiyer_data.items %}
+                            {% if tur_key == "Kredi Kartı Fişi" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="currency-cell">
+                            {% for plasiyer_key, plasiyer_data in plasiyer_verileri.items %}
+                            {% if plasiyer_key == plasiyer %}
+                            {% for tur_key, tur_value in plasiyer_data.items %}
+                            {% if tur_key == "Çek Girişi" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="currency-cell">
+                            {% for plasiyer_key, plasiyer_data in plasiyer_verileri.items %}
+                            {% if plasiyer_key == plasiyer %}
+                            {% for tur_key, tur_value in plasiyer_data.items %}
+                            {% if tur_key == "Senet Girişi" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="currency-cell">
+                            {% for plasiyer_key, plasiyer_data in plasiyer_verileri.items %}
+                            {% if plasiyer_key == plasiyer %}
+                            {% for tur_key, tur_value in plasiyer_data.items %}
+                            {% if tur_key == "TOPLAM" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <i class="bi bi-info-circle me-2"></i>Seçilen tarih için tahsilat verisi bulunamadı.
+                        </td>
+                    </tr>
+                    {% endfor %}
+
+                    <!-- Genel Toplam Satırı -->
+                    {% if plasiyer_listesi %}
+                    <tr class="total-row">
+                        <td class="plasiyer-name">GENEL TOPLAM</td>
+                        <td class="currency-cell">
+                            {% for tur_key, tur_value in toplam_verileri.items %}
+                            {% if tur_key == "Nakit Tahsilat" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="currency-cell">
+                            {% for tur_key, tur_value in toplam_verileri.items %}
+                            {% if tur_key == "Gelen Havale" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="currency-cell">
+                            {% for tur_key, tur_value in toplam_verileri.items %}
+                            {% if tur_key == "Kredi Kartı Fişi" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="currency-cell">
+                            {% for tur_key, tur_value in toplam_verileri.items %}
+                            {% if tur_key == "Çek Girişi" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="currency-cell">
+                            {% for tur_key, tur_value in toplam_verileri.items %}
+                            {% if tur_key == "Senet Girişi" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="currency-cell">
+                            {% for tur_key, tur_value in toplam_verileri.items %}
+                            {% if tur_key == "TOPLAM" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Banka Bazında Tahsilat Tablosu -->
+        <div class="table-responsive mt-4">
+            <h4 class="banka-table-title text-center">
+                <i class="bi bi-bank me-2"></i>Banka Bazında Tahsilat Raporu
+            </h4>
+            <table class="report-table">
+                <thead>
+                    <tr class="banka-table-header">
+                        <th style="width: 200px;">BANKA</th>
+                        <th>KREDİ KARTI</th>
+                        <th>HAVALE</th>
+                        <th style="width: 120px;">TOPLAM</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for banka in banka_listesi %}
+                    <tr>
+                        <td class="plasiyer-name">{{ banka }}</td>
+                        <td class="currency-cell">
+                            {% for banka_key, banka_data in banka_verileri.items %}
+                            {% if banka_key == banka %}
+                            {% for tur_key, tur_value in banka_data.items %}
+                            {% if tur_key == "Kredi Kartı Fişi" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="currency-cell">
+                            {% for banka_key, banka_data in banka_verileri.items %}
+                            {% if banka_key == banka %}
+                            {% for tur_key, tur_value in banka_data.items %}
+                            {% if tur_key == "Gelen Havale" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="currency-cell">
+                            {% for banka_key, banka_data in banka_verileri.items %}
+                            {% if banka_key == banka %}
+                            {% for tur_key, tur_value in banka_data.items %}
+                            {% if tur_key == "TOPLAM" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-4">
+                            <i class="bi bi-info-circle me-2"></i>Seçilen tarih için banka verisi bulunamadı.
+                        </td>
+                    </tr>
+                    {% endfor %}
+
+                    <!-- Banka Genel Toplam Satırı -->
+                    {% if banka_listesi %}
+                    <tr class="total-row">
+                        <td class="plasiyer-name">GENEL TOPLAM</td>
+                        <td class="currency-cell">
+                            {% for tur_key, tur_value in banka_toplam_verileri.items %}
+                            {% if tur_key == "Kredi Kartı Fişi" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="currency-cell">
+                            {% for tur_key, tur_value in banka_toplam_verileri.items %}
+                            {% if tur_key == "Gelen Havale" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="currency-cell">
+                            {% for tur_key, tur_value in banka_toplam_verileri.items %}
+                            {% if tur_key == "TOPLAM" %}
+                            {% if tur_value > 0 %}
+                            {{ tur_value|currency_clean }}
+                            {% else %}
+                            ₺ 0
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Nakit Teslim Edilmedi ve Gider Masraf Toplamları - Yan Yana -->
+        <div class="row mt-4">
+            <!-- Nakit Teslim Edilmedi Toplamları -->
+            <div class="col-lg-6 mb-4">
+                <div class="nakit-teslim-penceresi">
+                    <div class="alert alert-warning d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-exclamation-triangle-fill me-2 fs-4"></i>
+                            <span class="fw-bold fs-5">Nakit Teslim Edilmedi</span>
+                        </div>
+                        <span class="badge bg-danger fs-6">Toplam: {{ nakit_teslim_edilmedi_toplam|currency_clean
+                            }}</span>
+                    </div>
+
+                    {% if nakit_teslim_edilmedi_by_user %}
+                    <div class="row">
+                        {% for user_data in nakit_teslim_edilmedi_by_user %}
+                        <div class="col-12 mb-2">
+                            <div class="card nakit-teslim-card">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title fw-bold text-dark">{{ user_data.kullanici }}</h6>
+                                    <p class="card-text">
+                                        <small class="text-muted">Nakit Teslim Edilmedi</small>
+                                    </p>
+                                    <h5 class="text-danger fw-bold">{{ user_data.tutar|currency_clean }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-check-circle-fill text-success fs-1"></i>
+                        <p class="text-muted mt-2">Tüm kullanıcıların nakit tahsilatları teslim edilmiş</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Gider Masraf Toplamları -->
+            <div class="col-lg-6 mb-4">
+                <div class="gider-masraf-penceresi">
+                    <div class="alert alert-info d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-receipt me-2 fs-4"></i>
+                            <span class="fw-bold fs-5">Gider Masraf Toplamları</span>
+                        </div>
+                        <span class="badge bg-info fs-6">Toplam: {{ gider_masraf_toplam|currency_clean }}</span>
+                    </div>
+
+                    {% if gider_masraf_by_user %}
+                    <div class="row">
+                        {% for user_data in gider_masraf_by_user %}
+                        <div class="col-12 mb-2">
+                            <div class="card gider-masraf-card">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title fw-bold text-dark">{{ user_data.kullanici }}</h6>
+                                    <p class="card-text">
+                                        <small class="text-muted">Gider Masraf</small>
+                                    </p>
+                                    <h5 class="text-info fw-bold">{{ user_data.tutar|currency_clean }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-check-circle-fill text-success fs-1"></i>
+                        <p class="text-muted mt-2">Seçilen tarih aralığında gider masraf kaydı bulunamadı</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Tarih aralığı ayarlama fonksiyonları
+    function setDateRange(range) {
+        const today = new Date();
+        const baslangicInput = document.getElementById('baslangic_tarihi');
+        const bitisInput = document.getElementById('bitis_tarihi');
+
+        if (range === 'week') {
+            // Bu hafta (Pazartesi'den bugüne)
+            const monday = new Date(today);
+            monday.setDate(today.getDate() - today.getDay() + 1);
+            baslangicInput.value = monday.toISOString().split('T')[0];
+            bitisInput.value = today.toISOString().split('T')[0];
+        } else if (range === 'month') {
+            // Bu ay (1'den bugüne)
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            baslangicInput.value = firstDay.toISOString().split('T')[0];
+            bitisInput.value = today.toISOString().split('T')[0];
+        }
+
+        // Formu otomatik submit et
+        document.querySelector('form').submit();
+    }
+
+    // Tarih değiştiğinde otomatik form submit
+    document.getElementById('baslangic_tarihi').addEventListener('change', function () {
+        // Bitiş tarihi boşsa, başlangıç tarihini bitiş tarihi olarak ayarla
+        const bitisInput = document.getElementById('bitis_tarihi');
+        if (!bitisInput.value) {
+            bitisInput.value = this.value;
+        }
+        this.form.submit();
+    });
+
+    document.getElementById('bitis_tarihi').addEventListener('change', function () {
+        // Başlangıç tarihi boşsa, bitiş tarihini başlangıç tarihi olarak ayarla
+        const baslangicInput = document.getElementById('baslangic_tarihi');
+        if (!baslangicInput.value) {
+            baslangicInput.value = this.value;
+        }
+        this.form.submit();
+    });
+</script>
+{% endblock %}

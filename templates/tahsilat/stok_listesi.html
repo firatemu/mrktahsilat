@@ -1,0 +1,612 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Stok Fiyat Analizi - MRK OTOMOTİV Sistemi{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-card {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid #dee2e6;
+        border-radius: 15px;
+    }
+
+    .analiz-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+    }
+
+    .analiz-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .karlilik-positive {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
+    }
+
+    .karlilik-negative {
+        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+        color: white;
+    }
+
+    .karlilik-neutral {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+    }
+
+    .table-hover tbody tr:hover {
+        background-color: rgba(102, 126, 234, 0.1);
+    }
+
+    .btn-action {
+        width: 35px;
+        height: 35px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .price-cell {
+        font-weight: 600;
+        color: #495057;
+    }
+
+    /* Sticky header için CSS */
+    .sticky-header-table {
+        height: 70vh;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+    }
+
+    .sticky-header-table thead th {
+        position: sticky;
+        top: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+        border-bottom: 2px solid #dee2e6;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Sabit Footer Stilleri */
+    .fixed-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        padding: 15px 20px;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        border-top: 3px solid #1e7e34;
+    }
+
+    .footer-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .footer-totals {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .footer-total-item {
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-width: 80px;
+    }
+
+    .footer-total-label {
+        font-size: 0.85rem;
+        opacity: 0.9;
+        margin-bottom: 2px;
+        text-align: center;
+        width: 100%;
+    }
+
+    .footer-total-value {
+        font-size: 1.2rem;
+        font-weight: bold;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        text-align: center;
+        width: 100%;
+    }
+
+    .footer-record-count {
+        font-size: 0.9rem;
+        opacity: 0.9;
+        text-align: center;
+    }
+
+    .main-content {
+        padding-bottom: 80px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="main-content">
+    <div class="container-fluid">
+        <!-- Page Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2 class="h3 mb-1">
+                            <i class="bi bi-graph-up text-primary me-2"></i>Stok Fiyat Analizi
+                        </h2>
+                        <p class="text-muted mb-0">Malzeme fiyat analizi ve karlılık oranları</p>
+                    </div>
+                    <div>
+                        <a href="{% url 'tahsilat:stok_yonetimi' %}" class="btn btn-outline-secondary btn-sm me-2">
+                            <i class="bi bi-arrow-left me-1"></i>Geri Dön
+                        </a>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="yenileVeriler()"
+                            id="yenileBtn">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Yenile
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtreler -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card filter-card">
+                    <div class="card-body">
+                        <form method="GET" class="row g-3">
+                            <div class="col-md-4">
+                                <label for="arama" class="form-label">
+                                    <i class="bi bi-search me-1"></i>Ürün Ara
+                                </label>
+                                <input type="text" class="form-control" id="arama" name="arama" value="{{ arama }}"
+                                    placeholder="Ürün adı veya kodu...">
+                            </div>
+
+                            <div class="col-md-3">
+                                <label for="malzeme_turu" class="form-label">
+                                    <i class="bi bi-tags me-1"></i>Malzeme Türü
+                                </label>
+                                <select class="form-select" id="malzeme_turu" name="malzeme_turu">
+                                    <option value="">Tüm Türler</option>
+                                    {% for tur in malzeme_turleri %}
+                                    <option value="{{ tur }}" {% if malzeme_turu==tur %}selected{% endif %}>
+                                        {{ tur }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="col-md-2">
+                                <label for="marka" class="form-label">
+                                    <i class="bi bi-award me-1"></i>Marka
+                                </label>
+                                <select class="form-select" id="marka" name="marka">
+                                    <option value="">Tüm Markalar</option>
+                                    {% for mark in markalar %}
+                                    <option value="{{ mark }}" {% if marka==mark %}selected{% endif %}>
+                                        {{ mark }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="col-md-2">
+                                <label for="stok_durumu" class="form-label">
+                                    <i class="bi bi-box-seam me-1"></i>Stok Durumu
+                                </label>
+                                <select class="form-select" id="stok_durumu" name="stok_durumu">
+                                    <option value="">Hepsi</option>
+                                    <option value="stokta_olan" {% if stok_durumu=='stokta_olan' %}selected{% endif %}>
+                                        Stokta Olanlar</option>
+                                    <option value="stokta_olmayan" {% if stok_durumu=='stokta_olmayan' %}selected{%
+                                        endif %}>
+                                        Stokta Olmayanlar
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-1">
+                                <label class="form-label">&nbsp;</label>
+                                <div class="d-grid gap-2">
+                                    <button type="submit" class="btn btn-primary" id="araButton">
+                                        <i class="bi bi-funnel me-1"></i>Filtrele
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fiyat Analizi Listesi -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card analiz-card">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">
+                            <i class="bi bi-graph-up text-info me-2"></i>Fiyat Analizi Listesi
+                            <small class="text-muted">
+                                {% if paginator %}
+                                ({{ paginator.count }} ürün)
+                                {% else %}
+                                ({{ fiyat_analizi_list|length }} ürün)
+                                {% endif %}
+                            </small>
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="px-3 py-2 d-flex justify-content-end">
+                            <a href="?{{ request.GET.urlencode }}&export=excel" class="btn btn-success btn-sm">
+                                <i class="bi bi-file-earmark-excel me-1"></i>Excel
+                            </a>
+                        </div>
+                        {% if fiyat_analizi_list %}
+                        <div class="sticky-header-table">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Malzeme Kodu</th>
+                                        <th>Açıklama</th>
+                                        <th>Malzeme Türü</th>
+                                        <th>Marka</th>
+                                        <th class="text-center">Toplam Stok</th>
+                                        <th class="text-center">Tanımlı Alış</th>
+                                        <th class="text-center">Tanımlı Satış</th>
+                                        <th class="text-center">Son Alış</th>
+                                        <th class="text-center">Karlılık (%)</th>
+                                        <th>İşlemler</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for analiz in fiyat_analizi_list %}
+                                    <tr>
+                                        <td>
+                                            <strong class="text-primary">{{ analiz.MALZEME_KODU }}</strong>
+                                        </td>
+                                        <td>
+                                            <div>
+                                                <strong>{{ analiz.ACIKLAMASI }}</strong>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ analiz.MALZEME_TURU }}</span>
+                                        </td>
+                                        <td>{{ analiz.MARKA }}</td>
+                                        <td class="text-center">
+                                            {% if analiz.TOPLAM > 0 %}
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-check-circle me-1"></i>{{ analiz.TOPLAM|floatformat:0 }}
+                                            </span>
+                                            {% else %}
+                                            <span class="badge bg-danger">
+                                                <i class="bi bi-x-circle me-1"></i>Bitti
+                                            </span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-center price-cell">
+                                            {{ analiz.TANIMLI_ALIS_FIYATI|floatformat:2 }} ₺
+                                        </td>
+                                        <td class="text-center price-cell">
+                                            {{ analiz.TANIMLI_SATIS_FIYATI|floatformat:2 }} ₺
+                                        </td>
+                                        <td class="text-center price-cell">
+                                            {{ analiz.SON_ALIS_BIRIM_NET|floatformat:2 }} ₺
+                                        </td>
+                                        <td class="text-center">
+                                            {% if analiz.KARLILIK_ORANI > 0 %}
+                                            <span class="badge karlilik-positive">
+                                                <i class="bi bi-graph-up me-1"></i>
+                                                {{ analiz.KARLILIK_ORANI|floatformat:1 }}%
+                                            </span>
+                                            {% elif analiz.KARLILIK_ORANI < 0 %} <span class="badge karlilik-negative">
+                                                <i class="bi bi-graph-down me-1"></i>
+                                                {{ analiz.KARLILIK_ORANI|floatformat:1 }}%
+                                                </span>
+                                                {% else %}
+                                                <span class="badge karlilik-neutral">
+                                                    <i class="bi bi-dash me-1"></i>
+                                                    {{ analiz.KARLILIK_ORANI|floatformat:1 }}%
+                                                </span>
+                                                {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <button type="button" class="btn btn-outline-info btn-action"
+                                                    title="Detay Görüntüle"
+                                                    onclick="analizDetay('{{ analiz.LOGICALREF }}')">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Sayfalama -->
+                        {% if paginator and paginator.num_pages > 1 and per_page != 'all' %}
+                        <div class="card-footer bg-light">
+                            <nav aria-label="Fiyat analizi sayfalama">
+                                <ul class="pagination justify-content-center mb-0">
+                                    {% if page_obj.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link"
+                                            href="?page={{ page_obj.previous_page_number }}{% if arama %}&arama={{ arama }}{% endif %}{% if malzeme_turu %}&malzeme_turu={{ malzeme_turu }}{% endif %}{% if marka %}&marka={{ marka }}{% endif %}&per_page={{ per_page }}">
+                                            <i class="bi bi-chevron-left"></i>
+                                        </a>
+                                    </li>
+                                    {% endif %}
+
+                                    {% for num in paginator.page_range %}
+                                    {% if page_obj.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %} <li
+                                        class="page-item">
+                                        <a class="page-link"
+                                            href="?page={{ num }}{% if arama %}&arama={{ arama }}{% endif %}{% if malzeme_turu %}&malzeme_turu={{ malzeme_turu }}{% endif %}{% if marka %}&marka={{ marka }}{% endif %}&per_page={{ per_page }}">
+                                            {{ num }}
+                                        </a>
+                                        </li>
+                                        {% endif %}
+                                        {% endfor %}
+
+                                        {% if page_obj.has_next %}
+                                        <li class="page-item">
+                                            <a class="page-link"
+                                                href="?page={{ page_obj.next_page_number }}{% if arama %}&arama={{ arama }}{% endif %}{% if malzeme_turu %}&malzeme_turu={{ malzeme_turu }}{% endif %}{% if marka %}&marka={{ marka }}{% endif %}&per_page={{ per_page }}">
+                                                <i class="bi bi-chevron-right"></i>
+                                            </a>
+                                        </li>
+                                        {% endif %}
+                                </ul>
+                            </nav>
+
+                            <div class="row align-items-center mt-3">
+                                <div class="col-md-6">
+                                    <small class="text-muted">
+                                        {% if paginator %}
+                                        Sayfa {{ page_obj.number }} / {{ paginator.num_pages }}
+                                        (Toplam {{ paginator.count }} ürün)
+                                        {% else %}
+                                        Toplam {{ fiyat_analizi_list|length }} ürün gösteriliyor
+                                        {% endif %}
+                                    </small>
+                                </div>
+                                {% if not has_filters %}
+                                <div class="col-md-6 text-end">
+                                    <div class="d-inline-flex align-items-center">
+                                        <small class="text-muted me-2">Sayfa başına:</small>
+                                        <select class="form-select form-select-sm" style="width: auto;"
+                                            onchange="changePerPage(this.value)">
+                                            <option value="100" {% if per_page|add:"0"==100 %}selected{% endif %}>100
+                                            </option>
+                                            <option value="200" {% if per_page|add:"0"==200 %}selected{% endif %}>200
+                                            </option>
+                                            <option value="500" {% if per_page|add:"0"==500 %}selected{% endif %}>500
+                                            </option>
+                                            <option value="1000" {% if per_page|add:"0"==1000 %}selected{% endif %}>1000
+                                            </option>
+                                            <option value="all" {% if per_page|default:""=="all" or per_page|add:"0">
+                                                10000 %}selected{% endif %}>Hepsi</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% else %}
+                        <div class="text-center py-5">
+                            <i class="bi bi-graph-up display-4 text-muted mb-3"></i>
+                            <h5 class="text-muted">Fiyat analizi bulunamadı</h5>
+                            <p class="text-muted">Arama kriterlerinizi değiştirerek tekrar deneyin.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fiyat Analizi Detay Modal -->
+    <div class="modal fade" id="analizDetayModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-graph-up me-2"></i>Fiyat Analizi Detayı
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="analizDetayIcerik">
+                    <!-- AJAX ile yüklenecek -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> <!-- main-content kapatma -->
+
+<!-- Sabit Footer -->
+<div class="fixed-footer" id="fixedFooter" style="display: none;">
+    <div class="footer-content">
+        <div class="footer-totals">
+            <div class="footer-total-item">
+                <div class="footer-total-label">Toplam Kayıt</div>
+                <div class="footer-total-value" id="footerTotalRecords">0</div>
+            </div>
+            <div class="footer-total-item">
+                <div class="footer-total-label">Toplam Stok</div>
+                <div class="footer-total-value" id="footerToplamStok">0</div>
+            </div>
+        </div>
+        <div class="footer-record-count">
+            <i class="bi bi-info-circle me-1"></i>
+            <span id="footerActiveTab">Fiyat Analizi</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Footer hesaplama fonksiyonu
+    function calculateFiyatAnaliziTotals() {
+        const rows = document.querySelectorAll('.sticky-header-table tbody tr');
+        let totalRecords = rows.length;
+        let toplamStok = 0;
+
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 5) {
+                // Toplam Stok (5. kolon, index 4)
+                const stokValue = parseFloat(cells[4].textContent.replace(/[^\d.-]/g, '')) || 0;
+                toplamStok += stokValue;
+            }
+        });
+
+        // Footer'ı güncelle
+        document.getElementById('footerTotalRecords').textContent = totalRecords;
+        document.getElementById('footerToplamStok').textContent = toplamStok.toLocaleString('tr-TR');
+        document.getElementById('fixedFooter').style.display = 'block';
+    }
+
+    function analizDetay(logicalRef) {
+        // Fiyat analizi detayını göster
+        $('#analizDetayIcerik').html(`
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Yükleniyor...</span>
+            </div>
+            <p class="mt-2">Fiyat analizi detayları yükleniyor...</p>
+        </div>
+    `);
+
+        $('#analizDetayModal').modal('show');
+
+        // Gerçek uygulamada AJAX ile veri çekilecek
+        setTimeout(() => {
+            $('#analizDetayIcerik').html(`
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Malzeme Bilgileri</h6>
+                    <table class="table table-sm">
+                        <tr><td><strong>Logical Ref:</strong></td><td>${logicalRef}</td></tr>
+                        <tr><td><strong>Malzeme Kodu:</strong></td><td>-</td></tr>
+                        <tr><td><strong>Açıklama:</strong></td><td>-</td></tr>
+                        <tr><td><strong>Malzeme Türü:</strong></td><td>-</td></tr>
+                        <tr><td><strong>Marka:</strong></td><td>-</td></tr>
+                        <tr><td><strong>Grup Kodu:</strong></td><td>-</td></tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h6>Fiyat Analizi</h6>
+                    <table class="table table-sm">
+                        <tr><td><strong>Tanımlı Alış Fiyatı:</strong></td><td>-</td></tr>
+                        <tr><td><strong>Tanımlı Satış Fiyatı:</strong></td><td>-</td></tr>
+                        <tr><td><strong>Son Alış Birim Net:</strong></td><td>-</td></tr>
+                        <tr><td><strong>Karlılık Oranı:</strong></td><td>-</td></tr>
+                    </table>
+                </div>
+            </div>
+        `);
+        }, 1000);
+    }
+
+    function yenileVeriler() {
+        location.reload();
+    }
+
+    function changePerPage(perPage) {
+        const url = new URL(window.location);
+        url.searchParams.set('per_page', perPage);
+        url.searchParams.delete('page'); // Yeni per_page ile 1. sayfaya git
+
+        // HEPSİ seçildiğinde loading göster
+        if (perPage === 'all') {
+            url.searchParams.delete('page');
+            showLoading();
+        }
+
+        window.location.href = url.toString();
+    }
+
+    function showLoading() {
+        // Loading modal oluştur
+        const loadingModal = $(`
+            <div class="modal fade" id="loadingModal" tabindex="-1" role="dialog" aria-labelledby="loadingModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-body text-center py-5">
+                            <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                                <span class="visually-hidden">Yükleniyor...</span>
+                            </div>
+                            <h5 class="mb-2">Veri Yükleniyor</h5>
+                            <p class="text-muted mb-0">Lütfen bekleyin, büyük veri seti yükleniyor...</p>
+                            <div class="progress mt-3" style="height: 6px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `);
+
+        $('body').append(loadingModal);
+        $('#loadingModal').modal('show');
+    }
+
+    $(document).ready(function () {
+        // Sayfa yüklendiğinde animasyonları başlat
+        $('.analiz-card').fadeIn();
+
+        // Footer hesaplamasını yap
+        setTimeout(calculateFiyatAnaliziTotals, 500);
+
+        // Filtrelerde değişiklik olduğunda otomatik form gönder
+        $('#malzeme_turu, #marka').change(function () {
+            $(this).closest('form').submit();
+        });
+
+        // Form submit olayını yakala
+        $('form').on('submit', function (e) {
+            const perPageValue = $('select[name="per_page"]').val();
+
+            // HEPSİ seçildiyse loading göster
+            if (perPageValue === 'all') {
+                showLoading();
+            } else {
+                // Normal loading için buton animasyonu
+                const $button = $('#araButton');
+                $button.prop('disabled', true);
+                $button.html('<i class="spinner-border spinner-border-sm me-1" role="status"></i>Yükleniyor...');
+            }
+        });
+    });
+</script>
+{% endblock %}

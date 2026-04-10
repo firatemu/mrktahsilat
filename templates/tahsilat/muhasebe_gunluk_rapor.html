@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+{% load tahsilat_extras %}
+
+{% block title %}Günlük Rapor - MRK OTOMOTİV{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="report-container bg-white rounded shadow-sm p-3">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <h5 class="mb-0"><i class="bi bi-calendar-day me-2"></i>Muhasebe > Günlük Rapor</h5>
+            <div class="d-flex align-items-center gap-2">
+                <form method="get" class="d-flex align-items-center gap-2">
+                    <input type="date" class="form-control" name="start_date" value="{{ start_date }}">
+                    <input type="date" class="form-control" name="end_date" value="{{ end_date }}">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i>Getir</button>
+                </form>
+                <a class="btn btn-outline-danger" href="?start_date={{ start_date }}&end_date={{ end_date }}&export=pdf">
+                    <i class="bi bi-file-earmark-pdf me-1"></i>PDF İndir
+                </a>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:220px">Plasiyer</th>
+                        <th class="text-end">Satış Toplamı</th>
+                        <th class="text-end">Tahsilat Toplamı</th>
+                        <th class="text-end">Gider Toplamı</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in satirlar %}
+                    <tr>
+                        <td>{{ row.plasiyer }}</td>
+                        <td class="text-end">{{ row.satis|currency_clean }}</td>
+                        <td class="text-end">{{ row.tahsilat|currency_clean }}</td>
+                        <td class="text-end">{{ row.gider|currency_clean }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-4">
+                            <i class="bi bi-info-circle me-2"></i>Seçilen gün için veri bulunamadı.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if satirlar %}
+                    <tr class="table-info fw-bold">
+                        <td>TOPLAM</td>
+                        <td class="text-end">{{ toplam_satis|currency_clean }}</td>
+                        <td class="text-end">{{ toplam_tahsilat|currency_clean }}</td>
+                        <td class="text-end">{{ toplam_gider|currency_clean }}</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="alert alert-warning mt-3">
+            <i class="bi bi-cash-coin me-2"></i>
+            Nakit Teslim Edilmedi ({% if start_date == end_date %}{{ start_date }}{% else %}{{ start_date }} - {{ end_date }}{% endif %}): <strong>{{ nakit_teslim_edilmedi_toplam|currency_clean }}</strong>
+            {% if nakit_teslim_edilmedi_by_user %}
+            <div class="mt-2">
+                <div class="row g-2">
+                    {% for u in nakit_teslim_edilmedi_by_user %}
+                    <div class="col-auto">
+                        <span class="badge bg-light text-dark">
+                            {{ u.kullanici|default:'-' }}: <strong class="text-danger">{{ u.tutar|currency_clean }}</strong>
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="mt-4">
+            <h6 class="mb-2">Tahsilatlar ({% if start_date == end_date %}{{ start_date }}{% else %}{{ start_date }} - {{ end_date }}{% endif %})</h6>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Tarih</th>
+                            <th>Plasiyer</th>
+                            <th>Kullanıcı</th>
+                            <th>Cari</th>
+                            <th>Tahsilat Türü</th>
+                            <th>Banka</th>
+                            <th>Taksit</th>
+                            <th class="text-end">Tutar</th>
+                            <th>Teslim</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in tahsilatlar_detay %}
+                        <tr>
+                            <td>{{ t.tarih|date:"Y-m-d" }}</td>
+                            <td>{{ t.plasiyer|default:"-" }}</td>
+                            <td>{{ t.kullanici|default:"-" }}</td>
+                            <td>{{ t.cari_kod }} - {{ t.cari_unvan }}</td>
+                            <td>{{ t.tahsilat_turu }}</td>
+                            <td>{{ t.banka }}</td>
+                            <td>{{ t.taksit|default:"-" }}</td>
+                            <td class="text-end">{{ t.tutar|currency_clean }}</td>
+                            <td>{{ t.teslim_durumu }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-muted text-center">Kayıt bulunamadı.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <h6 class="mb-2">Satışlar ({% if start_date == end_date %}{{ start_date }}{% else %}{{ start_date }} - {{ end_date }}{% endif %})</h6>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Tarih</th>
+                            <th>Plasiyer</th>
+                            <th>Cari</th>
+                            <th>Fatura No</th>
+                            <th>Tür</th>
+                            <th class="text-end">Net</th>
+                            <th>Bölge</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in satislar_detay %}
+                        <tr>
+                            <td>{{ s.tarih|date:"Y-m-d" }}</td>
+                            <td>{{ s.plasiyer }}</td>
+                            <td>{{ s.cari_kod }} - {{ s.cari_unvan }}</td>
+                            <td>{{ s.fatura_no }}</td>
+                            <td>{{ s.fatura_turu }}</td>
+                            <td class="text-end">{{ s.net_toplam|currency_clean }}</td>
+                            <td>{{ s.bolge }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-muted text-center">Kayıt bulunamadı.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

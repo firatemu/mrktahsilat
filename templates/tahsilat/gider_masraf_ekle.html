@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+
+{% block title %}Yeni Gider Masraf Ekle{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-card {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid #dee2e6;
+        border-radius: 15px;
+        box-shadow: 0 3px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .form-control:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 8px;
+        padding: 0.75rem 2rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-secondary {
+        border-radius: 8px;
+        padding: 0.75rem 2rem;
+        font-weight: 500;
+    }
+
+    .page-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem 0;
+        margin-bottom: 2rem;
+        border-radius: 0 0 20px 20px;
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.5rem;
+    }
+
+    .required {
+        color: #dc3545;
+    }
+
+    .form-floating > .form-control:focus ~ label,
+    .form-floating > .form-control:not(:placeholder-shown) ~ label {
+        color: #667eea;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1 class="mb-0">
+                        <i class="bi bi-plus-circle me-3"></i>Yeni Gider Masraf Ekle
+                    </h1>
+                    <p class="mb-0 mt-2 opacity-75">Yeni bir gider masraf kaydı oluşturun</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <a href="{% url 'tahsilat:gider_masraf_listesi' %}" class="btn btn-light btn-lg">
+                        <i class="bi bi-arrow-left me-2"></i>Geri Dön
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card form-card border-0">
+                    <div class="card-header bg-white border-0 py-4">
+                        <h4 class="mb-0 text-center">
+                            <i class="bi bi-cash-stack me-2 text-primary"></i>Gider Masraf Bilgileri
+                        </h4>
+                    </div>
+                    <div class="card-body p-4">
+                        <form method="post">
+                            {% csrf_token %}
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="gider_adi" class="form-label">
+                                        Gider Adı <span class="required">*</span>
+                                    </label>
+                                    <select class="form-select" 
+                                            id="gider_adi" 
+                                            name="gider_adi" 
+                                            required>
+                                        <option value="">Gider türünü seçin...</option>
+                                        <option value="dolmus">Dolmuş</option>
+                                        <option value="nakliye">Nakliye</option>
+                                        <option value="kahve">Kahve</option>
+                                        <option value="temizlik_malzemesi">Temizlik Malzemesi</option>
+                                        <option value="diger">Diğer</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <label for="tutar" class="form-label">
+                                        Tutar (TL) <span class="required">*</span>
+                                    </label>
+                                    <input type="number" 
+                                           class="form-control" 
+                                           id="tutar" 
+                                           name="tutar" 
+                                           step="0.01" 
+                                           min="0"
+                                           placeholder="0.00"
+                                           required>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="tarih" class="form-label">
+                                        Tarih <span class="required">*</span>
+                                    </label>
+                                    <input type="date" 
+                                           class="form-control" 
+                                           id="tarih" 
+                                           name="tarih" 
+                                           value="{{ today|date:'Y-m-d' }}"
+                                           required>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <label for="ekleyen" class="form-label">
+                                        Ekleyen
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="ekleyen" 
+                                           value="{{ user.username }}" 
+                                           readonly
+                                           style="background-color: #f8f9fa;">
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="aciklama" class="form-label">
+                                    Açıklama
+                                </label>
+                                <textarea class="form-control" 
+                                          id="aciklama" 
+                                          name="aciklama" 
+                                          rows="4" 
+                                          placeholder="Gider masraf hakkında detaylı açıklama yazabilirsiniz..."></textarea>
+                            </div>
+
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <a href="{% url 'tahsilat:gider_masraf_listesi' %}" 
+                                   class="btn btn-secondary me-md-2">
+                                    <i class="bi bi-x-circle me-2"></i>İptal
+                                </a>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-check-circle me-2"></i>Gider Masraf Ekle
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Bilgi Kartı -->
+                <div class="card border-0 shadow-sm mt-4">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="bi bi-info-circle me-2 text-info"></i>Bilgi
+                        </h6>
+                        <ul class="mb-0 text-muted">
+                            <li><strong>Gider Adı:</strong> Dolmuş, Nakliye, Kahve, Temizlik Malzemesi veya Diğer seçeneklerinden birini seçin</li>
+                            <li><strong>Tutar:</strong> Gider masrafının TL cinsinden tutarı</li>
+                            <li><strong>Tarih:</strong> Gider masrafının gerçekleştiği tarih</li>
+                            <li><strong>Açıklama:</strong> Gider masrafı hakkında detaylı bilgi (opsiyonel)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Bugünün tarihini otomatik olarak ayarla
+document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('tarih').value = today;
+    
+    // Tutar alanına odaklan
+    document.getElementById('gider_adi').focus();
+});
+</script>
+{% endblock %}

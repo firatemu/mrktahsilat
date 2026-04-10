@@ -1,0 +1,460 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load number_format %}
+
+{% block title %}Ambar Değer Raporu - MRK OTOMOTİV Sistemi{% endblock %}
+
+{% block extra_css %}
+<style>
+    .summary-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .summary-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .summary-card h3 {
+        color: white;
+        font-weight: 600;
+    }
+
+    .summary-card .value {
+        font-size: 2rem;
+        font-weight: bold;
+    }
+
+    .stat-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        margin-bottom: 15px;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+    }
+
+    .stat-card.maliyet {
+        background: linear-gradient(135deg, #ee5a6f 0%, #f093fb 100%);
+        color: white;
+    }
+
+    .stat-card.satis {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
+    }
+
+    .table-container {
+        max-height: 600px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 10px;
+    }
+
+    .table-container table {
+        margin-bottom: 0;
+    }
+
+    .table-container thead th {
+        position: sticky;
+        top: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .badge-custom {
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .chart-container {
+        margin-top: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="main-content">
+    <div class="container-fluid">
+        <!-- Page Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2 class="h3 mb-1">
+                            <i class="bi bi-calculator text-primary me-2"></i>Ambar Değer Raporu
+                        </h2>
+                        <p class="text-muted mb-0">Ürün değerlerinin maliyet ve satış bazlı analizi</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtreler -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Filtreleme</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="get" action="" class="row g-3">
+                            <div class="col-md-4">
+                                <label for="malzeme_kodu" class="form-label">Ürün Kodu</label>
+                                <input type="text" class="form-control" id="malzeme_kodu" name="malzeme_kodu" 
+                                       value="{{ malzeme_kodu_filter }}" placeholder="Ürün kodu ara...">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="marka" class="form-label">Marka</label>
+                                <select class="form-select" id="marka" name="marka">
+                                    <option value="">Tümü</option>
+                                    {% for m in markalar %}
+                                    <option value="{{ m }}" {% if marka_filter == m %}selected{% endif %}>{{ m }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="malzeme_turu" class="form-label">Malzeme Türü</label>
+                                <select class="form-select" id="malzeme_turu" name="malzeme_turu">
+                                    <option value="">Tümü</option>
+                                    {% for tur in malzeme_turleri %}
+                                    <option value="{{ tur }}" {% if malzeme_turu_filter == tur %}selected{% endif %}>{{ tur }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="maliyet_filter" class="form-label">Maliyet Değeri</label>
+                                <select class="form-select" id="maliyet_filter" name="maliyet_filter">
+                                    <option value="">Hepsi</option>
+                                    <option value="sifirdan_buyuk" {% if maliyet_filter == 'sifirdan_buyuk' %}selected{% endif %}>0'dan Büyük Olanlar</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="satis_filter" class="form-label">Satış Değeri</label>
+                                <select class="form-select" id="satis_filter" name="satis_filter">
+                                    <option value="">Hepsi</option>
+                                    <option value="sifirdan_buyuk" {% if satis_filter == 'sifirdan_buyuk' %}selected{% endif %}>0'dan Büyük Olanlar</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">&nbsp;</label>
+                                <div class="d-grid gap-2">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="bi bi-search me-2"></i>Filtrele
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-12">
+                                <a href="{% url 'tahsilat:ambar_deger_raporu' %}" class="btn btn-secondary">
+                                    <i class="bi bi-x-circle me-2"></i>Temizle
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Özet Kartları -->
+        <div class="row mb-4">
+            <div class="col-md-12 mb-3">
+                <div class="card summary-card">
+                    <div class="card-body">
+                        <h3 class="mb-0">Toplam Özet</h3>
+                        <div class="row mt-3">
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <div class="mb-2">Toplam Kayıt</div>
+                                    <div class="value">{{ ozet.toplam_kayit|numberformat_int}}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <div class="mb-2">Toplam Maliyet</div>
+                                    <div class="value">{{ ozet.toplam_maliyet|numberformat}} ₺</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <div class="mb-2">Toplam Satış Değeri</div>
+                                    <div class="value">{{ ozet.toplam_satis_degeri|numberformat}} ₺</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <div class="mb-2">Toplam Kar</div>
+                                    <div class="value">{{ ozet.toplam_kar|numberformat}} ₺</div>
+                                    <small>(%{{ ozet.kar_orani|numberformat}})</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Malzeme Türü Gruplandırması -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="bi bi-tags me-2"></i>Malzeme Türü - Maliyet Dağılımı</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Malzeme Türü</th>
+                                        <th class="text-end">Maliyet</th>
+                                        <th class="text-end">Oran</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for tur, deger in tur_gruplu.maliyet.items %}
+                                    <tr>
+                                        <td><strong>{{ tur }}</strong></td>
+                                        <td class="text-end">{{ deger|numberformat}} ₺</td>
+                                        <td class="text-end">
+                                            <span class="badge bg-primary">
+                                                {% widthratio deger ozet.toplam_maliyet 100 %}%
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="3" class="text-center text-muted">Veri bulunamadı</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="bi bi-tags me-2"></i>Malzeme Türü - Satış Değeri Dağılımı</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Malzeme Türü</th>
+                                        <th class="text-end">Satış Değeri</th>
+                                        <th class="text-end">Oran</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for tur, deger in tur_gruplu.satis.items %}
+                                    <tr>
+                                        <td><strong>{{ tur }}</strong></td>
+                                        <td class="text-end">{{ deger|numberformat}} ₺</td>
+                                        <td class="text-end">
+                                            <span class="badge bg-success">
+                                                {% widthratio deger ozet.toplam_satis_degeri 100 %}%
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="3" class="text-center text-muted">Veri bulunamadı</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Marka Gruplandırması -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0"><i class="bi bi-badge-tm me-2"></i>Marka - Maliyet Dağılımı</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Marka</th>
+                                        <th class="text-end">Maliyet</th>
+                                        <th class="text-end">Oran</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for marka, deger in marka_gruplu.maliyet.items %}
+                                    <tr>
+                                        <td><strong>{{ marka }}</strong></td>
+                                        <td class="text-end">{{ deger|numberformat}} ₺</td>
+                                        <td class="text-end">
+                                            <span class="badge bg-danger">
+                                                {% widthratio deger ozet.toplam_maliyet 100 %}%
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="3" class="text-center text-muted">Veri bulunamadı</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="bi bi-badge-tm me-2"></i>Marka - Satış Değeri Dağılımı</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Marka</th>
+                                        <th class="text-end">Satış Değeri</th>
+                                        <th class="text-end">Oran</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for marka, deger in marka_gruplu.satis.items %}
+                                    <tr>
+                                        <td><strong>{{ marka }}</strong></td>
+                                        <td class="text-end">{{ deger|numberformat}} ₺</td>
+                                        <td class="text-end">
+                                            <span class="badge bg-info">
+                                                {% widthratio deger ozet.toplam_satis_degeri 100 %}%
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="3" class="text-center text-muted">Veri bulunamadı</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detaylı Liste -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Detaylı Ürün Listesi</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="table table-hover table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Malzeme Kodu</th>
+                                        <th>Açıklaması</th>
+                                        <th>Marka</th>
+                                        <th>Malzeme Türü</th>
+                                        <th class="text-end">Toplam</th>
+                                        <th class="text-end">Tanımlı Alış Fiyatı</th>
+                                        <th class="text-end">Tanımlı Satış Fiyatı</th>
+                                        <th class="text-end">Maliyet Değeri</th>
+                                        <th class="text-end">Satış Değeri</th>
+                                        <th class="text-end">Kar</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in data %}
+                                    <tr>
+                                        <td><code>{{ item.malzeme_kodu }}</code></td>
+                                        <td>{{ item.aciklamasi|truncatewords:5 }}</td>
+                                        <td><span class="badge bg-info">{{ item.marka }}</span></td>
+                                        <td><span class="badge bg-secondary">{{ item.malzeme_turu }}</span></td>
+                                        <td class="text-end">{{ item.toplam|numberformat}}</td>
+                                        <td class="text-end">{{ item.tanimli_alis_fiyati|numberformat}} ₺</td>
+                                        <td class="text-end">{{ item.tanimli_satis_fiyati|numberformat}} ₺</td>
+                                        <td class="text-end fw-bold text-danger">{{ item.maliyet_degeri|numberformat}} ₺</td>
+                                        <td class="text-end fw-bold text-success">{{ item.satis_degeri|numberformat}} ₺</td>
+                                        <td class="text-end">
+                                            {% if item.kar_tutar > 0 %}
+                                                <span class="badge bg-success">+{{ item.kar_tutar|numberformat}} ₺</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">{{ item.kar_tutar|numberformat}} ₺</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="10" class="text-center text-muted py-4">
+                                            <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                                            <p class="mt-2">Henüz veri bulunmuyor</p>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot>
+                                    <tr class="table-active">
+                                        <th colspan="7" class="text-end">TOPLAM:</th>
+                                        <th class="text-end">{{ ozet.toplam_maliyet|numberformat}} ₺</th>
+                                        <th class="text-end">{{ ozet.toplam_satis_degeri|numberformat}} ₺</th>
+                                        <th class="text-end">
+                                            <span class="badge bg-primary">{{ ozet.toplam_kar|numberformat}} ₺</span>
+                                        </th>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Basit animasyon
+    document.addEventListener('DOMContentLoaded', function() {
+        const cards = document.querySelectorAll('.card');
+        cards.forEach((card, index) => {
+            card.style.animation = `fadeIn 0.5s ease ${index * 0.1}s`;
+            card.style.animationFillMode = 'backwards';
+        });
+    });
+</script>
+
+<style>
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+{% endblock %}
+

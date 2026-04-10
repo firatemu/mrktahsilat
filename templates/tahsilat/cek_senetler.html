@@ -1,0 +1,3043 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Çek ve Senetler - MRK OTOMOTİV{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* —— MRK Çek/Senetler: kurumsal kabuk (detay stiller aşağıda) —— */
+    .cek-senetler-page {
+        --mrk-navy: #0f2744;
+        --mrk-navy-mid: #1a3a5c;
+        --mrk-accent: #b8922e;
+        --mrk-accent-subtle: #e8d89a;
+        --mrk-accent-ink: #7a6220;
+        --mrk-surface: #f1f4f8;
+        --mrk-card: #ffffff;
+        --mrk-border: #e2e8f0;
+        --mrk-text: #0f172a;
+        --mrk-muted: #64748b;
+        --mrk-radius: 12px;
+        --mrk-shadow: 0 1px 3px rgba(15, 39, 68, 0.06), 0 8px 24px rgba(15, 39, 68, 0.06);
+        padding-bottom: 1.5rem;
+    }
+
+    .cek-senetler-page .page-hero-cek {
+        background: linear-gradient(135deg, var(--mrk-navy) 0%, var(--mrk-navy-mid) 55%, #243d5c 100%);
+        color: #fff;
+        border-radius: var(--mrk-radius);
+        padding: 1.35rem 1.5rem;
+        margin-bottom: 1.25rem;
+        box-shadow: var(--mrk-shadow);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .cek-senetler-page .page-hero-cek .hero-kicker {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        opacity: 0.85;
+        margin-bottom: 0.35rem;
+        color: var(--mrk-accent-subtle);
+    }
+
+    .cek-senetler-page .page-hero-cek h1 {
+        font-size: clamp(1.35rem, 2.2vw, 1.65rem);
+        font-weight: 700;
+        margin: 0 0 0.25rem 0;
+        letter-spacing: -0.02em;
+    }
+
+    .cek-senetler-page .page-hero-cek .hero-sub {
+        font-size: 0.9rem;
+        opacity: 0.88;
+        margin: 0;
+        max-width: 42rem;
+    }
+
+    .cek-senetler-page .page-hero-cek .btn-mrk-light {
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        color: #fff;
+        font-weight: 600;
+        border-radius: 10px;
+        padding: 0.5rem 1rem;
+    }
+
+    .cek-senetler-page .page-hero-cek .btn-mrk-light:hover {
+        background: rgba(255, 255, 255, 0.22);
+        color: #fff;
+    }
+
+    .cek-senetler-page .page-hero-cek .btn-mrk-gold {
+        background: linear-gradient(180deg, #d4af37 0%, var(--mrk-accent) 100%);
+        border: none;
+        color: #1a1408;
+        font-weight: 600;
+        border-radius: 10px;
+        padding: 0.5rem 1rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .cek-senetler-page .page-hero-cek .btn-mrk-gold:hover {
+        filter: brightness(1.05);
+        color: #1a1408;
+    }
+
+    .cek-senetler-page .nav-tabs {
+        border-bottom: 1px solid var(--mrk-border);
+        gap: 0.35rem;
+    }
+
+    .cek-senetler-page .nav-tabs .nav-link {
+        border-radius: 10px 10px 0 0;
+        padding: 0.65rem 1.1rem;
+        font-weight: 600;
+        color: var(--mrk-muted);
+        background: transparent;
+        border: none;
+    }
+
+    .cek-senetler-page .nav-tabs .nav-link:hover {
+        color: var(--mrk-navy);
+        background: rgba(15, 39, 68, 0.05);
+    }
+
+    .cek-senetler-page .nav-tabs .nav-link.active {
+        background: var(--mrk-card);
+        color: var(--mrk-navy);
+        border: 1px solid var(--mrk-border);
+        border-bottom-color: var(--mrk-card);
+        box-shadow: 0 -2px 12px rgba(15, 39, 68, 0.06);
+    }
+
+    .cek-senetler-page .tab-content {
+        background: var(--mrk-card);
+        border: 1px solid var(--mrk-border);
+        border-radius: 0 var(--mrk-radius) var(--mrk-radius) var(--mrk-radius);
+        padding: 1.5rem;
+        box-shadow: var(--mrk-shadow);
+    }
+
+    /* Sekme içeriği sunucu tarafında koşullu tek panel; Bootstrap tab-pane kullanılmıyor */
+    .cek-senetler-page #mainTabsContent > .cek-sekme-panel {
+        display: block;
+        opacity: 1;
+    }
+
+    .cek-senetler-page .filter-card,
+    .cek-senetler-page .cek-filter-panel,
+    .cek-senetler-page .table-card {
+        background: var(--mrk-card);
+        border: 1px solid var(--mrk-border);
+        border-radius: var(--mrk-radius);
+        box-shadow: var(--mrk-shadow);
+    }
+
+    .cek-filter-panel {
+        overflow: hidden;
+    }
+
+    .cek-filter-panel__head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1rem 1.25rem;
+        background: linear-gradient(135deg, var(--mrk-navy) 0%, var(--mrk-navy-mid) 100%);
+        color: #fff;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .cek-filter-panel__title {
+        font-size: 1rem;
+        font-weight: 700;
+        margin: 0 0 0.2rem 0;
+        letter-spacing: -0.02em;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .cek-filter-panel__title i {
+        opacity: 0.9;
+    }
+
+    .cek-filter-panel__sub {
+        font-size: 0.78rem;
+        margin: 0;
+        opacity: 0.88;
+        line-height: 1.4;
+        max-width: 36rem;
+    }
+
+    .cek-filter-panel__body {
+        padding: 1.15rem 1.25rem 0.25rem;
+        background: #fafbfc;
+    }
+
+    .cek-filter-group {
+        background: #fff;
+        border: 1px solid var(--mrk-border);
+        border-radius: 10px;
+        padding: 0.85rem 1rem 1rem;
+        height: 100%;
+        box-shadow: 0 1px 2px rgba(15, 39, 68, 0.04);
+    }
+
+    .cek-filter-group__title {
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--mrk-muted);
+        margin: 0 0 0.75rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--mrk-border);
+    }
+
+    .cek-filter-panel .form-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--mrk-navy);
+        margin-bottom: 0.35rem;
+    }
+
+    .cek-filter-panel .form-select,
+    .cek-filter-panel .form-control {
+        border-radius: 8px;
+        border: 1px solid #cbd5e1;
+        font-size: 0.85rem;
+        padding-top: 0.45rem;
+        padding-bottom: 0.45rem;
+    }
+
+    .cek-filter-panel .form-select:focus,
+    .cek-filter-panel .form-control:focus {
+        border-color: var(--mrk-navy-mid);
+        box-shadow: 0 0 0 0.2rem rgba(15, 39, 68, 0.12);
+    }
+
+    .cek-filter-month-btn {
+        position: relative;
+        border-radius: 8px !important;
+        border: 1px solid #cbd5e1 !important;
+        background: #fff !important;
+        color: var(--mrk-text) !important;
+        font-size: 0.85rem;
+        font-weight: 500;
+        padding: 0.45rem 2rem 0.45rem 0.75rem !important;
+        text-align: start !important;
+    }
+
+    .cek-filter-month-btn:hover,
+    .cek-filter-month-btn:focus,
+    .cek-filter-month-btn.show {
+        border-color: var(--mrk-navy-mid) !important;
+        background: #f8fafc !important;
+        color: var(--mrk-navy) !important;
+    }
+
+    .cek-filter-month-btn.dropdown-toggle::after {
+        position: absolute;
+        right: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    .cek-filter-panel .dropdown-menu {
+        border-radius: 10px;
+        border: 1px solid var(--mrk-border);
+        box-shadow: var(--mrk-shadow);
+        padding: 0.35rem 0;
+    }
+
+    .cek-filter-panel .dropdown-item {
+        font-size: 0.85rem;
+    }
+
+    .cek-filter-panel .dropdown-header {
+        color: var(--mrk-navy) !important;
+        font-size: 0.72rem;
+    }
+
+    .cek-filter-panel__actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.9rem 1.25rem;
+        background: #fff;
+        border-top: 1px solid var(--mrk-border);
+    }
+
+    .cek-filter-panel__actions .btn-primary {
+        background: var(--mrk-navy);
+        border-color: var(--mrk-navy);
+        font-weight: 600;
+        border-radius: 8px;
+        padding: 0.45rem 1.15rem;
+    }
+
+    .cek-filter-panel__actions .btn-primary:hover {
+        background: var(--mrk-navy-mid);
+        border-color: var(--mrk-navy-mid);
+    }
+
+    .cek-filter-panel__actions .btn-outline-secondary {
+        border-radius: 8px;
+        font-weight: 600;
+        border-color: #cbd5e1;
+        color: var(--mrk-navy);
+    }
+
+    .cek-filter-panel__actions .btn-outline-secondary:hover {
+        background: var(--mrk-surface);
+        border-color: var(--mrk-navy-mid);
+        color: var(--mrk-navy);
+    }
+
+    .cek-senetler-page .filter-card h5,
+    .cek-senetler-page .cek-section-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--mrk-navy);
+        letter-spacing: -0.01em;
+    }
+
+    .cek-senetler-page .table thead th {
+        background: var(--mrk-navy);
+        color: #f8fafc;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 0.85rem 0.65rem;
+        border: none;
+        white-space: nowrap;
+    }
+
+    .cek-senetler-page .table thead th::after {
+        display: none;
+    }
+
+    .cek-senetler-page .table tbody td {
+        border-color: var(--mrk-border);
+        font-size: 0.875rem;
+        vertical-align: middle;
+    }
+
+    .cek-senetler-page .table tbody tr:hover td {
+        background: #f8fafc;
+    }
+
+    .cek-senetler-page .table tbody tr:hover {
+        transform: none;
+        box-shadow: none;
+    }
+
+    .cek-senetler-page .action-menu-dropdown .btn-mrk-ops {
+        border: 1px solid var(--mrk-border);
+        background: #fff;
+        color: var(--mrk-navy);
+        font-weight: 600;
+        font-size: 0.8rem;
+        border-radius: 10px;
+        padding: 0.35rem 0.65rem;
+    }
+
+    .cek-senetler-page .action-menu-dropdown .btn-mrk-ops:hover,
+    .cek-senetler-page .action-menu-dropdown .btn-mrk-ops:focus,
+    .cek-senetler-page .action-menu-dropdown .btn-mrk-ops.show {
+        background: var(--mrk-navy);
+        color: #fff;
+        border-color: var(--mrk-navy);
+    }
+
+    .cek-senetler-page .action-menu-dropdown .dropdown-menu {
+        min-width: 14rem;
+        border-radius: 10px;
+        border: 1px solid var(--mrk-border);
+        padding: 0.35rem;
+        box-shadow: var(--mrk-shadow);
+    }
+
+    .cek-senetler-page .action-menu-dropdown .dropdown-item {
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        padding: 0.45rem 0.75rem;
+    }
+
+    .cek-senetler-page .action-menu-dropdown .dropdown-item i {
+        width: 1.25rem;
+        opacity: 0.9;
+    }
+
+    .cek-senetler-page .action-menu-dropdown .dropdown-item:active {
+        background: rgba(15, 39, 68, 0.08);
+        color: var(--mrk-text);
+    }
+
+    .cek-senetler-page .fixed-footer {
+        background: var(--mrk-navy);
+        border-top: 3px solid var(--mrk-accent);
+    }
+
+    .cek-senetler-page .fixed-footer .total-label {
+        color: rgba(255, 255, 255, 0.85);
+    }
+
+    .cek-senetler-page .fixed-footer .total-value {
+        color: var(--mrk-accent-subtle);
+    }
+
+    .cek-senetler-page .fixed-footer .total-amount {
+        color: #86efac;
+    }
+
+    .cek-senetler-page .modal-header {
+        background: linear-gradient(135deg, var(--mrk-navy) 0%, var(--mrk-navy-mid) 100%);
+        color: #fff;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .cek-senetler-page .modal-header .modal-title {
+        text-transform: none;
+        letter-spacing: 0;
+        font-weight: 600;
+    }
+
+    .cek-senetler-page .modal-content {
+        border-radius: var(--mrk-radius);
+        border: 1px solid var(--mrk-border);
+    }
+
+    .cek-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.85rem;
+        margin-bottom: 1.15rem;
+    }
+
+    @media (max-width: 991px) {
+        .cek-kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 575px) {
+        .cek-kpi-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .cek-kpi-card {
+        background: var(--mrk-card);
+        border: 1px solid var(--mrk-border);
+        border-radius: var(--mrk-radius);
+        padding: 1rem 1.1rem;
+        box-shadow: var(--mrk-shadow);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .cek-kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: var(--mrk-accent);
+        opacity: 0.85;
+    }
+
+    .cek-kpi-card--net::before {
+        background: #6366f1;
+    }
+
+    .cek-kpi-card--gelen::before {
+        background: #059669;
+    }
+
+    .cek-kpi-card--giden::before {
+        background: #dc2626;
+    }
+
+    .cek-kpi-card--risk::before {
+        background: #ea580c;
+    }
+
+    .cek-kpi-card .kpi-label {
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--mrk-muted);
+        font-weight: 600;
+        margin-bottom: 0.35rem;
+    }
+
+    .cek-kpi-card .kpi-value {
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: var(--mrk-navy);
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+    }
+
+    .cek-kpi-card .kpi-meta {
+        font-size: 0.78rem;
+        color: var(--mrk-muted);
+        margin-top: 0.35rem;
+    }
+
+    .cek-kpi-card--net .kpi-value.text-danger {
+        color: #b91c1c !important;
+    }
+
+    .cek-kpi-card--net .kpi-value.text-success {
+        color: #047857 !important;
+    }
+
+    .cek-liste-mini-dash {
+        margin-bottom: 1rem;
+    }
+
+    .cek-liste-mini-dash.cek-kpi-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    @media (max-width: 991px) {
+        .cek-liste-mini-dash.cek-kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 575px) {
+        .cek-liste-mini-dash.cek-kpi-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .cek-liste-mini-dash .cek-kpi-card {
+        padding: 0.75rem 1rem;
+    }
+
+    .cek-liste-mini-dash .cek-kpi-card .kpi-value {
+        font-size: 1.1rem;
+    }
+
+    #cekDataTable tfoot.cek-tutar-tfoot td {
+        background: #f1f5f9;
+        border-top: 2px solid var(--mrk-border);
+        font-size: 0.9rem;
+        vertical-align: middle;
+    }
+
+    #cekDataTable tfoot.cek-tutar-tfoot td.tutar-total-cell {
+        font-weight: 700;
+        color: var(--mrk-navy);
+        white-space: nowrap;
+    }
+
+    .cek-yillik-ozet-card {
+        background: var(--mrk-card);
+        border: 1px solid var(--mrk-border);
+        border-radius: var(--mrk-radius);
+        box-shadow: var(--mrk-shadow);
+        padding: 1.25rem 1.35rem;
+        margin-bottom: 1rem;
+    }
+
+    .cek-yillik-ozet-card .ozet-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.85rem;
+        border-bottom: 1px solid var(--mrk-border);
+    }
+
+    .cek-yillik-ozet-card .ozet-head h2 {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--mrk-navy);
+        margin: 0 0 0.35rem 0;
+    }
+
+    .cek-yillik-ozet-card .ozet-head p {
+        font-size: 0.82rem;
+        color: var(--mrk-muted);
+        margin: 0;
+        max-width: 40rem;
+        line-height: 1.45;
+    }
+
+    .cek-yillik-ozet-table {
+        font-size: 0.88rem;
+        margin-bottom: 0;
+    }
+
+    .cek-yillik-ozet-table thead th {
+        background: #f8fafc;
+        color: var(--mrk-navy);
+        font-weight: 700;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        border-bottom-width: 2px;
+        white-space: nowrap;
+    }
+
+    .cek-yillik-ozet-table td.num,
+    .cek-yillik-ozet-table th.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .cek-yillik-ozet-table tbody tr.is-bu-ay td {
+        background: rgba(184, 146, 46, 0.12);
+    }
+
+    .cek-yillik-ozet-table .net-pos {
+        color: #b91c1c;
+        font-weight: 600;
+    }
+
+    .cek-yillik-ozet-table .net-neg {
+        color: #047857;
+        font-weight: 600;
+    }
+
+    .cek-yillik-ozet-table tfoot td {
+        background: #f1f5f9;
+        font-weight: 700;
+        border-top: 2px solid var(--mrk-border);
+    }
+
+    .cek-durum-panel {
+        background: var(--mrk-card);
+        border: 1px solid var(--mrk-border);
+        border-radius: var(--mrk-radius);
+        padding: 1rem 1.15rem;
+        margin-bottom: 1.15rem;
+        box-shadow: var(--mrk-shadow);
+    }
+
+    .cek-durum-panel .panel-head {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--mrk-navy);
+        margin-bottom: 0.65rem;
+    }
+
+    .cek-durum-segments {
+        height: 12px;
+        border-radius: 6px;
+        overflow: hidden;
+        display: flex;
+        background: var(--mrk-surface);
+    }
+
+    .cek-durum-seg {
+        min-width: 2px;
+        transition: opacity 0.2s ease;
+    }
+
+    .cek-durum-seg--beklemede {
+        background: #d97706;
+    }
+
+    .cek-durum-seg--ciro {
+        background: #2563eb;
+    }
+
+    .cek-durum-seg--odendi {
+        background: #059669;
+    }
+
+    .cek-durum-seg--iptal {
+        background: #64748b;
+    }
+
+    .cek-durum-seg--vadesi_gecti {
+        background: #dc2626;
+    }
+
+    .cek-durum-dot {
+        width: 0.45rem;
+        height: 0.45rem;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 0.35rem;
+        vertical-align: middle;
+    }
+
+    .cek-durum-dot.cek-durum-seg--beklemede {
+        background: #d97706;
+    }
+
+    .cek-durum-dot.cek-durum-seg--ciro {
+        background: #2563eb;
+    }
+
+    .cek-durum-dot.cek-durum-seg--odendi {
+        background: #059669;
+    }
+
+    .cek-durum-dot.cek-durum-seg--iptal {
+        background: #64748b;
+    }
+
+    .cek-durum-dot.cek-durum-seg--vadesi_gecti {
+        background: #dc2626;
+    }
+
+    .cek-durum-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1rem;
+        margin-top: 0.65rem;
+        font-size: 0.78rem;
+        color: var(--mrk-muted);
+    }
+
+    .cek-durum-legend span strong {
+        color: var(--mrk-navy);
+        font-weight: 700;
+    }
+
+    .cek-odeme-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1.15rem;
+    }
+
+    .cek-odeme-chip {
+        flex: 1 1 120px;
+        min-width: 100px;
+        background: var(--mrk-surface);
+        border: 1px solid var(--mrk-border);
+        border-radius: 10px;
+        padding: 0.55rem 0.75rem;
+        font-size: 0.78rem;
+    }
+
+    .cek-odeme-chip .chip-label {
+        font-weight: 600;
+        color: var(--mrk-navy);
+        display: block;
+        margin-bottom: 0.15rem;
+    }
+
+    .cek-odeme-chip .chip-amt {
+        font-weight: 800;
+        color: var(--mrk-navy);
+        font-size: 0.9rem;
+    }
+
+    .cek-quick-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-top: 0.85rem;
+    }
+
+    .cek-quick-row a {
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 0.3rem 0.55rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        color: #fff !important;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        text-decoration: none;
+    }
+
+    .cek-quick-row a:hover {
+        background: rgba(255, 255, 255, 0.22);
+        color: #fff !important;
+    }
+
+    .cek-senetler-page.cek-senetler-page--compact .table tbody td {
+        padding-top: 0.35rem;
+        padding-bottom: 0.35rem;
+        font-size: 0.8rem;
+    }
+
+    .cek-senetler-page.cek-senetler-page--compact .table thead th {
+        padding: 0.5rem 0.45rem;
+        font-size: 0.68rem;
+    }
+
+    /* —— Finansal özet paneli —— */
+    .cek-fin-panel {
+        background: var(--mrk-card);
+        border: 1px solid var(--mrk-border);
+        border-radius: var(--mrk-radius);
+        box-shadow: var(--mrk-shadow);
+        overflow: hidden;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .cek-fin-panel__head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1.1rem 1.25rem;
+        background: linear-gradient(135deg, var(--mrk-navy) 0%, var(--mrk-navy-mid) 100%);
+        color: #fff;
+    }
+
+    .cek-fin-panel__title {
+        font-size: 1rem;
+        font-weight: 700;
+        margin: 0 0 0.2rem 0;
+        letter-spacing: -0.02em;
+    }
+
+    .cek-fin-panel__sub {
+        font-size: 0.78rem;
+        margin: 0;
+        opacity: 0.88;
+        line-height: 1.35;
+    }
+
+    .cek-fin-panel__badge {
+        flex-shrink: 0;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 0.4rem 0.65rem;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+    }
+
+    .cek-fin-panel__body {
+        padding: 1rem 1.25rem 1.15rem;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .cek-fin-dual {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 0.65rem 0.85rem;
+        align-items: stretch;
+    }
+
+    @media (max-width: 480px) {
+        .cek-fin-dual {
+            grid-template-columns: 1fr;
+        }
+
+        .cek-fin-dual__divider {
+            display: none;
+        }
+    }
+
+    .cek-fin-tile {
+        border-radius: 10px;
+        padding: 0.85rem 1rem;
+        border: 1px solid var(--mrk-border);
+        background: var(--mrk-surface);
+    }
+
+    .cek-fin-tile--in {
+        border-left: 3px solid #059669;
+    }
+
+    .cek-fin-tile--out {
+        border-left: 3px solid #dc2626;
+    }
+
+    .cek-fin-tile__label {
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--mrk-muted);
+        margin-bottom: 0.35rem;
+    }
+
+    .cek-fin-tile__value {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--mrk-navy);
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+    }
+
+    .cek-fin-tile__meta {
+        font-size: 0.76rem;
+        color: var(--mrk-muted);
+        margin-top: 0.35rem;
+    }
+
+    .cek-fin-dual__divider {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--mrk-muted);
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .cek-fin-bar-track {
+        display: flex;
+        height: 10px;
+        border-radius: 6px;
+        overflow: hidden;
+        background: #e2e8f0;
+    }
+
+    .cek-fin-bar-track__in {
+        background: linear-gradient(90deg, #10b981, #059669);
+        min-width: 2px;
+        transition: width 0.35s ease;
+    }
+
+    .cek-fin-bar-track__out {
+        background: linear-gradient(90deg, #f87171, #dc2626);
+        min-width: 2px;
+        transition: width 0.35s ease;
+    }
+
+    .cek-fin-bar-legend {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.72rem;
+        color: var(--mrk-muted);
+        margin-top: 0.35rem;
+    }
+
+    .cek-fin-section-h {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--mrk-muted);
+        margin: 0 0 0.5rem 0;
+    }
+
+    .cek-fin-matrix {
+        border: 1px solid var(--mrk-border);
+        border-radius: 10px;
+        overflow: hidden;
+        background: #fff;
+    }
+
+    .cek-fin-matrix__row {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 0.5rem 1rem;
+        align-items: center;
+        padding: 0.55rem 0.85rem;
+        font-size: 0.82rem;
+        border-bottom: 1px solid var(--mrk-border);
+    }
+
+    .cek-fin-matrix__row:last-child {
+        border-bottom: none;
+    }
+
+    .cek-fin-matrix__row:nth-child(even) {
+        background: rgba(241, 244, 248, 0.55);
+    }
+
+    .cek-fin-matrix__name {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-weight: 600;
+        color: var(--mrk-text);
+    }
+
+    .cek-fin-matrix__name i {
+        font-size: 1rem;
+        opacity: 0.85;
+    }
+
+    .cek-fin-matrix__amt {
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: var(--mrk-navy);
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .cek-fin-matrix__cnt {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--mrk-muted);
+        text-align: right;
+        min-width: 3.5rem;
+    }
+
+    .cek-fin-matrix__row--risk .cek-fin-matrix__amt {
+        color: #c2410c;
+    }
+
+    .cek-fin-matrix__row--muted .cek-fin-matrix__amt {
+        color: var(--mrk-muted);
+    }
+
+    .cek-fin-foot {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+        padding: 0.85rem 1rem;
+        border-radius: 10px;
+        background: var(--mrk-navy);
+        color: #fff;
+    }
+
+    @media (max-width: 480px) {
+        .cek-fin-foot {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .cek-fin-foot__label {
+        display: block;
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        opacity: 0.75;
+        margin-bottom: 0.2rem;
+    }
+
+    .cek-fin-foot__value {
+        font-size: 1.05rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .cek-fin-foot__value--danger {
+        color: #fca5a5;
+    }
+
+    .cek-fin-foot__value--success {
+        color: #86efac;
+    }
+
+    tr.cek-row-hidden {
+        display: none;
+    }
+
+    @media print {
+        .cek-senetler-page .page-hero-cek .btn,
+        .cek-senetler-page .action-menu-dropdown,
+        .cek-senetler-page .nav-tabs,
+        .cek-senetler-page .filter-card,
+        .cek-senetler-page .cek-filter-panel,
+        .cek-senetler-page .fixed-footer {
+            display: none !important;
+        }
+
+        .cek-senetler-page .tab-content {
+            border: none;
+            box-shadow: none;
+            padding: 0;
+        }
+
+        .cek-senetler-page {
+            padding-bottom: 0;
+        }
+    }
+
+    .stats-card {
+        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 16px 14px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .stats-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    .stats-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Gelen kayıtlar - Yeşil tonları */
+    .stats-card-gelen {
+        background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%) !important;
+    }
+
+    /* Giden kayıtlar - Kırmızı tonları */
+    .stats-card-giden {
+        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
+    }
+
+    /* Çek - Gelen - Yeşil tonları */
+    .stats-card-cek-gelen {
+        background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%) !important;
+    }
+
+    /* Çek - Giden - Kırmızı tonları */
+    .stats-card-cek-giden {
+        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
+    }
+
+    /* Senet - Gelen - Yeşil tonları */
+    .stats-card-senet-gelen {
+        background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%) !important;
+    }
+
+    /* Senet - Giden - Kırmızı tonları */
+    .stats-card-senet-giden {
+        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
+    }
+
+    /* Kredi - Mavi tonları */
+    .stats-card-kredi {
+        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%) !important;
+    }
+
+    /* Kredi Kartı - Mavi tonları */
+    .stats-card-kredi-karti {
+        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%) !important;
+    }
+
+    .stats-card h5 {
+        font-size: 0.75rem;
+        margin-bottom: 8px;
+        opacity: 0.95;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+
+    .stats-card h5 i {
+        font-size: 0.9rem;
+    }
+
+    .stats-card h3 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0;
+        line-height: 1.2;
+    }
+
+    .stats-card h4 {
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin: 0;
+        line-height: 1.2;
+    }
+
+    .stats-card h6 {
+        font-size: 0.75rem;
+        font-weight: 600;
+        opacity: 0.95;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .stats-card small {
+        font-size: 0.7rem;
+        opacity: 0.85;
+        display: block;
+        margin-top: 6px;
+        font-weight: 500;
+    }
+
+    /* Kompakt kartlar için özel stil */
+    .stats-card-compact {
+        padding: 12px 10px;
+    }
+
+    .stats-card-compact h6 {
+        font-size: 0.7rem;
+        margin-bottom: 6px;
+    }
+
+    .stats-card-compact h4 {
+        font-size: 1.1rem;
+    }
+
+    .stats-card-compact small {
+        font-size: 0.65rem;
+        margin-top: 4px;
+    }
+
+    /* Responsive optimizasyonlar */
+    @media (max-width: 768px) {
+        .stats-card {
+            padding: 14px 12px;
+        }
+
+        .stats-card h3 {
+            font-size: 1.3rem;
+        }
+
+        .stats-card h4 {
+            font-size: 1.1rem;
+        }
+
+        .stats-card h5 {
+            font-size: 0.7rem;
+        }
+
+        .stats-card-compact {
+            padding: 10px 8px;
+        }
+
+        .stats-card-compact h4 {
+            font-size: 1rem;
+        }
+
+        /* Responsive butonlar */
+        .action-buttons {
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .action-btn {
+            width: 100%;
+            justify-content: center;
+            padding: 8px 4px;
+        }
+
+        .action-btn span {
+            display: none;
+        }
+
+        /* Tablo hücresinde overflow kontrolü */
+        .table td {
+            overflow: visible !important;
+        }
+
+        .table {
+            overflow: visible !important;
+        }
+
+        .table-container {
+            overflow: visible !important;
+        }
+
+        /* Footer Toplam Stilleri */
+        .table-footer {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 20px;
+            border: 2px solid #e9ecef;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .table-footer .row {
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .table-footer .col-md-3 {
+            width: 100%;
+            text-align: center;
+        }
+
+        .total-info {
+            justify-content: center;
+        }
+
+        /* Sabit Footer */
+        .fixed-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 15px 20px;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+            border-top: 3px solid #3498db;
+        }
+
+        .fixed-footer .row {
+            margin: 0;
+        }
+
+        .fixed-footer .col-md-3 {
+            padding: 0 10px;
+        }
+
+        .fixed-footer .total-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .fixed-footer .total-label {
+            font-weight: 600;
+            color: #ecf0f1;
+            font-size: 0.9rem;
+        }
+
+        .fixed-footer .total-value {
+            font-weight: 700;
+            color: #3498db;
+            font-size: 1rem;
+        }
+
+        .fixed-footer .total-amount {
+            font-weight: 700;
+            color: #2ecc71;
+            font-size: 1.1rem;
+        }
+
+        .fixed-footer .total-amount.text-danger {
+            color: #e74c3c !important;
+        }
+
+        .fixed-footer .total-amount.text-success {
+            color: #2ecc71 !important;
+        }
+
+        /* Alt boşluk .cek-senetler-page üzerinden */
+
+        /* Sekme Stilleri */
+        .nav-tabs {
+            border-bottom: 2px solid #e9ecef;
+            margin-bottom: 30px;
+        }
+
+        .nav-tabs .nav-link {
+            border: none;
+            border-radius: 10px 10px 0 0;
+            margin-right: 5px;
+            padding: 12px 20px;
+            font-weight: 600;
+            color: #6c757d;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+        }
+
+        .nav-tabs .nav-link:hover {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .nav-tabs .nav-link.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+        }
+
+        .tab-content {
+            background: white;
+            border-radius: 0 15px 15px 15px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Takvim Stilleri */
+        .calendar-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+        }
+
+        .calendar-nav {
+            display: flex;
+            gap: 10px;
+        }
+
+        .calendar-nav button {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .calendar-nav button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .calendar-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .total-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .total-label {
+            font-weight: 600;
+            color: #495057;
+            font-size: 1rem;
+        }
+
+        .total-value {
+            font-weight: 700;
+            color: #2c3e50;
+            font-size: 1.1rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .total-amount {
+            font-weight: 700;
+            color: #27ae60;
+            font-size: 1.3rem;
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .total-amount.text-danger {
+            color: #e74c3c !important;
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .total-amount.text-success {
+            color: #27ae60 !important;
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Sabit Footer Responsive */
+        .fixed-footer {
+            padding: 10px 15px;
+        }
+
+        .fixed-footer .col-md-3 {
+            padding: 0 5px;
+            margin-bottom: 5px;
+        }
+
+        .fixed-footer .total-info {
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .fixed-footer .total-label {
+            font-size: 0.8rem;
+        }
+
+        .fixed-footer .total-value,
+        .fixed-footer .total-amount {
+            font-size: 0.9rem;
+        }
+
+
+        .action-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid #f8f9fa;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .action-item:last-child {
+            border-bottom: none;
+        }
+
+        .action-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .action-item.ciro:hover {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .action-item.odendi:hover {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .action-item.iptal:hover {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+
+        .action-item.beklemede:hover {
+            background-color: #fff3e0;
+            color: #f57c00;
+        }
+
+        .action-item.onaylandi:hover {
+            background-color: #e1f5fe;
+            color: #0277bd;
+        }
+
+        .action-icon {
+            font-size: 1.1rem;
+            width: 20px;
+            text-align: center;
+        }
+
+        .action-text {
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .action-description {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 2px;
+        }
+
+        .stats-card h3 {
+            font-size: 1.4rem;
+        }
+
+        .table-responsive {
+            font-size: 0.85rem;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+        }
+
+        .filter-card,
+        .table-card {
+            padding: 15px;
+        }
+    }
+
+    /* Responsive optimizasyonlar - 576px ve altı */
+    @media (max-width: 576px) {
+        .stats-card {
+            padding: 12px 10px;
+        }
+
+        .stats-card h3 {
+            font-size: 1.2rem;
+        }
+
+        .stats-card h4 {
+            font-size: 1rem;
+        }
+
+        .stats-card h5 {
+            font-size: 0.65rem;
+        }
+
+        .stats-card small {
+            font-size: 0.65rem;
+        }
+
+        /* Grid spacing optimizasyonu */
+        .row.g-3 {
+            --bs-gutter-x: 0.75rem;
+            --bs-gutter-y: 0.75rem;
+        }
+
+        .row.g-2 {
+            --bs-gutter-x: 0.5rem;
+            --bs-gutter-y: 0.5rem;
+        }
+
+    }
+
+        .filter-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e9ecef;
+        }
+
+        .table-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e9ecef;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-weight: 600;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-weight: 600;
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-weight: 600;
+        }
+
+        .table {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .table thead th {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            border: none;
+            font-weight: 700;
+            padding: 18px 12px;
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: relative;
+        }
+
+        .table thead th::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #3498db, #e74c3c, #f39c12, #27ae60);
+        }
+
+        .table tbody td {
+            padding: 12px 8px;
+            vertical-align: middle;
+            border-color: #f1f3f4;
+            background: white;
+            transition: all 0.3s ease;
+            position: relative;
+            font-size: 0.85rem;
+        }
+
+        .cari-unvan-cell {
+            min-width: 220px;
+            white-space: normal !important;
+        }
+
+        .table tbody tr {
+            transition: all 0.3s ease;
+            border-bottom: 1px solid #f1f3f4;
+        }
+
+        .table tbody tr:hover {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            margin: 4px 0;
+        }
+
+        .table tbody tr:hover td {
+            background: transparent;
+            border-color: transparent;
+        }
+
+        .badge {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+            display: inline-block;
+            white-space: nowrap;
+        }
+
+        .badge:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Ödeme Türü Renklendirme */
+        .badge-odeme-cek {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%) !important;
+            color: white !important;
+        }
+
+        .badge-odeme-senet {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
+            color: white !important;
+        }
+
+        .badge-odeme-kredi {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%) !important;
+            color: white !important;
+        }
+
+        .badge-odeme-kredi-karti {
+            background: linear-gradient(135deg, #16a085 0%, #1abc9c 100%) !important;
+            color: white !important;
+        }
+
+        /* Underscore varyasyonu (kredi_karti) için aynı renk */
+        .badge-odeme-kredi_karti {
+            background: linear-gradient(135deg, #16a085 0%, #1abc9c 100%) !important;
+            color: white !important;
+        }
+
+        /* Tip Renklendirme */
+        .badge-tip-gelen {
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%) !important;
+            color: white !important;
+        }
+
+        .badge-tip-giden {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
+            color: white !important;
+        }
+
+        .badge.bg-info {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%) !important;
+        }
+
+        .badge.bg-success {
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%) !important;
+        }
+
+        .badge.bg-warning {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%) !important;
+        }
+
+        .badge.bg-primary {
+            background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%) !important;
+        }
+
+        .badge.bg-secondary {
+            background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%) !important;
+        }
+
+        .badge.bg-danger {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
+        }
+
+        .form-control,
+        .form-select {
+            border-radius: 12px;
+            border: 2px solid #e9ecef;
+            padding: 12px 18px;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Ay seçimi dropdown stilleri */
+        #ayDropdown .dropdown-menu {
+            padding: 0.5rem 0;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        #ayDropdown .dropdown-item {
+            padding: 0.5rem 1rem;
+            transition: background-color 0.2s ease;
+        }
+
+        #ayDropdown .dropdown-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        #ayDropdown .dropdown-item label {
+            cursor: pointer;
+            margin: 0;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            user-select: none;
+        }
+
+        #ayDropdown .form-check-input {
+            margin-top: 0;
+            cursor: pointer;
+        }
+
+        #ayDropdown .dropdown-toggle::after {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+            transform: translateY(-2px);
+        }
+
+        .modal-content {
+            border-radius: 20px;
+            border: none;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 25px 30px;
+            position: relative;
+        }
+
+        .modal-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, rgba(255, 255, 255, 0.1) 0%, transparent 100%);
+            pointer-events: none;
+        }
+
+        .modal-title {
+            font-weight: 700;
+            font-size: 1.3rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .modal-body {
+            padding: 30px;
+        }
+
+        .pagination {
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .page-link {
+            border-radius: 8px;
+            margin: 0 2px;
+            border: 2px solid #e9ecef;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .page-link:hover {
+            background-color: #667eea;
+            border-color: #667eea;
+            color: white;
+        }
+
+        .page-item.active .page-link {
+            background-color: #667eea;
+            border-color: #667eea;
+        }
+
+        .vade-durumu {
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .vade-normal {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .vade-yakin {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .vade-bugun {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .vade-gecti {
+            background-color: #f5c6cb;
+            color: #721c24;
+        }
+
+        /* Cari Dropdown Stilleri */
+        .cari-dropdown-container {
+            position: relative;
+        }
+
+        .cari-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #e9ecef;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .cari-dropdown.show {
+            display: block;
+        }
+
+        .cari-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f8f9fa;
+            transition: background-color 0.2s ease;
+        }
+
+        .cari-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .cari-item:last-child {
+            border-bottom: none;
+        }
+
+        .cari-code {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .cari-definition {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        .cari-title {
+            font-size: 0.8rem;
+            color: #adb5bd;
+            font-style: italic;
+        }
+
+        /* Yeni İşlem Butonları */
+        .action-buttons {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .action-btn {
+            padding: 4px 6px;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            min-width: 28px;
+            height: 28px;
+            white-space: nowrap;
+            flex: 0 0 auto;
+        }
+
+        .action-btn span {
+            display: none;
+        }
+
+        @media (min-width: 1400px) {
+            .action-btn {
+                padding: 4px 10px;
+                height: auto;
+                min-width: auto;
+            }
+
+            .action-btn span {
+                display: inline;
+            }
+        }
+
+        .action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .action-btn i {
+            font-size: 0.8rem;
+        }
+
+        .action-btn span {
+            font-size: 0.7rem;
+        }
+
+        .btn-ciro {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+        }
+
+        .btn-odendi {
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+            color: white;
+        }
+
+        .btn-beklemede {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            color: white;
+        }
+
+        .btn-iptal {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+        }
+
+        .btn-edit {
+            background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
+            color: white;
+        }
+
+        .btn-delete {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+        }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid cek-senetler-page" id="cekSenetlerRoot">
+    <!-- Kurumsal üst bant -->
+    <div class="page-hero-cek">
+        <div class="row align-items-center g-3">
+            <div class="col-lg">
+                <div class="hero-kicker">MRK OTOMOTİV · Finans</div>
+                <h1><i class="bi bi-receipt me-2" aria-hidden="true"></i>Çek ve senet yönetimi</h1>
+                <p class="hero-sub">Çek, senet, kredi ve kredi kartı ödemelerinin vade odaklı takibi; kayıtları filtreleyin, durum güncelleyin ve raporlayın.</p>
+                <div class="cek-quick-row d-none d-md-flex flex-wrap">
+                    <a href="{{ cek_ui_urls.home_default }}">Varsayılan görünüm</a>
+                    <a href="{{ cek_ui_urls.quick_tum_durum }}">Tüm durumlar</a>
+                    <a href="{{ cek_ui_urls.quick_bugun }}">Vade bugün</a>
+                    <a href="{{ cek_ui_urls.quick_yarin }}">Vade yarın</a>
+                    <a href="{{ cek_ui_urls.quick_gecmis }}">Vadesi geçen</a>
+                    <a href="{{ cek_ui_urls.quick_bu_hafta }}">Bu hafta</a>
+                    <a href="{{ cek_ui_urls.quick_bu_ay }}">Bu ay</a>
+                </div>
+            </div>
+            <div class="col-lg-auto d-flex flex-wrap gap-2 justify-content-lg-end">
+                <button type="button" class="btn btn-mrk-light" data-bs-toggle="modal" data-bs-target="#importModal">
+                    <i class="bi bi-file-earmark-excel me-2"></i>Excel içe aktar
+                </button>
+                <button type="button" class="btn btn-mrk-gold" data-bs-toggle="modal" data-bs-target="#ekleModal">
+                    <i class="bi bi-plus-lg me-2"></i>Yeni kayıt
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sekmeler -->
+    <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <a class="nav-link {% if active_main_tab != 'yillik' %}active{% endif %}" id="list-tab" role="tab" aria-controls="list" aria-selected="{% if active_main_tab != 'yillik' %}true{% else %}false{% endif %}"
+                href="{% url 'tahsilat:cek_senetler' %}">
+                <i class="bi bi-list-ul me-2"></i>Liste Görünümü
+            </a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link {% if active_main_tab == 'yillik' %}active{% endif %}" id="yillik-tab" role="tab" aria-controls="yillik-ozet" aria-selected="{% if active_main_tab == 'yillik' %}true{% else %}false{% endif %}"
+                href="{% url 'tahsilat:cek_senetler' %}?tab=yillik&amp;sekme=yillik&amp;ozet_yil={{ yillik_ozet_yil }}">
+                <i class="bi bi-calendar3 me-2"></i>Yıllık ödeme özeti
+            </a>
+        </li>
+    </ul>
+
+    <!-- Sekme İçerikleri -->
+    <div class="tab-content" id="mainTabsContent">
+        {% if active_main_tab != 'yillik' %}
+        <!-- Liste Görünümü -->
+        <div class="cek-sekme-panel" id="list" role="tabpanel" aria-labelledby="list-tab">
+
+            <!-- Kayıt filtreleri -->
+            <div class="cek-filter-panel">
+                <div class="cek-filter-panel__head">
+                    <div>
+                        <h2 class="cek-filter-panel__title"><i class="bi bi-sliders2" aria-hidden="true"></i>Kayıt
+                            filtreleri</h2>
+                        <p class="cek-filter-panel__sub">Ödeme türü, cari, vade ve banka kriterleriyle tablodaki kayıtları
+                            daraltın. Ay seçimi çoklu olabilir.</p>
+                    </div>
+                </div>
+                <form method="GET" id="filterForm">
+                        <div class="cek-filter-panel__body">
+                            <div class="row g-3 mb-2">
+                                <div class="col-lg-4 col-md-6">
+                                    <div class="cek-filter-group">
+                                        <h3 class="cek-filter-group__title">Kayıt özellikleri</h3>
+                                        <div class="mb-3">
+                                            <label class="form-label" for="flt_odeme_turu">Ödeme türü</label>
+                                            <select name="odeme_turu" id="flt_odeme_turu" class="form-select">
+                                                <option value="">Tümü</option>
+                                                {% for choice in odeme_turu_choices %}
+                                                <option value="{{ choice.0 }}" {% if filters.odeme_turu == choice.0 %}selected{% endif %}>{{ choice.1 }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label" for="flt_tip">Yön (tip)</label>
+                                            <select name="tip" id="flt_tip" class="form-select">
+                                                <option value="">Tümü</option>
+                                                {% for choice in tip_choices %}
+                                                <option value="{{ choice.0 }}" {% if filters.tip == choice.0 %}selected{% endif %}>{{ choice.1 }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="mb-0">
+                                            <label class="form-label" for="flt_durum">Durum</label>
+                                            <select name="durum" id="flt_durum" class="form-select">
+                                                <option value="" {% if not filters.durum %}selected{% endif %}>Tümü</option>
+                                                {% for choice in durum_choices %}
+                                                <option value="{{ choice.0 }}" {% if filters.durum == choice.0 %}selected{% endif %}>{{ choice.1 }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-4 col-md-6">
+                                    <div class="cek-filter-group">
+                                        <h3 class="cek-filter-group__title">Cari</h3>
+                                        <div class="mb-3">
+                                            <label class="form-label" for="flt_cari_kod">Cari kod</label>
+                                            <input type="text" name="cari_kod" id="flt_cari_kod" class="form-control"
+                                                value="{{ filters.cari_kod }}" placeholder="Kod ile ara" autocomplete="off">
+                                        </div>
+                                        <div class="mb-0">
+                                            <label class="form-label" for="flt_cari_unvan">Cari ünvan</label>
+                                            <input type="text" name="cari_unvan" id="flt_cari_unvan" class="form-control"
+                                                value="{{ filters.cari_unvan }}" placeholder="Ünvan ile ara" autocomplete="off">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-4 col-md-12">
+                                    <div class="cek-filter-group">
+                                        <h3 class="cek-filter-group__title">Vade, banka ve dönem</h3>
+                                        <div class="mb-3">
+                                            <label class="form-label" for="flt_vade">Vade durumu</label>
+                                            <select name="vade_durumu" id="flt_vade" class="form-select">
+                                                <option value="">Tümü</option>
+                                                <option value="vadesi_gecti" {% if filters.vade_durumu == 'vadesi_gecti' %}selected{% endif %}>Vadesi geçenler</option>
+                                                <option value="vade_bugun" {% if filters.vade_durumu == 'vade_bugun' %}selected{% endif %}>Vade bugün</option>
+                                                <option value="vade_yarin" {% if filters.vade_durumu == 'vade_yarin' %}selected{% endif %}>Vade yarın</option>
+                                                <option value="bu_hafta" {% if filters.vade_durumu == 'bu_hafta' %}selected{% endif %}>Bu hafta</option>
+                                                <option value="bu_ay" {% if filters.vade_durumu == 'bu_ay' %}selected{% endif %}>Bu ay</option>
+                                                <option value="gelecek_ay" {% if filters.vade_durumu == 'gelecek_ay' %}selected{% endif %}>Gelecek ay</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label" for="flt_banka">Banka</label>
+                                            <select name="banka_adi" id="flt_banka" class="form-select">
+                                                <option value="">Tümü</option>
+                                                {% for banka in banka_listesi %}
+                                                <option value="{{ banka }}" {% if filters.banka_adi == banka %}selected{% endif %}>{{ banka }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="mb-0">
+                                            <label class="form-label" for="ayDropdownButton">Vade ayı (çoklu)</label>
+                                            <div class="dropdown w-100" id="ayDropdown">
+                                                <button
+                                                    class="btn dropdown-toggle cek-filter-month-btn w-100"
+                                                    type="button" id="ayDropdownButton" data-bs-toggle="dropdown"
+                                                    aria-expanded="false">
+                                                    <span id="aySelectedText">Ay seçiniz…</span>
+                                                    <span class="badge rounded-pill ms-2 align-middle"
+                                                        style="background:var(--mrk-navy);display:none;"
+                                                        id="aySelectedCount">0</span>
+                                                </button>
+                                                <ul class="dropdown-menu w-100" aria-labelledby="ayDropdownButton"
+                                                    style="max-height:300px;overflow-y:auto;">
+                                                    <li>
+                                                        <label class="dropdown-item fw-semibold border-bottom"
+                                                            style="cursor:pointer;margin:0;">
+                                                            <input type="checkbox" class="form-check-input me-2" id="selectAllMonths"> Hepsini seç
+                                                        </label>
+                                                    </li>
+                                                    {% for ym in available_months %}
+                                                    <li class="dropdown-header">{{ ym.year }}</li>
+                                                    {% for m in ym.months %}
+                                                    <li>
+                                                        {% with month_str=m.num|stringformat:"02d" %}
+                                                        {% with month_value=ym.year|stringformat:"s"|add:"-"|add:month_str %}
+                                                        <label class="dropdown-item" style="cursor:pointer;margin:0;">
+                                                            <input type="checkbox" class="form-check-input me-2 ay-checkbox" name="ay" value="{{ month_value }}" {% if filters.selected_months and month_value in filters.selected_months %}checked{% endif %}> {{ m.name }}
+                                                        </label>
+                                                        {% endwith %}{% endwith %}
+                                                    </li>
+                                                    {% endfor %}
+                                                    {% endfor %}
+                                                </ul>
+                                            </div>
+                                            <small class="form-text text-muted mt-1 d-block">Vade tarihinin yıl-ayına göre süzer; listeden birden fazla ay işaretleyebilirsiniz.</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <div class="cek-filter-panel__actions">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-funnel me-1" aria-hidden="true"></i>Filtreleri uygula
+                        </button>
+                        <a href="{% url 'tahsilat:cek_senetler' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Tümünü sıfırla
+                        </a>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Özet: filtrelenmiş liste gelen / giden / toplam -->
+            <div class="cek-liste-mini-dash cek-kpi-grid">
+                <div class="cek-kpi-card cek-kpi-card--gelen">
+                    <div class="kpi-label">Gelen (tip)</div>
+                    <div class="kpi-value">₺{{ gelen_odemeler|floatformat:0|intcomma }}</div>
+                    <div class="kpi-meta">{{ gelen_adet }} kayıt</div>
+                </div>
+                <div class="cek-kpi-card cek-kpi-card--giden">
+                    <div class="kpi-label">Giden (tip)</div>
+                    <div class="kpi-value">₺{{ giden_odemeler|floatformat:0|intcomma }}</div>
+                    <div class="kpi-meta">{{ giden_adet }} kayıt</div>
+                </div>
+                <div class="cek-kpi-card cek-kpi-card--net">
+                    <div class="kpi-label">Net (Giden − Gelen)</div>
+                    <div class="kpi-value {% if odenmesi_gereken_tutar < 0 %}text-success{% elif odenmesi_gereken_tutar > 0 %}text-danger{% endif %}">₺{{ odenmesi_gereken_tutar|floatformat:0|intcomma }}</div>
+                    <div class="kpi-meta">Liste toplamı · giden ile gelen farkı</div>
+                </div>
+            </div>
+
+            <!-- Tablo Kartı -->
+            <div class="table-card">
+                <div class="table-responsive" style="overflow: visible;">
+                    <table class="table table-hover" id="cekDataTable">
+                        <thead>
+                            <tr>
+                                <th>Ödeme Türü</th>
+                                <th>Tip</th>
+                                <th>Cari Ünvan</th>
+                                <th>Tutar</th>
+                                <th>Vade Tarihi</th>
+                                <th>Durum</th>
+                                <th>Kalan Gün</th>
+                                <th>Banka Adı</th>
+                                <th>Açıklama</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for kayit in page_obj %}
+                            <tr class="cek-data-row">
+                                <td>
+                                    <span class="badge badge-odeme-{{ kayit.odeme_turu }}">{{ kayit.get_odeme_turu_display }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge badge-tip-{{ kayit.tip }}">{{ kayit.get_tip_display }}</span>
+                                </td>
+                                <td class="cari-unvan-cell">
+                                    <strong>{{ kayit.cari_unvan }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ kayit.cari_kod }}</small>
+                                </td>
+                                <td>
+                                    <strong>₺{{ kayit.tutar|floatformat:0|intcomma }}</strong>
+                                </td>
+                                <td>{{ kayit.vade_tarihi|date:"d.m.Y" }}</td>
+                                <td>
+                                    {% if kayit.durum == 'beklemede' %}
+                                    <span class="badge bg-warning">{{ kayit.get_durum_display }}</span>
+                                    {% elif kayit.durum == 'ciro' %}
+                                    <span class="badge bg-primary">{{ kayit.get_durum_display }}</span>
+                                    {% elif kayit.durum == 'odendi' %}
+                                    <span class="badge bg-success">{{ kayit.get_durum_display }}</span>
+                                    {% elif kayit.durum == 'iptal' %}
+                                    <span class="badge bg-secondary">{{ kayit.get_durum_display }}</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">{{ kayit.get_durum_display }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if kayit.vade_durumu == 'vadesi_gecti' %}
+                                    <span class="badge bg-danger">{{ kayit.kalan_gun }} gün geçti</span>
+                                    {% elif kayit.vade_durumu == 'vade_bugun' %}
+                                    <span class="badge bg-warning">Bugün</span>
+                                    {% elif kayit.vade_durumu == 'vade_yarin' %}
+                                    <span class="badge bg-info">Yarın</span>
+                                    {% else %}
+                                    <span class="badge bg-success">{{ kayit.kalan_gun }} gün</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if kayit.banka_adi %}
+                                    <span>{{ kayit.banka_adi }}</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if kayit.aciklama and kayit.aciklama != 'nan' %}
+                                    <span class="text-muted" title="{{ kayit.aciklama }}">{{ kayit.aciklama|truncatechars:30 }}</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end align-middle" style="min-width: 7.5rem;">
+                                    <div class="dropdown action-menu-dropdown d-inline-block">
+                                        <button class="btn btn-sm btn-mrk-ops dropdown-toggle" type="button"
+                                            data-bs-toggle="dropdown" data-bs-boundary="viewport"
+                                            data-bs-offset="0,6" aria-expanded="false" aria-haspopup="true">
+                                            <i class="bi bi-three-dots-vertical me-1" aria-hidden="true"></i>İşlemler
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            {% if kayit.durum != 'ciro' %}
+                                            <li>
+                                                <button type="button" class="dropdown-item"
+                                                    onclick="showCiroModal({{ kayit.id }})">
+                                                    <i class="bi bi-arrow-right-circle text-primary"></i>Ciro et
+                                                </button>
+                                            </li>
+                                            {% endif %}
+                                            {% if kayit.durum != 'odendi' %}
+                                            <li>
+                                                <button type="button" class="dropdown-item"
+                                                    onclick="changeStatus({{ kayit.id }}, 'odendi')">
+                                                    <i class="bi bi-check2-circle text-success"></i>Ödendi
+                                                </button>
+                                            </li>
+                                            {% endif %}
+                                            {% if kayit.durum != 'beklemede' %}
+                                            <li>
+                                                <button type="button" class="dropdown-item"
+                                                    onclick="changeStatus({{ kayit.id }}, 'beklemede')">
+                                                    <i class="bi bi-clock text-warning"></i>Beklemede
+                                                </button>
+                                            </li>
+                                            {% endif %}
+                                            {% if kayit.durum != 'iptal' %}
+                                            <li>
+                                                <button type="button" class="dropdown-item"
+                                                    onclick="changeStatus({{ kayit.id }}, 'iptal')">
+                                                    <i class="bi bi-x-circle text-danger"></i>İptal
+                                                </button>
+                                            </li>
+                                            {% endif %}
+                                            <li><hr class="dropdown-divider my-1"></li>
+                                            <li>
+                                                <button type="button" class="dropdown-item"
+                                                    onclick="editKayit({{ kayit.id }})">
+                                                    <i class="bi bi-pencil text-secondary"></i>Düzenle
+                                                </button>
+                                            </li>
+                                            <li>
+                                                <button type="button" class="dropdown-item text-danger"
+                                                    onclick="deleteKayit({{ kayit.id }})">
+                                                    <i class="bi bi-trash"></i>Sil
+                                                </button>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="10" class="text-center py-4">
+                                    <i class="bi bi-inbox display-4 text-muted"></i>
+                                    <p class="text-muted mt-2">Henüz kayıt bulunmuyor.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="cek-tutar-tfoot">
+                            <tr>
+                                <td colspan="3" class="text-end text-muted">Net (Giden − Gelen)</td>
+                                <td class="tutar-total-cell {% if odenmesi_gereken_tutar < 0 %}text-success{% elif odenmesi_gereken_tutar > 0 %}text-danger{% endif %}">₺{{ odenmesi_gereken_tutar|floatformat:0|intcomma }}</td>
+                                <td colspan="6"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if active_main_tab == 'yillik' %}
+        <!-- Yıllık ödeme özeti (vade ayı bazında) -->
+        <div class="cek-sekme-panel" id="yillik-ozet" role="tabpanel" aria-labelledby="yillik-tab">
+            <div class="cek-yillik-ozet-card">
+                <div class="ozet-head">
+                    <div>
+                        <h2><i class="bi bi-graph-up-arrow me-2" aria-hidden="true"></i>{{ yillik_ozet_yil }} yılı — aylık ödeme takvimi</h2>
+                        <p>Kayıtlar <strong>vade tarihinin ayına</strong> göre gruplanır. <strong>Gelen</strong> ve <strong>giden</strong> tutarlar tip alanına göre; <strong>net (Giden − Gelen)</strong> o ay için ödeme dengesini gösterir. İptal edilen kayıtlar dahil edilmez. Liste sekmesindeki filtreler bu tabloyu etkilemez.</p>
+                    </div>
+                    <form method="get" action="{% url 'tahsilat:cek_senetler' %}" class="d-flex align-items-center gap-2 flex-shrink-0">
+                        <input type="hidden" name="tab" value="yillik">
+                        <input type="hidden" name="sekme" value="yillik">
+                        <label class="form-label mb-0 small text-muted" for="ozetYilSelect">Yıl</label>
+                        <select name="ozet_yil" id="ozetYilSelect" class="form-select form-select-sm" style="width: auto; min-width: 6.5rem;" onchange="this.form.submit()">
+                            {% for y in yillik_yil_secenekleri %}
+                            <option value="{{ y }}" {% if y == yillik_ozet_yil %}selected{% endif %}>{{ y }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover cek-yillik-ozet-table mb-0">
+                        <thead>
+                            <tr>
+                                <th scope="col">Ay</th>
+                                <th scope="col" class="num">Kayıt</th>
+                                <th scope="col" class="num">Gelen</th>
+                                <th scope="col" class="num">Giden</th>
+                                <th scope="col" class="num">Net (Giden − Gelen)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for satir in yillik_ay_satirlari %}
+                            <tr class="{% if yillik_ozet_yil == today.year and satir.month == today.month %}is-bu-ay{% endif %}">
+                                <td><strong>{{ satir.month_name }}</strong></td>
+                                <td class="num text-muted">{{ satir.adet }}</td>
+                                <td class="num">₺{{ satir.gelen|floatformat:0|intcomma }}</td>
+                                <td class="num">₺{{ satir.giden|floatformat:0|intcomma }}</td>
+                                <td class="num {% if satir.net > 0 %}net-pos{% elif satir.net < 0 %}net-neg{% endif %}">₺{{ satir.net|floatformat:0|intcomma }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td>Yıl toplamı</td>
+                                <td class="num text-muted">—</td>
+                                <td class="num">₺{{ yillik_toplam_gelen|floatformat:0|intcomma }}</td>
+                                <td class="num">₺{{ yillik_toplam_giden|floatformat:0|intcomma }}</td>
+                                <td class="num {% if yillik_toplam_net > 0 %}net-pos{% elif yillik_toplam_net < 0 %}net-neg{% endif %}">₺{{ yillik_toplam_net|floatformat:0|intcomma }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- Ciro Modal -->
+    <div class="modal fade" id="ciroModal" tabindex="-1" aria-labelledby="ciroModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ciroModalLabel">Ciro Et</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="ciroForm">
+                        <div class="mb-3">
+                            <label for="ciroAciklama" class="form-label">Açıklama</label>
+                            <textarea class="form-control" id="ciroAciklama" name="aciklama" rows="3"
+                                placeholder="Ciro işlemi için açıklama yazın..."></textarea>
+                        </div>
+                        <input type="hidden" id="ciroKayitId" name="kayit_id">
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmCiro()">Ciro Et</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Excel İçe Aktar Modal -->
+    <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importModalLabel">
+                        <i class="bi bi-file-earmark-excel me-2"></i>Excel'den İçe Aktar
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <form method="POST" action="{% url 'tahsilat:import_cek_senetler_excel' %}"
+                    enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <h6><i class="bi bi-info-circle me-2"></i>Excel Şablonu Kullanımı</h6>
+                            <ul class="mb-0">
+                                <li>Excel dosyanızı şablona uygun formatta hazırlayın</li>
+                                <li>* işaretli alanlar zorunludur</li>
+                                <li>Tarihler DD.MM.YYYY formatında olmalıdır</li>
+                                <li>Tutar alanı sayısal değer olmalıdır</li>
+                            </ul>
+                            <div class="mt-2">
+                                <a href="{% url 'tahsilat:download_cek_senetler_template' %}"
+                                    class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-download me-2"></i>Excel Şablonunu İndir
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="excel_file" class="form-label">
+                                <i class="bi bi-file-earmark-excel me-2"></i>Excel Dosyası Seçin
+                            </label>
+                            <input type="file" class="form-control" id="excel_file" name="excel_file"
+                                accept=".xlsx,.xls" required>
+                            <div class="form-text">Sadece .xlsx ve .xls dosyaları desteklenir</div>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-exclamation-triangle me-2"></i>Önemli Notlar</h6>
+                            <ul class="mb-0">
+                                <li><strong>Ödeme Türü:</strong> Çek, Senet, Kredi, Kredi Kartı</li>
+                                <li><strong>Tip:</strong> Gelen, Giden</li>
+                                <li><strong>Durum:</strong> Beklemede, Ciro, Ödendi, İptal</li>
+                                <li><strong>Cari Kod:</strong> 320. ile başlayanlar TEDARİKÇİ, 120. ile
+                                    başlayanlar
+                                    MÜŞTERİ</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-2"></i>İptal
+                        </button>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-upload me-2"></i>İçe Aktar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ekleme Modal -->
+    <div class="modal fade" id="ekleModal" tabindex="-1" aria-labelledby="ekleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ekleModalLabel">
+                        <i class="bi bi-plus-circle me-2"></i>Yeni Çek/Senet Ekle
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <form method="POST" action="{% url 'tahsilat:cek_senet_ekle' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Ödeme Türü *</label>
+                                <select name="odeme_turu" class="form-select" required>
+                                    <option value="">Seçiniz</option>
+                                    {% for choice in odeme_turu_choices %}
+                                    <option value="{{ choice.0 }}">{{ choice.1 }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tip *</label>
+                                <select name="tip" class="form-select" required>
+                                    <option value="">Seçiniz</option>
+                                    {% for choice in tip_choices %}
+                                    <option value="{{ choice.0 }}">{{ choice.1 }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tutar *</label>
+                                <input type="number" name="tutar" class="form-control" step="0.01" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">İşlem Tarihi *</label>
+                                <input type="date" name="islem_tarihi" class="form-control"
+                                    value="{{ today|date:'Y-m-d' }}" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Vade Tarihi *</label>
+                                <input type="date" name="vade_tarihi" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <label class="form-label">Cari *</label>
+                                <div class="cari-dropdown-container">
+                                    <input type="text" id="cariSearch" class="form-control"
+                                        placeholder="Cari kod veya ünvan yazın..." autocomplete="off">
+                                    <input type="hidden" name="cari_kod" id="cariKod" required>
+                                    <input type="hidden" name="cari_unvan" id="cariUnvan" required>
+                                    <div class="cari-dropdown" id="cariDropdown"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Banka Adı</label>
+                                <select name="banka_adi" class="form-select">
+                                    <option value="">Banka Seçiniz</option>
+                                    <option value="AKBANK">AKBANK</option>
+                                    <option value="ALBARAKA">ALBARAKA</option>
+
+                                    <option value="DENİZBANK">DENİZBANK</option>
+                                    <option value="GARANTİ BANKASI">GARANTİ BANKASI</option>
+                                    <option value="HALK BANKASI">HALK BANKASI</option>
+                                    <option value="İŞBANKASI">İŞBANKASI</option>
+                                    <option value="KUVEYTTÜRK">KUVEYTTÜRK</option>
+                                    <option value="QNB BANK">QNB BANK</option>
+                                    <option value="ŞEKERBANK">ŞEKERBANK</option>
+                                    <option value="TEB">TEB</option>
+                                    <option value="VAKIFBANK">VAKIFBANK</option>
+                                    <option value="YAPIKREDİ">YAPIKREDİ</option>
+                                    <option value="ZİRAAT BANKASI">ZİRAAT BANKASI</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Çek/Senet No</label>
+                                <input type="text" name="cek_senet_no" class="form-control">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Kredi Türü</label>
+                                <input type="text" name="kredi_turu" class="form-control">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Faiz Oranı (%)</label>
+                                <input type="number" name="faiz_orani" class="form-control" step="0.01">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Taksit Sayısı</label>
+                                <input type="number" name="taksit_sayisi" class="form-control">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <label class="form-label">Açıklama</label>
+                                <textarea name="aciklama" class="form-control" rows="3"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-primary">Kaydet</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Düzenleme Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editModalLabel">
+                        <i class="bi bi-pencil me-2"></i>Çek/Senet Düzenle
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <form method="POST" id="editForm" action="">
+                    {% csrf_token %}
+                    <div class="modal-body" id="editModalBody">
+                        <!-- Düzenleme formu buraya yüklenecek -->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-primary">Güncelle</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function editKayit(id) {
+        // AJAX ile kayıt bilgilerini getir ve modal'ı doldur
+        fetch(`/cek-senetler/edit/${id}/`)
+            .then(response => response.text())
+            .then(html => {
+                document.getElementById('editModalBody').innerHTML = html;
+                document.getElementById('editForm').action = `/cek-senetler/edit/${id}/`;
+                new bootstrap.Modal(document.getElementById('editModal')).show();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Kayıt bilgileri yüklenirken hata oluştu.');
+            });
+    }
+
+    function deleteKayit(id) {
+        if (confirm('Bu kaydı silmek istediğinizden emin misiniz?')) {
+            window.location.href = `/cek-senetler/delete/${id}/`;
+        }
+    }
+
+    function showCiroModal(id) {
+        document.getElementById('ciroKayitId').value = id;
+        document.getElementById('ciroAciklama').value = '';
+        const modal = new bootstrap.Modal(document.getElementById('ciroModal'));
+        modal.show();
+    }
+
+    function confirmCiro() {
+        const kayitId = document.getElementById('ciroKayitId').value;
+        const aciklama = document.getElementById('ciroAciklama').value.trim();
+
+        if (!aciklama) {
+            alert('Lütfen ciro işlemi için açıklama yazın.');
+            return;
+        }
+
+        if (confirm('Bu kaydı ciro durumuna değiştirmek istediğinizden emin misiniz?')) {
+            // AJAX ile durum değiştirme
+            fetch(`{% url 'tahsilat:change_cek_senet_status' %}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    id: kayitId,
+                    status: 'ciro',
+                    aciklama: aciklama
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Modal'ı kapat
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('ciroModal'));
+                        modal.hide();
+                        // Sayfayı yenile
+                        location.reload();
+                    } else {
+                        alert('Durum değiştirilirken hata oluştu: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Durum değiştirilirken hata oluştu.');
+                });
+        }
+    }
+
+    function changeStatus(id, newStatus) {
+        const statusNames = {
+            'beklemede': 'Beklemede',
+            'odendi': 'Ödendi',
+            'iptal': 'İptal'
+        };
+
+        const statusName = statusNames[newStatus];
+
+        if (confirm(`${statusName} durumuna değiştirmek istediğinizden emin misiniz?`)) {
+            // AJAX ile durum değiştirme
+            fetch(`{% url 'tahsilat:change_cek_senet_status' %}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    id: id,
+                    status: newStatus
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Sayfayı yenile
+                        location.reload();
+                    } else {
+                        alert('Durum değiştirilirken hata oluştu: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Durum değiştirilirken hata oluştu.');
+                });
+        }
+    }
+
+    // Form validasyonu
+    document.addEventListener('DOMContentLoaded', function () {
+        // Cari dropdown işlevselliği
+        const cariSearch = document.getElementById('cariSearch');
+        const cariDropdown = document.getElementById('cariDropdown');
+        const cariKod = document.getElementById('cariKod');
+        const cariUnvan = document.getElementById('cariUnvan');
+        let searchTimeout;
+
+        if (cariSearch) {
+            // Input'a odaklanınca ilk kayıtları getir (boş arama → ilk 20)
+            cariSearch.addEventListener('focus', function () {
+                if (!cariSearch.value.trim()) {
+                    fetchCariListesi('');
+                }
+            });
+
+            cariSearch.addEventListener('input', function () {
+                clearTimeout(searchTimeout);
+                const searchTerm = this.value.trim();
+
+                if (searchTerm.length >= 2) {
+                    searchTimeout = setTimeout(() => {
+                        fetchCariListesi(searchTerm);
+                    }, 300);
+                } else {
+                    cariDropdown.classList.remove('show');
+                    cariDropdown.innerHTML = '';
+                }
+            });
+
+            // Dropdown dışına tıklandığında kapat
+            document.addEventListener('click', function (e) {
+                if (!e.target.closest('.cari-dropdown-container')) {
+                    cariDropdown.classList.remove('show');
+                }
+            });
+        }
+
+        function fetchCariListesi(searchTerm) {
+            console.log('Cari arama başlatılıyor:', searchTerm);
+            fetch(`{% url 'tahsilat:get_cari_listesi_ajax' %}?search=${encodeURIComponent(searchTerm)}`)
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Cari listesi response:', data);
+                    if (data.success) {
+                        displayCariListesi(data.data);
+                    } else {
+                        console.error('Cari listesi hatası:', data.error);
+                        alert('Cari listesi alınırken hata oluştu: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('AJAX hatası:', error);
+                    alert('AJAX hatası: ' + error.message);
+                });
+        }
+
+        function displayCariListesi(cariListesi) {
+            cariDropdown.innerHTML = '';
+
+            if (cariListesi.length === 0) {
+                cariDropdown.innerHTML = '<div class="cari-item text-muted">Cari bulunamadı</div>';
+            } else {
+                cariListesi.forEach(cari => {
+                    // Farklı anahtar adlarını destekle (code/definition ya da cari_kod/cari_unvan)
+                    const code = cari.code || cari.cari_kod || '';
+                    const definition = cari.definition || cari.cari_unvan || '';
+                    const title = cari.title || '';
+                    const item = document.createElement('div');
+                    item.className = 'cari-item';
+                    item.innerHTML = `
+                    <div class="cari-code">${code}</div>
+                    <div class="cari-definition">${definition}</div>
+                    ${title ? `<div class="cari-title">${title}</div>` : ''}
+                `;
+
+                    item.addEventListener('click', function () {
+                        cariSearch.value = `${code} - ${definition}`;
+                        cariKod.value = code;
+                        cariUnvan.value = definition;
+                        cariDropdown.classList.remove('show');
+                    });
+
+                    cariDropdown.appendChild(item);
+                });
+            }
+
+            cariDropdown.classList.add('show');
+        }
+
+        const forms = document.querySelectorAll('form');
+        forms.forEach(form => {
+            form.addEventListener('submit', function (e) {
+                const requiredFields = form.querySelectorAll('[required]');
+                let isValid = true;
+
+                requiredFields.forEach(field => {
+                    if (!field.value.trim()) {
+                        field.classList.add('is-invalid');
+                        isValid = false;
+                    } else {
+                        field.classList.remove('is-invalid');
+                    }
+                });
+
+                if (!isValid) {
+                    e.preventDefault();
+                    alert('Lütfen tüm zorunlu alanları doldurun.');
+                }
+            });
+        });
+
+        // Ay seçimi dropdown (yalnızca liste sekmesinde DOM'da vardır)
+        const aySelectedText = document.getElementById('aySelectedText');
+        const aySelectedCount = document.getElementById('aySelectedCount');
+        const ayDropdown = document.getElementById('ayDropdown');
+        if (aySelectedText && aySelectedCount && ayDropdown) {
+            const ayCheckboxes = document.querySelectorAll('.ay-checkbox');
+            const monthNames = [
+                'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+                'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+            ];
+
+            function updateAyDropdownText() {
+                const selected = Array.from(ayCheckboxes)
+                    .filter(cb => cb.checked)
+                    .map(cb => {
+                        const parts = cb.value.split('-');
+                        const monthPart = parts.length > 1 ? parts[1] : parts[0];
+                        const yearPart = parts.length > 1 ? parts[0] : '';
+                        const monthIndex = parseInt(monthPart, 10) - 1;
+                        const monthName = monthNames[monthIndex] || cb.value;
+                        return yearPart ? `${monthName} ${yearPart}` : monthName;
+                    });
+
+                if (selected.length === 0) {
+                    aySelectedText.textContent = 'Ay seçiniz...';
+                    aySelectedCount.style.display = 'none';
+                } else if (selected.length === 1) {
+                    aySelectedText.textContent = selected[0];
+                    aySelectedCount.style.display = 'none';
+                } else {
+                    aySelectedText.textContent = `${selected.length} ay seçildi`;
+                    aySelectedCount.textContent = selected.length;
+                    aySelectedCount.style.display = 'inline-block';
+                }
+            }
+
+            ayCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', updateAyDropdownText);
+                checkbox.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                });
+            });
+
+            updateAyDropdownText();
+
+            const selectAllMonths = document.getElementById('selectAllMonths');
+            if (selectAllMonths) {
+                selectAllMonths.addEventListener('change', function () {
+                    ayCheckboxes.forEach(checkbox => {
+                        checkbox.checked = this.checked;
+                    });
+                    updateAyDropdownText();
+                });
+
+                function updateSelectAll() {
+                    const allChecked = Array.from(ayCheckboxes).every(cb => cb.checked);
+                    const someChecked = Array.from(ayCheckboxes).some(cb => cb.checked);
+                    selectAllMonths.checked = allChecked;
+                    selectAllMonths.indeterminate = someChecked && !allChecked;
+                }
+
+                ayCheckboxes.forEach(checkbox => {
+                    checkbox.addEventListener('change', updateSelectAll);
+                });
+                updateSelectAll();
+            }
+
+            updateAyDropdownText();
+
+            const dropdownMenu = ayDropdown.querySelector('.dropdown-menu');
+            if (dropdownMenu) {
+                dropdownMenu.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                });
+            }
+        }
+    });
+</script>
+
+{% endblock %}

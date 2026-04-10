@@ -1,0 +1,2040 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Çek ve Senetler - MRK OTOMOTİV{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stats-card {
+        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 16px 14px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .stats-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    .stats-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Gelen kayıtlar - Yeşil tonları */
+    .stats-card-gelen {
+        background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%) !important;
+    }
+
+    /* Giden kayıtlar - Kırmızı tonları */
+    .stats-card-giden {
+        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
+    }
+
+    /* Çek - Gelen - Yeşil tonları */
+    .stats-card-cek-gelen {
+        background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%) !important;
+    }
+
+    /* Çek - Giden - Kırmızı tonları */
+    .stats-card-cek-giden {
+        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
+    }
+
+    /* Senet - Gelen - Yeşil tonları */
+    .stats-card-senet-gelen {
+        background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%) !important;
+    }
+
+    /* Senet - Giden - Kırmızı tonları */
+    .stats-card-senet-giden {
+        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
+    }
+
+    /* Kredi - Mavi tonları */
+    .stats-card-kredi {
+        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%) !important;
+    }
+
+    /* Kredi Kartı - Mavi tonları */
+    .stats-card-kredi-karti {
+        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%) !important;
+    }
+
+    .stats-card h5 {
+        font-size: 0.75rem;
+        margin-bottom: 8px;
+        opacity: 0.95;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+
+    .stats-card h5 i {
+        font-size: 0.9rem;
+    }
+
+    .stats-card h3 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0;
+        line-height: 1.2;
+    }
+
+    .stats-card h4 {
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin: 0;
+        line-height: 1.2;
+    }
+
+    .stats-card h6 {
+        font-size: 0.75rem;
+        font-weight: 600;
+        opacity: 0.95;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .stats-card small {
+        font-size: 0.7rem;
+        opacity: 0.85;
+        display: block;
+        margin-top: 6px;
+        font-weight: 500;
+    }
+
+    /* Kompakt kartlar için özel stil */
+    .stats-card-compact {
+        padding: 12px 10px;
+    }
+
+    .stats-card-compact h6 {
+        font-size: 0.7rem;
+        margin-bottom: 6px;
+    }
+
+    .stats-card-compact h4 {
+        font-size: 1.1rem;
+    }
+
+    .stats-card-compact small {
+        font-size: 0.65rem;
+        margin-top: 4px;
+    }
+
+    /* Responsive optimizasyonlar */
+    @media (max-width: 768px) {
+        .stats-card {
+            padding: 14px 12px;
+        }
+
+        .stats-card h3 {
+            font-size: 1.3rem;
+        }
+
+        .stats-card h4 {
+            font-size: 1.1rem;
+        }
+
+        .stats-card h5 {
+            font-size: 0.7rem;
+        }
+
+        .stats-card-compact {
+            padding: 10px 8px;
+        }
+
+        .stats-card-compact h4 {
+            font-size: 1rem;
+        }
+
+        /* Responsive butonlar */
+        .action-buttons {
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .action-btn {
+            width: 100%;
+            justify-content: center;
+            padding: 8px 4px;
+        }
+
+        .action-btn span {
+            display: none;
+        }
+
+        /* Tablo hücresinde overflow kontrolü */
+        .table td {
+            overflow: visible !important;
+        }
+
+        .table {
+            overflow: visible !important;
+        }
+
+        .table-container {
+            overflow: visible !important;
+        }
+
+        /* Footer Toplam Stilleri */
+        .table-footer {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 20px;
+            border: 2px solid #e9ecef;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .table-footer .row {
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .table-footer .col-md-3 {
+            width: 100%;
+            text-align: center;
+        }
+
+        .total-info {
+            justify-content: center;
+        }
+
+        /* Sabit Footer */
+        .fixed-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 15px 20px;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+            border-top: 3px solid #3498db;
+        }
+
+        .fixed-footer .row {
+            margin: 0;
+        }
+
+        .fixed-footer .col-md-3 {
+            padding: 0 10px;
+        }
+
+        .fixed-footer .total-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .fixed-footer .total-label {
+            font-weight: 600;
+            color: #ecf0f1;
+            font-size: 0.9rem;
+        }
+
+        .fixed-footer .total-value {
+            font-weight: 700;
+            color: #3498db;
+            font-size: 1rem;
+        }
+
+        .fixed-footer .total-amount {
+            font-weight: 700;
+            color: #2ecc71;
+            font-size: 1.1rem;
+        }
+
+        .fixed-footer .total-amount.text-danger {
+            color: #e74c3c !important;
+        }
+
+        .fixed-footer .total-amount.text-success {
+            color: #2ecc71 !important;
+        }
+
+        /* Sayfa içeriği için alt boşluk */
+        body {
+            padding-bottom: 80px;
+        }
+
+        /* Sekme Stilleri */
+        .nav-tabs {
+            border-bottom: 2px solid #e9ecef;
+            margin-bottom: 30px;
+        }
+
+        .nav-tabs .nav-link {
+            border: none;
+            border-radius: 10px 10px 0 0;
+            margin-right: 5px;
+            padding: 12px 20px;
+            font-weight: 600;
+            color: #6c757d;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+        }
+
+        .nav-tabs .nav-link:hover {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .nav-tabs .nav-link.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+        }
+
+        .tab-content {
+            background: white;
+            border-radius: 0 15px 15px 15px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Takvim Stilleri */
+        .calendar-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+        }
+
+        .calendar-nav {
+            display: flex;
+            gap: 10px;
+        }
+
+        .calendar-nav button {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .calendar-nav button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .calendar-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .total-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .total-label {
+            font-weight: 600;
+            color: #495057;
+            font-size: 1rem;
+        }
+
+        .total-value {
+            font-weight: 700;
+            color: #2c3e50;
+            font-size: 1.1rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .total-amount {
+            font-weight: 700;
+            color: #27ae60;
+            font-size: 1.3rem;
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .total-amount.text-danger {
+            color: #e74c3c !important;
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .total-amount.text-success {
+            color: #27ae60 !important;
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Sabit Footer Responsive */
+        .fixed-footer {
+            padding: 10px 15px;
+        }
+
+        .fixed-footer .col-md-3 {
+            padding: 0 5px;
+            margin-bottom: 5px;
+        }
+
+        .fixed-footer .total-info {
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .fixed-footer .total-label {
+            font-size: 0.8rem;
+        }
+
+        .fixed-footer .total-value,
+        .fixed-footer .total-amount {
+            font-size: 0.9rem;
+        }
+
+        body {
+            padding-bottom: 120px;
+        }
+
+        .action-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid #f8f9fa;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .action-item:last-child {
+            border-bottom: none;
+        }
+
+        .action-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .action-item.ciro:hover {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .action-item.odendi:hover {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .action-item.iptal:hover {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+
+        .action-item.beklemede:hover {
+            background-color: #fff3e0;
+            color: #f57c00;
+        }
+
+        .action-item.onaylandi:hover {
+            background-color: #e1f5fe;
+            color: #0277bd;
+        }
+
+        .action-icon {
+            font-size: 1.1rem;
+            width: 20px;
+            text-align: center;
+        }
+
+        .action-text {
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .action-description {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 2px;
+        }
+
+        .stats-card h3 {
+            font-size: 1.4rem;
+        }
+
+        .table-responsive {
+            font-size: 0.85rem;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+        }
+
+        .filter-card,
+        .table-card {
+            padding: 15px;
+        }
+    }
+
+    /* Responsive optimizasyonlar - 576px ve altı */
+    @media (max-width: 576px) {
+        .stats-card {
+            padding: 12px 10px;
+        }
+
+        .stats-card h3 {
+            font-size: 1.2rem;
+        }
+
+        .stats-card h4 {
+            font-size: 1rem;
+        }
+
+        .stats-card h5 {
+            font-size: 0.65rem;
+        }
+
+        .stats-card small {
+            font-size: 0.65rem;
+        }
+
+        /* Grid spacing optimizasyonu */
+        .row.g-3 {
+            --bs-gutter-x: 0.75rem;
+            --bs-gutter-y: 0.75rem;
+        }
+
+        .row.g-2 {
+            --bs-gutter-x: 0.5rem;
+            --bs-gutter-y: 0.5rem;
+        }
+
+    }
+
+        .filter-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e9ecef;
+        }
+
+        .table-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e9ecef;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-weight: 600;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-weight: 600;
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-weight: 600;
+        }
+
+        .table {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .table thead th {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            border: none;
+            font-weight: 700;
+            padding: 18px 12px;
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: relative;
+        }
+
+        .table thead th::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #3498db, #e74c3c, #f39c12, #27ae60);
+        }
+
+        .table tbody td {
+            padding: 12px 8px;
+            vertical-align: middle;
+            border-color: #f1f3f4;
+            background: white;
+            transition: all 0.3s ease;
+            position: relative;
+            font-size: 0.85rem;
+        }
+
+        .cari-unvan-cell {
+            min-width: 220px;
+            white-space: normal !important;
+        }
+
+        .table tbody tr {
+            transition: all 0.3s ease;
+            border-bottom: 1px solid #f1f3f4;
+        }
+
+        .table tbody tr:hover {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            margin: 4px 0;
+        }
+
+        .table tbody tr:hover td {
+            background: transparent;
+            border-color: transparent;
+        }
+
+        .badge {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+            display: inline-block;
+            white-space: nowrap;
+        }
+
+        .badge:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Ödeme Türü Renklendirme */
+        .badge-odeme-cek {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%) !important;
+            color: white !important;
+        }
+
+        .badge-odeme-senet {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
+            color: white !important;
+        }
+
+        .badge-odeme-kredi {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%) !important;
+            color: white !important;
+        }
+
+        .badge-odeme-kredi-karti {
+            background: linear-gradient(135deg, #16a085 0%, #1abc9c 100%) !important;
+            color: white !important;
+        }
+
+        /* Underscore varyasyonu (kredi_karti) için aynı renk */
+        .badge-odeme-kredi_karti {
+            background: linear-gradient(135deg, #16a085 0%, #1abc9c 100%) !important;
+            color: white !important;
+        }
+
+        /* Tip Renklendirme */
+        .badge-tip-gelen {
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%) !important;
+            color: white !important;
+        }
+
+        .badge-tip-giden {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
+            color: white !important;
+        }
+
+        .badge.bg-info {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%) !important;
+        }
+
+        .badge.bg-success {
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%) !important;
+        }
+
+        .badge.bg-warning {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%) !important;
+        }
+
+        .badge.bg-primary {
+            background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%) !important;
+        }
+
+        .badge.bg-secondary {
+            background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%) !important;
+        }
+
+        .badge.bg-danger {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
+        }
+
+        .form-control,
+        .form-select {
+            border-radius: 12px;
+            border: 2px solid #e9ecef;
+            padding: 12px 18px;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Ay seçimi dropdown stilleri */
+        #ayDropdown .dropdown-menu {
+            padding: 0.5rem 0;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        #ayDropdown .dropdown-item {
+            padding: 0.5rem 1rem;
+            transition: background-color 0.2s ease;
+        }
+
+        #ayDropdown .dropdown-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        #ayDropdown .dropdown-item label {
+            cursor: pointer;
+            margin: 0;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            user-select: none;
+        }
+
+        #ayDropdown .form-check-input {
+            margin-top: 0;
+            cursor: pointer;
+        }
+
+        #ayDropdown .dropdown-toggle::after {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+            transform: translateY(-2px);
+        }
+
+        .modal-content {
+            border-radius: 20px;
+            border: none;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 25px 30px;
+            position: relative;
+        }
+
+        .modal-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, rgba(255, 255, 255, 0.1) 0%, transparent 100%);
+            pointer-events: none;
+        }
+
+        .modal-title {
+            font-weight: 700;
+            font-size: 1.3rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .modal-body {
+            padding: 30px;
+        }
+
+        .pagination {
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .page-link {
+            border-radius: 8px;
+            margin: 0 2px;
+            border: 2px solid #e9ecef;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .page-link:hover {
+            background-color: #667eea;
+            border-color: #667eea;
+            color: white;
+        }
+
+        .page-item.active .page-link {
+            background-color: #667eea;
+            border-color: #667eea;
+        }
+
+        .vade-durumu {
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .vade-normal {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .vade-yakin {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .vade-bugun {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .vade-gecti {
+            background-color: #f5c6cb;
+            color: #721c24;
+        }
+
+        /* Cari Dropdown Stilleri */
+        .cari-dropdown-container {
+            position: relative;
+        }
+
+        .cari-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #e9ecef;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .cari-dropdown.show {
+            display: block;
+        }
+
+        .cari-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f8f9fa;
+            transition: background-color 0.2s ease;
+        }
+
+        .cari-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .cari-item:last-child {
+            border-bottom: none;
+        }
+
+        .cari-code {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .cari-definition {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        .cari-title {
+            font-size: 0.8rem;
+            color: #adb5bd;
+            font-style: italic;
+        }
+
+        /* Yeni İşlem Butonları */
+        .action-buttons {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .action-btn {
+            padding: 4px 6px;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            min-width: 28px;
+            height: 28px;
+            white-space: nowrap;
+            flex: 0 0 auto;
+        }
+
+        .action-btn span {
+            display: none;
+        }
+
+        @media (min-width: 1400px) {
+            .action-btn {
+                padding: 4px 10px;
+                height: auto;
+                min-width: auto;
+            }
+
+            .action-btn span {
+                display: inline;
+            }
+        }
+
+        .action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .action-btn i {
+            font-size: 0.8rem;
+        }
+
+        .action-btn span {
+            font-size: 0.7rem;
+        }
+
+        .btn-ciro {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+        }
+
+        .btn-odendi {
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+            color: white;
+        }
+
+        .btn-beklemede {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            color: white;
+        }
+
+        .btn-iptal {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+        }
+
+        .btn-edit {
+            background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
+            color: white;
+        }
+
+        .btn-delete {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+        }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Sayfa Başlığı -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-0">
+                        <i class="bi bi-receipt me-2"></i>
+                        Çek ve Senetler
+                    </h2>
+                    <p class="text-muted mb-0">Çek, senet, kredi ve kredi kartı ödeme takibi - Vade tarihine göre sıralı
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#importModal">
+                        <i class="bi bi-file-earmark-excel me-2"></i>Excel'den İçe Aktar
+                    </button>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#ekleModal">
+                        <i class="bi bi-plus-circle me-2"></i>Yeni Kayıt Ekle
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sekmeler -->
+    <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button"
+                role="tab" aria-controls="list" aria-selected="true">
+                <i class="bi bi-list-ul me-2"></i>Liste Görünümü
+            </button>
+        </li>
+
+    </ul>
+
+    <!-- Sekme İçerikleri -->
+    <div class="tab-content" id="mainTabsContent">
+        <!-- Liste Görünümü -->
+        <div class="tab-pane fade show active" id="list" role="tabpanel" aria-labelledby="list-tab">
+
+            <!-- Dashboard - 2 Kolonlu Yapı -->
+            <div class="row g-3 mb-3">
+                <!-- Sol Kolon - Genel İstatistikler -->
+                <div class="col-lg-6">
+                    <!-- Genel İstatistik Kartları -->
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <div class="stats-card stats-card-gelen text-center">
+                                <h5><i class="bi bi-arrow-down-circle"></i>Gelen Toplam</h5>
+                                <h3>₺{{ gelen_odemeler|floatformat:0|intcomma }}</h3>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-card stats-card-giden text-center">
+                                <h5><i class="bi bi-arrow-up-circle"></i>Giden Toplam</h5>
+                                <h3>₺{{ giden_odemeler|floatformat:0|intcomma }}</h3>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-card text-center">
+                                <h5><i class="bi bi-hourglass-split"></i>Beklemede</h5>
+                                <h3>₺{{ stats.beklemede_tutar|floatformat:0|intcomma }}</h3>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-card text-center">
+                                <h5><i class="bi bi-check-circle"></i>Ödendi</h5>
+                                <h3>₺{{ stats.odendi_tutar|floatformat:0|intcomma }}</h3>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-card text-center">
+                                <h5><i class="bi bi-exclamation-triangle"></i>Vadesi Geçti</h5>
+                                <h3>₺{{ stats.vadesi_gecti_tutar|floatformat:0|intcomma }}</h3>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-card text-center">
+                                <h5><i class="bi bi-list-ul"></i>Toplam Kayıt</h5>
+                                <h3>{{ page_obj.count }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sağ Kolon - Çek/Senet ve Kredi Banka Bazlı Toplamlar -->
+                <div class="col-lg-6">
+                    <!-- Çek ve Senet İstatistik Kartları -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <div class="stats-card stats-card-cek-gelen text-center">
+                                <h5><i class="bi bi-receipt"></i>Çek - Gelen</h5>
+                                <h3>₺{{ odeme_turu_stats.cek.gelen_tutar|floatformat:0|intcomma }}</h3>
+                                <small><i class="bi bi-file-earmark-text me-1"></i>{{ odeme_turu_stats.cek.gelen_adet }}
+                                    kayıt</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-card stats-card-cek-giden text-center">
+                                <h5><i class="bi bi-receipt"></i>Çek - Giden</h5>
+                                <h3>₺{{ odeme_turu_stats.cek.giden_tutar|floatformat:0|intcomma }}</h3>
+                                <small><i class="bi bi-file-earmark-text me-1"></i>{{ odeme_turu_stats.cek.giden_adet }}
+                                    kayıt</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-card stats-card-senet-gelen text-center">
+                                <h5><i class="bi bi-file-earmark-text"></i>Senet - Gelen</h5>
+                                <h3>₺{{ odeme_turu_stats.senet.gelen_tutar|floatformat:0|intcomma }}</h3>
+                                <small><i class="bi bi-file-earmark-text me-1"></i>{{ odeme_turu_stats.senet.gelen_adet
+                                    }} kayıt</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-card stats-card-senet-giden text-center">
+                                <h5><i class="bi bi-file-earmark-text"></i>Senet - Giden</h5>
+                                <h3>₺{{ odeme_turu_stats.senet.giden_tutar|floatformat:0|intcomma }}</h3>
+                                <small><i class="bi bi-file-earmark-text me-1"></i>{{ odeme_turu_stats.senet.giden_adet
+                                    }} kayıt</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Kredi - Banka Bazlı Toplamlar -->
+                    <h5 class="mb-2 fw-bold"><i class="bi bi-bank me-2"></i>Kredi - Banka Bazlı Toplamlar</h5>
+                    <div class="row g-2">
+                        {% if kredi_banka_stats %}
+                        {% for banka, stats in kredi_banka_stats.items %}
+                        {% if stats.tutar > 0 %}
+                        <div class="col-lg-6 col-md-6 col-sm-6 col-6">
+                            <div class="stats-card stats-card-kredi stats-card-compact text-center">
+                                <h6><i class="bi bi-bank"></i>{{ banka }}</h6>
+                                <h4>₺{{ stats.tutar|floatformat:0|intcomma }}</h4>
+                                <small><i class="bi bi-file-earmark-text me-1"></i>{{ stats.adet }} kayıt</small>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% empty %}
+                        <div class="col-12">
+                            <div class="alert alert-info text-center py-2">
+                                <i class="bi bi-info-circle me-2"></i>Kredi kaydı bulunmamaktadır.
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <div class="col-12">
+                            <div class="alert alert-info text-center py-2">
+                                <i class="bi bi-info-circle me-2"></i>Kredi kaydı bulunmamaktadır.
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filtreleme Kartı -->
+            <div class="filter-card">
+                <h5 class="mb-3">
+                    <i class="bi bi-funnel me-2"></i>Filtreleme
+                </h5>
+                <form method="GET" id="filterForm">
+                    <div class="row">
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <label class="form-label">Ödeme Türü</label>
+                            <select name="odeme_turu" class="form-select">
+                                <option value="">Tümü</option>
+                                {% for choice in odeme_turu_choices %}
+                                <option value="{{ choice.0 }}" {% if filters.odeme_turu == choice.0 %}selected{% endif %}>
+                                    {{ choice.1 }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <label class="form-label">Tip</label>
+                            <select name="tip" class="form-select">
+                                <option value="">Tümü</option>
+                                {% for choice in tip_choices %}
+                                <option value="{{ choice.0 }}" {% if filters.tip == choice.0 %}selected{% endif %}>
+                                    {{ choice.1 }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <label class="form-label">Durum</label>
+                            <select name="durum" class="form-select">
+                                <option value="" {% if not filters.durum %}selected{% endif %}>Tümü</option>
+                                {% for choice in durum_choices %}
+                                <option value="{{ choice.0 }}" {% if filters.durum == choice.0 %}selected{% endif %}>
+                                    {{ choice.1 }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <label class="form-label">Cari Kod</label>
+                            <input type="text" name="cari_kod" class="form-control" value="{{ filters.cari_kod }}"
+                                placeholder="Cari kod ara...">
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <label class="form-label">Cari Ünvan</label>
+                            <input type="text" name="cari_unvan" class="form-control" value="{{ filters.cari_unvan }}"
+                                placeholder="Cari ünvan ara...">
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <label class="form-label">Vade Durumu</label>
+                            <select name="vade_durumu" class="form-select">
+                                <option value="">Tümü</option>
+                                <option value="vadesi_gecti" {% if filters.vade_durumu == 'vadesi_gecti' %}selected{% endif %}>Vadesi Geçenler</option>
+                                <option value="vade_bugun" {% if filters.vade_durumu == 'vade_bugun' %}selected{% endif %}>Vade Bugün</option>
+                                <option value="vade_yarin" {% if filters.vade_durumu == 'vade_yarin' %}selected{% endif %}>Vadesi Yarın</option>
+                                <option value="bu_hafta" {% if filters.vade_durumu == 'bu_hafta' %}selected{% endif %}>Bu Hafta</option>
+                                <option value="bu_ay" {% if filters.vade_durumu == 'bu_ay' %}selected{% endif %}>Bu Ay</option>
+                                <option value="gelecek_ay" {% if filters.vade_durumu == 'gelecek_ay' %}selected{% endif %}>Gelecek Ay</option>
+                            </select>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <label class="form-label">Banka</label>
+                            <select name="banka_adi" class="form-select">
+                                <option value="">Tümü</option>
+                                {% for banka in banka_listesi %}
+                                <option value="{{ banka }}" {% if filters.banka_adi == banka %}selected{% endif %}>{{ banka }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <label class="form-label">Ay Seçimi</label>
+                            <div class="dropdown" id="ayDropdown">
+                                <button class="btn btn-outline-secondary form-control text-start dropdown-toggle"
+                                    type="button" id="ayDropdownButton" data-bs-toggle="dropdown" aria-expanded="false"
+                                    style="position: relative;">
+                                    <span id="aySelectedText">Ay seçiniz...</span>
+                                    <span class="badge bg-primary ms-2" id="aySelectedCount"
+                                        style="display: none;">0</span>
+                                </button>
+                                <ul class="dropdown-menu" aria-labelledby="ayDropdownButton"
+                                    style="max-height: 300px; overflow-y: auto; width: 100%;">
+                                    <li>
+                                        <label class="dropdown-item"
+                                            style="cursor: pointer; margin: 0; font-weight: 600; border-bottom: 1px solid #dee2e6;">
+                                            <input type="checkbox" class="form-check-input me-2" id="selectAllMonths">
+                                            Hepsini Seç
+                                        </label>
+                                    </li>
+                                    {% for ym in available_months %}
+                                    <li class="dropdown-header text-primary fw-bold">{{ ym.year }}</li>
+                                    {% for m in ym.months %}
+                                    <li>
+                                        {% with month_str=m.num|stringformat:"02d" %}
+                                        {% with month_value=ym.year|stringformat:"s"|add:"-"|add:month_str %}
+                                        <label class="dropdown-item" style="cursor: pointer; margin: 0;">
+                                            <input type="checkbox" class="form-check-input me-2 ay-checkbox" name="ay"
+                                                value="{{ month_value }}" {% if filters.selected_months and month_value in filters.selected_months %}checked{% endif %}>
+                                            {{ m.name }}
+                                        </label>
+                                        {% endwith %}{% endwith %}
+                                    </li>
+                                    {% endfor %}
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            <small class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>Dropdown'dan ay seçimi yapabilirsiniz.
+                            </small>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-lg-8 col-md-12 mb-3 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary me-2">
+                                <i class="bi bi-search me-1"></i>Filtrele
+                            </button>
+                            <a href="{% url 'tahsilat:cek_senetler' %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Temizle
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Tablo Kartı -->
+            <div class="table-card">
+                <div class="table-responsive" style="overflow: visible;">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Ödeme Türü</th>
+                                <th>Tip</th>
+                                <th>Cari Ünvan</th>
+                                <th>Tutar</th>
+                                <th>Vade Tarihi</th>
+                                <th>Durum</th>
+                                <th>Kalan Gün</th>
+                                <th>Banka Adı</th>
+                                <th>Açıklama</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for kayit in page_obj %}
+                            <tr>
+                                <td>
+                                    <span class="badge badge-odeme-{{ kayit.odeme_turu }}">{{ kayit.get_odeme_turu_display }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge badge-tip-{{ kayit.tip }}">{{ kayit.get_tip_display }}</span>
+                                </td>
+                                <td class="cari-unvan-cell">
+                                    <strong>{{ kayit.cari_unvan }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ kayit.cari_kod }}</small>
+                                </td>
+                                <td>
+                                    <strong>₺{{ kayit.tutar|floatformat:0|intcomma }}</strong>
+                                </td>
+                                <td>{{ kayit.vade_tarihi|date:"d.m.Y" }}</td>
+                                <td>
+                                    {% if kayit.durum == 'beklemede' %}
+                                    <span class="badge bg-warning">{{ kayit.get_durum_display }}</span>
+                                    {% elif kayit.durum == 'ciro' %}
+                                    <span class="badge bg-primary">{{ kayit.get_durum_display }}</span>
+                                    {% elif kayit.durum == 'odendi' %}
+                                    <span class="badge bg-success">{{ kayit.get_durum_display }}</span>
+                                    {% elif kayit.durum == 'iptal' %}
+                                    <span class="badge bg-secondary">{{ kayit.get_durum_display }}</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">{{ kayit.get_durum_display }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if kayit.vade_durumu == 'vadesi_gecti' %}
+                                    <span class="badge bg-danger">{{ kayit.kalan_gun }} gün geçti</span>
+                                    {% elif kayit.vade_durumu == 'vade_bugun' %}
+                                    <span class="badge bg-warning">Bugün</span>
+                                    {% elif kayit.vade_durumu == 'vade_yarin' %}
+                                    <span class="badge bg-info">Yarın</span>
+                                    {% else %}
+                                    <span class="badge bg-success">{{ kayit.kalan_gun }} gün</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if kayit.banka_adi %}
+                                    <span>{{ kayit.banka_adi }}</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if kayit.aciklama and kayit.aciklama != 'nan' %}
+                                    <span class="text-muted" title="{{ kayit.aciklama }}">{{ kayit.aciklama|truncatechars:30 }}</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="action-buttons">
+                                        {% if kayit.durum != 'ciro' %}
+                                        <button type="button" class="action-btn btn-ciro"
+                                            onclick="showCiroModal({{ kayit.id }})" title="Ciro Et">
+                                            <i class="bi bi-arrow-right-circle"></i>
+                                            <span>Ciro</span>
+                                        </button>
+                                        {% endif %}
+
+                                        {% if kayit.durum != 'odendi' %}
+                                        <button type="button" class="action-btn btn-odendi"
+                                            onclick="changeStatus({{ kayit.id }}, 'odendi')" title="Ödendi">
+                                            <i class="bi bi-check2-circle"></i>
+                                            <span>Ödendi</span>
+                                        </button>
+                                        {% endif %}
+
+                                        {% if kayit.durum != 'beklemede' %}
+                                        <button type="button" class="action-btn btn-beklemede"
+                                            onclick="changeStatus({{ kayit.id }}, 'beklemede')" title="Beklemede">
+                                            <i class="bi bi-clock"></i>
+                                            <span>Beklemede</span>
+                                        </button>
+                                        {% endif %}
+
+                                        {% if kayit.durum != 'iptal' %}
+                                        <button type="button" class="action-btn btn-iptal"
+                                            onclick="changeStatus({{ kayit.id }}, 'iptal')" title="İptal Et">
+                                            <i class="bi bi-x-circle"></i>
+                                            <span>İptal</span>
+                                        </button>
+                                        {% endif %}
+
+                                        <button type="button" class="action-btn btn-edit"
+                                            onclick="editKayit({{ kayit.id }})" title="Düzenle">
+                                            <i class="bi bi-pencil"></i>
+                                            <span>Düzenle</span>
+                                        </button>
+
+                                        <button type="button" class="action-btn btn-delete"
+                                            onclick="deleteKayit({{ kayit.id }})" title="Sil">
+                                            <i class="bi bi-trash"></i>
+                                            <span>Sil</span>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="10" class="text-center py-4">
+                                    <i class="bi bi-inbox display-4 text-muted"></i>
+                                    <p class="text-muted mt-2">Henüz kayıt bulunmuyor.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Ciro Modal -->
+    <div class="modal fade" id="ciroModal" tabindex="-1" aria-labelledby="ciroModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ciroModalLabel">Ciro Et</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="ciroForm">
+                        <div class="mb-3">
+                            <label for="ciroAciklama" class="form-label">Açıklama</label>
+                            <textarea class="form-control" id="ciroAciklama" name="aciklama" rows="3"
+                                placeholder="Ciro işlemi için açıklama yazın..."></textarea>
+                        </div>
+                        <input type="hidden" id="ciroKayitId" name="kayit_id">
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmCiro()">Ciro Et</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Excel İçe Aktar Modal -->
+    <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importModalLabel">
+                        <i class="bi bi-file-earmark-excel me-2"></i>Excel'den İçe Aktar
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <form method="POST" action="{% url 'tahsilat:import_cek_senetler_excel' %}"
+                    enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <h6><i class="bi bi-info-circle me-2"></i>Excel Şablonu Kullanımı</h6>
+                            <ul class="mb-0">
+                                <li>Excel dosyanızı şablona uygun formatta hazırlayın</li>
+                                <li>* işaretli alanlar zorunludur</li>
+                                <li>Tarihler DD.MM.YYYY formatında olmalıdır</li>
+                                <li>Tutar alanı sayısal değer olmalıdır</li>
+                            </ul>
+                            <div class="mt-2">
+                                <a href="{% url 'tahsilat:download_cek_senetler_template' %}"
+                                    class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-download me-2"></i>Excel Şablonunu İndir
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="excel_file" class="form-label">
+                                <i class="bi bi-file-earmark-excel me-2"></i>Excel Dosyası Seçin
+                            </label>
+                            <input type="file" class="form-control" id="excel_file" name="excel_file"
+                                accept=".xlsx,.xls" required>
+                            <div class="form-text">Sadece .xlsx ve .xls dosyaları desteklenir</div>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-exclamation-triangle me-2"></i>Önemli Notlar</h6>
+                            <ul class="mb-0">
+                                <li><strong>Ödeme Türü:</strong> Çek, Senet, Kredi, Kredi Kartı</li>
+                                <li><strong>Tip:</strong> Gelen, Giden</li>
+                                <li><strong>Durum:</strong> Beklemede, Ciro, Ödendi, İptal</li>
+                                <li><strong>Cari Kod:</strong> 320. ile başlayanlar TEDARİKÇİ, 120. ile
+                                    başlayanlar
+                                    MÜŞTERİ</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-2"></i>İptal
+                        </button>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-upload me-2"></i>İçe Aktar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ekleme Modal -->
+    <div class="modal fade" id="ekleModal" tabindex="-1" aria-labelledby="ekleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ekleModalLabel">
+                        <i class="bi bi-plus-circle me-2"></i>Yeni Çek/Senet Ekle
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <form method="POST" action="{% url 'tahsilat:cek_senet_ekle' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Ödeme Türü *</label>
+                                <select name="odeme_turu" class="form-select" required>
+                                    <option value="">Seçiniz</option>
+                                    {% for choice in odeme_turu_choices %}
+                                    <option value="{{ choice.0 }}">{{ choice.1 }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tip *</label>
+                                <select name="tip" class="form-select" required>
+                                    <option value="">Seçiniz</option>
+                                    {% for choice in tip_choices %}
+                                    <option value="{{ choice.0 }}">{{ choice.1 }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tutar *</label>
+                                <input type="number" name="tutar" class="form-control" step="0.01" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">İşlem Tarihi *</label>
+                                <input type="date" name="islem_tarihi" class="form-control"
+                                    value="{{ today|date:'Y-m-d' }}" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Vade Tarihi *</label>
+                                <input type="date" name="vade_tarihi" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <label class="form-label">Cari *</label>
+                                <div class="cari-dropdown-container">
+                                    <input type="text" id="cariSearch" class="form-control"
+                                        placeholder="Cari kod veya ünvan yazın..." autocomplete="off">
+                                    <input type="hidden" name="cari_kod" id="cariKod" required>
+                                    <input type="hidden" name="cari_unvan" id="cariUnvan" required>
+                                    <div class="cari-dropdown" id="cariDropdown"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Banka Adı</label>
+                                <select name="banka_adi" class="form-select">
+                                    <option value="">Banka Seçiniz</option>
+                                    <option value="AKBANK">AKBANK</option>
+                                    <option value="ALBARAKA">ALBARAKA</option>
+
+                                    <option value="DENİZBANK">DENİZBANK</option>
+                                    <option value="GARANTİ BANKASI">GARANTİ BANKASI</option>
+                                    <option value="HALK BANKASI">HALK BANKASI</option>
+                                    <option value="İŞBANKASI">İŞBANKASI</option>
+                                    <option value="KUVEYTTÜRK">KUVEYTTÜRK</option>
+                                    <option value="QNB BANK">QNB BANK</option>
+                                    <option value="ŞEKERBANK">ŞEKERBANK</option>
+                                    <option value="TEB">TEB</option>
+                                    <option value="VAKIFBANK">VAKIFBANK</option>
+                                    <option value="YAPIKREDİ">YAPIKREDİ</option>
+                                    <option value="ZİRAAT BANKASI">ZİRAAT BANKASI</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Çek/Senet No</label>
+                                <input type="text" name="cek_senet_no" class="form-control">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Kredi Türü</label>
+                                <input type="text" name="kredi_turu" class="form-control">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Faiz Oranı (%)</label>
+                                <input type="number" name="faiz_orani" class="form-control" step="0.01">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Taksit Sayısı</label>
+                                <input type="number" name="taksit_sayisi" class="form-control">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <label class="form-label">Açıklama</label>
+                                <textarea name="aciklama" class="form-control" rows="3"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-primary">Kaydet</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Düzenleme Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editModalLabel">
+                        <i class="bi bi-pencil me-2"></i>Çek/Senet Düzenle
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <form method="POST" id="editForm" action="">
+                    {% csrf_token %}
+                    <div class="modal-body" id="editModalBody">
+                        <!-- Düzenleme formu buraya yüklenecek -->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-primary">Güncelle</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sabit Footer -->
+    {% if page_obj %}
+    <div class="fixed-footer">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="total-info">
+                    <span class="total-label">Toplam Kayıt:</span>
+                    <span class="total-value">{{ page_obj.count }}</span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="total-info">
+                    <span class="total-label">Toplam Gelen:</span>
+                    <span class="total-amount">₺{{ gelen_odemeler|floatformat:0|intcomma }}</span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="total-info">
+                    <span class="total-label">Toplam Giden:</span>
+                    <span class="total-amount">₺{{ giden_odemeler|floatformat:0|intcomma }}</span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="total-info">
+                    <span class="total-label">Ödenmesi Gereken:</span>
+                    <span
+                        class="total-amount {% if odenmesi_gereken_tutar > 0 %}text-danger{% elif odenmesi_gereken_tutar < 0 %}text-success{% endif %}">
+                        ₺{{ odenmesi_gereken_tutar|floatformat:0|intcomma }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function editKayit(id) {
+        // AJAX ile kayıt bilgilerini getir ve modal'ı doldur
+        fetch(`/cek-senetler/edit/${id}/`)
+            .then(response => response.text())
+            .then(html => {
+                document.getElementById('editModalBody').innerHTML = html;
+                document.getElementById('editForm').action = `/cek-senetler/edit/${id}/`;
+                new bootstrap.Modal(document.getElementById('editModal')).show();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Kayıt bilgileri yüklenirken hata oluştu.');
+            });
+    }
+
+    function deleteKayit(id) {
+        if (confirm('Bu kaydı silmek istediğinizden emin misiniz?')) {
+            window.location.href = `/cek-senetler/delete/${id}/`;
+        }
+    }
+
+    function showCiroModal(id) {
+        document.getElementById('ciroKayitId').value = id;
+        document.getElementById('ciroAciklama').value = '';
+        const modal = new bootstrap.Modal(document.getElementById('ciroModal'));
+        modal.show();
+    }
+
+    function confirmCiro() {
+        const kayitId = document.getElementById('ciroKayitId').value;
+        const aciklama = document.getElementById('ciroAciklama').value.trim();
+
+        if (!aciklama) {
+            alert('Lütfen ciro işlemi için açıklama yazın.');
+            return;
+        }
+
+        if (confirm('Bu kaydı ciro durumuna değiştirmek istediğinizden emin misiniz?')) {
+            // AJAX ile durum değiştirme
+            fetch(`{% url 'tahsilat:change_cek_senet_status' %}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    id: kayitId,
+                    status: 'ciro',
+                    aciklama: aciklama
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Modal'ı kapat
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('ciroModal'));
+                        modal.hide();
+                        // Sayfayı yenile
+                        location.reload();
+                    } else {
+                        alert('Durum değiştirilirken hata oluştu: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Durum değiştirilirken hata oluştu.');
+                });
+        }
+    }
+
+    function changeStatus(id, newStatus) {
+        const statusNames = {
+            'beklemede': 'Beklemede',
+            'odendi': 'Ödendi',
+            'iptal': 'İptal'
+        };
+
+        const statusName = statusNames[newStatus];
+
+        if (confirm(`${statusName} durumuna değiştirmek istediğinizden emin misiniz?`)) {
+            // AJAX ile durum değiştirme
+            fetch(`{% url 'tahsilat:change_cek_senet_status' %}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    id: id,
+                    status: newStatus
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Sayfayı yenile
+                        location.reload();
+                    } else {
+                        alert('Durum değiştirilirken hata oluştu: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Durum değiştirilirken hata oluştu.');
+                });
+        }
+    }
+
+    // Form validasyonu
+    document.addEventListener('DOMContentLoaded', function () {
+        // Cari dropdown işlevselliği
+        const cariSearch = document.getElementById('cariSearch');
+        const cariDropdown = document.getElementById('cariDropdown');
+        const cariKod = document.getElementById('cariKod');
+        const cariUnvan = document.getElementById('cariUnvan');
+        let searchTimeout;
+
+        if (cariSearch) {
+            // Input'a odaklanınca ilk kayıtları getir (boş arama → ilk 20)
+            cariSearch.addEventListener('focus', function () {
+                if (!cariSearch.value.trim()) {
+                    fetchCariListesi('');
+                }
+            });
+
+            cariSearch.addEventListener('input', function () {
+                clearTimeout(searchTimeout);
+                const searchTerm = this.value.trim();
+
+                if (searchTerm.length >= 2) {
+                    searchTimeout = setTimeout(() => {
+                        fetchCariListesi(searchTerm);
+                    }, 300);
+                } else {
+                    cariDropdown.classList.remove('show');
+                    cariDropdown.innerHTML = '';
+                }
+            });
+
+            // Dropdown dışına tıklandığında kapat
+            document.addEventListener('click', function (e) {
+                if (!e.target.closest('.cari-dropdown-container')) {
+                    cariDropdown.classList.remove('show');
+                }
+            });
+        }
+
+        function fetchCariListesi(searchTerm) {
+            console.log('Cari arama başlatılıyor:', searchTerm);
+            fetch(`{% url 'tahsilat:get_cari_listesi_ajax' %}?search=${encodeURIComponent(searchTerm)}`)
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Cari listesi response:', data);
+                    if (data.success) {
+                        displayCariListesi(data.data);
+                    } else {
+                        console.error('Cari listesi hatası:', data.error);
+                        alert('Cari listesi alınırken hata oluştu: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('AJAX hatası:', error);
+                    alert('AJAX hatası: ' + error.message);
+                });
+        }
+
+        function displayCariListesi(cariListesi) {
+            cariDropdown.innerHTML = '';
+
+            if (cariListesi.length === 0) {
+                cariDropdown.innerHTML = '<div class="cari-item text-muted">Cari bulunamadı</div>';
+            } else {
+                cariListesi.forEach(cari => {
+                    // Farklı anahtar adlarını destekle (code/definition ya da cari_kod/cari_unvan)
+                    const code = cari.code || cari.cari_kod || '';
+                    const definition = cari.definition || cari.cari_unvan || '';
+                    const title = cari.title || '';
+                    const item = document.createElement('div');
+                    item.className = 'cari-item';
+                    item.innerHTML = `
+                    <div class="cari-code">${code}</div>
+                    <div class="cari-definition">${definition}</div>
+                    ${title ? `<div class="cari-title">${title}</div>` : ''}
+                `;
+
+                    item.addEventListener('click', function () {
+                        cariSearch.value = `${code} - ${definition}`;
+                        cariKod.value = code;
+                        cariUnvan.value = definition;
+                        cariDropdown.classList.remove('show');
+                    });
+
+                    cariDropdown.appendChild(item);
+                });
+            }
+
+            cariDropdown.classList.add('show');
+        }
+
+        const forms = document.querySelectorAll('form');
+        forms.forEach(form => {
+            form.addEventListener('submit', function (e) {
+                const requiredFields = form.querySelectorAll('[required]');
+                let isValid = true;
+
+                requiredFields.forEach(field => {
+                    if (!field.value.trim()) {
+                        field.classList.add('is-invalid');
+                        isValid = false;
+                    } else {
+                        field.classList.remove('is-invalid');
+                    }
+                });
+
+                if (!isValid) {
+                    e.preventDefault();
+                    alert('Lütfen tüm zorunlu alanları doldurun.');
+                }
+            });
+        });
+
+        // Ay seçimi dropdown işlevselliği
+        const ayCheckboxes = document.querySelectorAll('.ay-checkbox');
+        const aySelectedText = document.getElementById('aySelectedText');
+        const aySelectedCount = document.getElementById('aySelectedCount');
+        const ayDropdown = document.getElementById('ayDropdown');
+        const ayDropdownButton = document.getElementById('ayDropdownButton');
+        const monthNames = [
+            'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+            'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+        ];
+
+        function updateAyDropdownText() {
+            const selected = Array.from(ayCheckboxes)
+                .filter(cb => cb.checked)
+                .map(cb => {
+                    const parts = cb.value.split('-');
+                    const monthPart = parts.length > 1 ? parts[1] : parts[0];
+                    const yearPart = parts.length > 1 ? parts[0] : '';
+                    const monthIndex = parseInt(monthPart, 10) - 1;
+                    const monthName = monthNames[monthIndex] || cb.value;
+                    return yearPart ? `${monthName} ${yearPart}` : monthName;
+                });
+
+            if (selected.length === 0) {
+                aySelectedText.textContent = 'Ay seçiniz...';
+                aySelectedCount.style.display = 'none';
+            } else if (selected.length === 1) {
+                aySelectedText.textContent = selected[0];
+                aySelectedCount.style.display = 'none';
+            } else {
+                aySelectedText.textContent = `${selected.length} ay seçildi`;
+                aySelectedCount.textContent = selected.length;
+                aySelectedCount.style.display = 'inline-block';
+            }
+        }
+
+        // Checkbox değişikliklerini dinle
+        ayCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateAyDropdownText);
+            // Checkbox'a tıklandığında dropdown'un kapanmaması için
+            checkbox.addEventListener('click', function (e) {
+                e.stopPropagation();
+            });
+        });
+
+        // Sayfa yüklendiğinde seçili ayları göster
+        updateAyDropdownText();
+
+        // "Hepsini Seç" checkbox işlevselliği
+        const selectAllMonths = document.getElementById('selectAllMonths');
+        if (selectAllMonths) {
+            selectAllMonths.addEventListener('change', function () {
+                ayCheckboxes.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+                updateAyDropdownText();
+            });
+
+            // Tüm checkbox'lar seçiliyse "Hepsini Seç"i işaretle
+            function updateSelectAll() {
+                const allChecked = Array.from(ayCheckboxes).every(cb => cb.checked);
+                const someChecked = Array.from(ayCheckboxes).some(cb => cb.checked);
+                selectAllMonths.checked = allChecked;
+                selectAllMonths.indeterminate = someChecked && !allChecked;
+            }
+
+            ayCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', updateSelectAll);
+            });
+            updateSelectAll();
+        }
+
+        // İlk yüklemede metni güncelle
+        updateAyDropdownText();
+
+        // Dropdown menüsüne tıklandığında kapanmaması için
+        const dropdownMenu = ayDropdown.querySelector('.dropdown-menu');
+        if (dropdownMenu) {
+            dropdownMenu.addEventListener('click', function (e) {
+                e.stopPropagation();
+            });
+        }
+    });
+</script>
+
+{% endblock %}

@@ -1,0 +1,902 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+{% load static %}
+
+{% block title %}Satışlarım{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Klasik Basit Tasarım */
+    .fatura-table {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+    }
+
+    .table-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1rem 1.5rem;
+        font-weight: 600;
+    }
+
+    .fatura-row {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #e9ecef;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+
+    .fatura-row:hover {
+        background-color: #f8f9fa;
+    }
+
+    .fatura-row:last-child {
+        border-bottom: none;
+    }
+
+    .fatura-info {
+        display: grid;
+        grid-template-columns: 80px 1fr 120px 120px 120px 40px;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .fatura-id {
+        font-weight: 700;
+        color: #667eea;
+        font-size: 0.9rem;
+    }
+
+    .fatura-cari {
+        color: #212529;
+        min-width: 0;
+        /* Grid overflow için */
+    }
+
+    .fatura-cari-name {
+        font-weight: 600;
+        margin-bottom: 0.2rem;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        line-height: 1.3;
+    }
+
+    .fatura-cari-details {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+
+    .fatura-date {
+        text-align: center;
+        color: #495057;
+        font-weight: 500;
+    }
+
+    .fatura-amount {
+        text-align: right;
+        font-weight: 700;
+        color: #28a745;
+        font-family: 'Courier New', monospace;
+    }
+
+    .fatura-location {
+        text-align: center;
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+
+    .expand-icon {
+        text-align: center;
+        color: #667eea;
+        font-size: 1.2rem;
+        transition: transform 0.3s ease;
+    }
+
+    .expand-icon.rotated {
+        transform: rotate(180deg);
+    }
+
+    /* Detail Section */
+    .detail-section {
+        background: #f8f9fa;
+        border-top: 1px solid #e9ecef;
+        padding: 0;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.4s ease, padding 0.4s ease;
+    }
+
+    /* When shown, only add padding — JS will set/clear inline max-height dynamically */
+    .detail-section.show {
+        padding: 1.5rem;
+    }
+
+    .detail-loading {
+        text-align: center;
+        padding: 2rem;
+        color: #6c757d;
+    }
+
+    .detail-content {
+        display: none;
+    }
+
+    .detail-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 8px 8px 0 0;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .detail-table {
+        background: white;
+        border-radius: 0 0 8px 8px;
+        overflow: hidden;
+        overflow-x: auto;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Make detail table responsive and prevent overlapping by forcing fixed layout and wrapping */
+    .detail-table table {
+        margin: 0;
+        font-size: 0.85rem;
+        width: 100% !important;
+        min-width: 0 !important;
+        table-layout: fixed !important;
+    }
+
+    .detail-table th {
+        background: #e9ecef;
+        border: none;
+        font-weight: 600;
+        color: #495057;
+        padding: 0.6rem 0.5rem;
+        text-align: center;
+        white-space: normal;
+    }
+
+    .detail-table td {
+        padding: 0.6rem 0.5rem;
+        border: none;
+        border-bottom: 1px solid #e9ecef;
+        vertical-align: middle;
+        white-space: normal;
+        word-break: break-word;
+        overflow-wrap: break-word;
+    }
+
+    .detail-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .detail-table tr:hover {
+        background-color: #f8f9fa;
+    }
+
+    .malzeme-kod {
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+        color: #667eea;
+        font-size: 0.8rem;
+    }
+
+    .malzeme-ad {
+        font-weight: 500;
+        max-width: 320px;
+        word-wrap: break-word;
+    }
+
+    /* Ensure detail header sits above the table and doesn't visually overlap rows */
+    .detail-header { position: relative; z-index: 2; }
+    .detail-table { position: relative; z-index: 1; }
+
+    .marka {
+        font-weight: 600;
+        color: #dc3545;
+        font-size: 0.8rem;
+    }
+
+    .malzeme-tur {
+        background: #17a2b8;
+        color: white;
+        padding: 0.2rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.7rem;
+        font-weight: 500;
+    }
+
+    .miktar {
+        text-align: center;
+        font-weight: 600;
+        color: #495057;
+    }
+
+    .birim {
+        text-align: center;
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+
+    .fiyat {
+        text-align: right;
+        font-weight: 500;
+        color: #fd7e14;
+    }
+
+    .tutar {
+        text-align: right;
+        font-weight: 600;
+        color: #28a745;
+        font-family: 'Courier New', monospace;
+    }
+
+    .indirim {
+        text-align: right;
+        color: #dc3545;
+        font-weight: 500;
+    }
+
+    .kdv-info {
+        text-align: center;
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+
+    /* Filter Form Styles */
+    .form-label {
+        font-weight: 600;
+        color: #374151;
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .form-control {
+        border: 1.5px solid #d1d5db;
+        border-radius: 8px;
+        padding: 0.625rem 0.875rem;
+        transition: all 0.2s ease;
+        font-size: 0.9375rem;
+    }
+    
+    .form-control:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        outline: none;
+    }
+    
+    .btn {
+        border-radius: 8px;
+        font-weight: 500;
+        padding: 0.625rem 1.25rem;
+        transition: all 0.2s ease;
+    }
+    
+    .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .fatura-info {
+            grid-template-columns: 1fr;
+            gap: 0.5rem;
+            text-align: left;
+        }
+
+        .fatura-amount,
+        .fatura-date,
+        .fatura-location {
+            text-align: left;
+        }
+
+        .expand-icon {
+            display: none;
+        }
+        
+        .form-control {
+            font-size: 16px; /* Prevent zoom on iOS */
+        }
+    }
+
+    /* Loading Spinner */
+    .spinner {
+        width: 20px;
+        height: 20px;
+        border: 2px solid #e9ecef;
+        border-top: 2px solid #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        display: inline-block;
+        margin-right: 0.5rem;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2 class="text-dark mb-1">
+                <i class="bi bi-receipt me-2"></i>Satışlarım
+            </h2>
+            <p class="text-muted">Plasiyer: <strong>{{ plasiyer }}</strong></p>
+            <!-- Dashboard summary cards -->
+            <div class="row mb-3">
+                <div class="col-md-4 col-sm-6 mb-2">
+                    <div class="card p-3 shadow-sm">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <small class="text-muted">Genel Toplam Satış</small>
+                                <div class="h4 mb-0">{{ satis_summary.total_amount|default:0|currency_display }}</div>
+                                <small class="text-muted">({{ satis_summary.total_count }} fatura)</small>
+                            </div>
+                            <div class="text-primary fs-2">
+                                <i class="bi bi-graph-up"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-8 col-sm-6 mb-2">
+                    <div class="card p-3 shadow-sm">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                <small class="text-muted">Bölge Bazlı Satış Toplamları</small>
+                                <div class="small text-muted">En çok satılan bölgeler</div>
+                            </div>
+                            <div class="text-secondary">
+                                <small class="text-muted">Toplam Bölge Sayısı: {{ satis_by_region_list|length }}</small>
+                            </div>
+                        </div>
+                        <div class="row">
+                            {% for item in satis_by_region_list|slice:":6" %}
+                            <div class="col-md-4 col-sm-6">
+                                <div class="mb-2">
+                                    <strong>{{ item.region }}</strong>
+                                    <div class="text-success">{{ item.amount|currency_display }} <small class="text-muted">({{ item.count }})</small></div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="col-12 text-muted">Bölgede satış verisi bulunmuyor.</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtre Formu -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-funnel me-2"></i>Filtreleme
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="GET" class="row g-3 align-items-end">
+                        <div class="col-md-3">
+                            <label for="cari_kod" class="form-label">
+                                <i class="bi bi-search me-1"></i>Cari Kod
+                            </label>
+                            <input type="text" class="form-control" id="cari_kod" name="cari_kod"
+                                placeholder="Cari kod ara..." value="{{ filters.cari_kod }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="cari_unvan" class="form-label">
+                                <i class="bi bi-person-search me-1"></i>Cari Ünvan
+                            </label>
+                            <input type="text" class="form-control" id="cari_unvan" name="cari_unvan"
+                                placeholder="Cari ünvan ara..." value="{{ filters.cari_unvan }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="baslangic_tarihi" class="form-label">
+                                <i class="bi bi-calendar-event me-1"></i>Başlangıç Tarihi
+                            </label>
+                            <input type="date" class="form-control" id="baslangic_tarihi" name="baslangic_tarihi" 
+                                value="{{ filters.baslangic_tarihi }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="bitis_tarihi" class="form-label">
+                                <i class="bi bi-calendar-check me-1"></i>Bitiş Tarihi
+                            </label>
+                            <input type="date" class="form-control" id="bitis_tarihi" name="bitis_tarihi" 
+                                value="{{ filters.bitis_tarihi }}">
+                        </div>
+                        <div class="col-md-2">
+                            <div class="btn-group w-100" role="group">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-search me-1"></i>Ara
+                                </button>
+                                <a href="{% url 'tahsilat:satislarim' %}" class="btn btn-outline-secondary" title="Filtreleri Temizle">
+                                    <i class="bi bi-x-lg"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Faturalar Listesi -->
+    <div class="row">
+        <div class="col-12">
+            <div class="fatura-table">
+                <!-- Table Header -->
+                <div class="table-header">
+                    <div class="fatura-info">
+                        <div>ID</div>
+                        <div>Cari Bilgileri</div>
+                        <div style="text-align: center;">Tarih</div>
+                        <div style="text-align: right;">Tutar</div>
+                        <div style="text-align: center;">Bölge</div>
+                        <div></div>
+                    </div>
+                </div>
+
+                <!-- Fatura Rows -->
+                {% for fatura in faturalar %}
+                <div class="fatura-item">
+                    <div class="fatura-row" onclick="toggleDetail({{ fatura.ID }})">
+                        <div class="fatura-info">
+                            <div class="fatura-id">#{{ fatura.ID }}</div>
+
+                            <div class="fatura-cari">
+                                <div class="fatura-cari-name">{{ fatura.CARİ_ÜNVAN }}</div>
+                                <div class="fatura-cari-details">
+                                    {{ fatura.CARİ_KOD }} |
+                                    {% if fatura.FATURA_NO %}{{ fatura.FATURA_NO }}{% else %}Belge Yok{% endif %}
+                                </div>
+                            </div>
+
+                            <div class="fatura-date">{{ fatura.TARİH|date:"d.m.Y" }}</div>
+
+                            <div class="fatura-amount">{{ fatura.NET_TOPLAM|floatformat:2 }} ₺</div>
+
+                            <div class="fatura-location">{{ fatura.BÖLGE|default:"N/A" }}</div>
+
+                            <div class="expand-icon" id="icon-{{ fatura.ID }}">
+                                <i class="bi bi-chevron-down"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Detail Section -->
+                    <div class="detail-section" id="detail-{{ fatura.ID }}">
+                        <div class="detail-loading" id="loading-{{ fatura.ID }}">
+                            <div class="spinner"></div>
+                            Detaylar yükleniyor...
+                        </div>
+
+                        <div class="detail-content" id="content-{{ fatura.ID }}">
+                            <!-- AJAX ile doldurulacak -->
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="fatura-row">
+                    <div style="text-align: center; padding: 2rem; color: #6c757d;">
+                        <i class="bi bi-inbox" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                        <p>Henüz fatura kaydı bulunmuyor.</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Sayfalama -->
+    {% if pagination_info.total_pages > 1 %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <nav aria-label="Sayfa navegasyonu">
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <!-- Sayfa Bilgisi -->
+                    <div>
+                        <small class="text-muted">
+                            Sayfa {{ pagination_info.current_page }} / {{ pagination_info.total_pages }}
+                            ({{ pagination_info.total_count }} kayıt)
+                        </small>
+                    </div>
+
+                    <!-- Sayfa Butonları -->
+                    <ul class="pagination mb-0">
+                        <!-- İlk Sayfa -->
+                        {% if pagination_info.current_page > 1 %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1">
+                                <i class="bi bi-chevron-double-left"></i>
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        <!-- Önceki Sayfa -->
+                        {% if pagination_info.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ pagination_info.previous_page }}">
+                                <i class="bi bi-chevron-left"></i>
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        <!-- Sayfa Numaraları -->
+                        {% for page_num in pagination_info.page_range %}
+                        {% if page_num|add:"0" == pagination_info.current_page|add:"0" %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_num }}">{{ page_num }}</a>
+                        </li>
+                        {% endif %}
+                        {% endfor %}
+
+                        <!-- Sonraki Sayfa -->
+                        {% if pagination_info.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ pagination_info.next_page }}">
+                                <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        <!-- Son Sayfa -->
+                        {% if pagination_info.current_page < pagination_info.total_pages %} <li class="page-item">
+                            <a class="page-link" href="?page={{ pagination_info.total_pages }}">
+                                <i class="bi bi-chevron-double-right"></i>
+                            </a>
+                            </li>
+                            {% endif %}
+                    </ul>
+
+                </div>
+            </nav>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    let openDetailId = null;
+
+    function toggleDetail(faturaId) {
+        const detailSection = document.getElementById(`detail-${faturaId}`);
+        const icon = document.getElementById(`icon-${faturaId}`);
+        const loading = document.getElementById(`loading-${faturaId}`);
+        const content = document.getElementById(`content-${faturaId}`);
+
+        // Eğer başka bir detail açıksa kapat
+        if (openDetailId && openDetailId !== faturaId) {
+            closeDetail(openDetailId);
+        }
+
+        if (detailSection.classList.contains('show')) {
+            // Kapat
+            closeDetail(faturaId);
+        } else {
+            // Aç
+            openDetail(faturaId);
+        }
+    }
+
+    function openDetail(faturaId) {
+        console.log('openDetail çağrıldı, faturaId:', faturaId);
+
+        const detailSection = document.getElementById(`detail-${faturaId}`);
+        const icon = document.getElementById(`icon-${faturaId}`);
+        const loading = document.getElementById(`loading-${faturaId}`);
+        const content = document.getElementById(`content-${faturaId}`);
+
+        // UI güncellemeleri
+        detailSection.classList.add('show');
+        icon.classList.add('rotated');
+        loading.style.display = 'block';
+        content.style.display = 'none';
+
+        // ensure the detail region expands to show the loading indicator
+        adjustDetailHeight(faturaId);
+
+        openDetailId = faturaId;
+        console.log('AJAX isteği gönderiliyor...');
+
+        // AJAX ile detayları yükle
+        fetch(`/fatura-detay/${faturaId}/`, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        })
+            .then(response => {
+                console.log('AJAX yanıtı alındı:', response);
+                return response.json();
+            })
+            .then(data => {
+                console.log('AJAX verisi:', data);
+                loading.style.display = 'none';
+
+                if (data.success) {
+                    content.innerHTML = createDetailHTML(data);
+                    content.style.display = 'block';
+                    // adjust height now that content is rendered
+                    adjustDetailHeight(faturaId);
+                } else {
+                    content.innerHTML = `<div class="alert alert-danger">Hata: ${data.error}</div>`;
+                    content.style.display = 'block';
+                    adjustDetailHeight(faturaId);
+                }
+            })
+            .catch(error => {
+                console.error('AJAX hatası:', error);
+                loading.style.display = 'none';
+                content.innerHTML = `<div class="alert alert-danger">Detaylar yüklenirken hata oluştu: ${error}</div>`;
+                content.style.display = 'block';
+            });
+    }
+
+    function closeDetail(faturaId) {
+        const detailSection = document.getElementById(`detail-${faturaId}`);
+        const icon = document.getElementById(`icon-${faturaId}`);
+
+        // clear any pending adjust timeout
+        if (detailSection && detailSection._adjustTimeout) {
+            clearTimeout(detailSection._adjustTimeout);
+            detailSection._adjustTimeout = null;
+        }
+
+        // collapse by animating max-height to 0 then clean inline styles
+        detailSection.style.overflow = 'hidden';
+        detailSection.style.maxHeight = '0px';
+        detailSection.classList.remove('show');
+        icon.classList.remove('rotated');
+
+        const onTransitionEnd = function (e) {
+            if (e.propertyName === 'max-height') {
+                const content = document.getElementById(`content-${faturaId}`);
+                if (content) {
+                    content.style.display = 'none';
+                    content.style.visibility = '';
+                }
+                // remove inline maxHeight to avoid leaving a fixed constraint
+                detailSection.style.maxHeight = '';
+                detailSection.removeEventListener('transitionend', onTransitionEnd);
+                if (detailSection && detailSection._adjustTimeout) {
+                    clearTimeout(detailSection._adjustTimeout);
+                    detailSection._adjustTimeout = null;
+                }
+            }
+        };
+        detailSection.addEventListener('transitionend', onTransitionEnd);
+
+        if (openDetailId === faturaId) {
+            openDetailId = null;
+        }
+    }
+
+    // Set the detail section max-height to its content height to allow smooth animation
+    function adjustDetailHeight(faturaId) {
+        const detailSection = document.getElementById(`detail-${faturaId}`);
+        if (!detailSection) return;
+
+        // prefer content height; fall back to loading height
+        const content = document.getElementById(`content-${faturaId}`);
+        const loading = document.getElementById(`loading-${faturaId}`);
+
+        // ensure inner content is visible for measurement
+        if (content && content.style.display === 'none') {
+            // keep it hidden but make measurable by temporarily setting visibility
+            content.style.display = 'block';
+            content.style.visibility = 'hidden';
+        }
+
+        let targetHeight = 0;
+        if (content) targetHeight = content.scrollHeight;
+        if (loading && loading.style.display !== 'none') targetHeight = Math.max(targetHeight, loading.scrollHeight);
+
+        const buffer = 24;
+        // Soft viewport cap (80% of viewport height)
+        const viewportCap = Math.floor(window.innerHeight * 0.8);
+
+        // find inner scrollable table area if present
+        const innerTable = content ? content.querySelector('.detail-table') : null;
+
+        // Clear previous timeout if any
+        if (detailSection._adjustTimeout) {
+            clearTimeout(detailSection._adjustTimeout);
+            detailSection._adjustTimeout = null;
+        }
+
+        detailSection.style.overflow = 'hidden';
+
+        if (targetHeight + buffer > viewportCap) {
+            // cap the detail section and make inner table scrollable
+            detailSection.style.maxHeight = (viewportCap + buffer) + 'px';
+            if (innerTable) {
+                innerTable.style.maxHeight = (viewportCap - 120) + 'px';
+                innerTable.style.overflowY = 'auto';
+            }
+        } else {
+            // natural expand to content
+            detailSection.style.maxHeight = (targetHeight + buffer) + 'px';
+            if (innerTable) {
+                innerTable.style.maxHeight = '';
+                innerTable.style.overflowY = '';
+            }
+        }
+
+        const onEnd = function (e) {
+            if (e.propertyName === 'max-height') {
+                // if we capped, keep innerTable scroll; otherwise remove constraints
+                if (targetHeight + buffer <= viewportCap) {
+                    detailSection.style.overflow = 'visible';
+                    if (content) content.style.visibility = '';
+                    detailSection.style.maxHeight = '';
+                    if (innerTable) {
+                        innerTable.style.maxHeight = '';
+                        innerTable.style.overflowY = '';
+                    }
+                } else {
+                    // keep inner scroll
+                    detailSection.style.overflow = 'visible';
+                    if (content) content.style.visibility = '';
+                }
+
+                detailSection.removeEventListener('transitionend', onEnd);
+                if (detailSection._adjustTimeout) {
+                    clearTimeout(detailSection._adjustTimeout);
+                    detailSection._adjustTimeout = null;
+                }
+            }
+        };
+        detailSection.addEventListener('transitionend', onEnd);
+
+        // Fallback if transitionend doesn't fire
+        detailSection._adjustTimeout = setTimeout(() => {
+            if (targetHeight + buffer <= viewportCap) {
+                detailSection.style.overflow = 'visible';
+                if (content) content.style.visibility = '';
+                detailSection.style.maxHeight = '';
+                if (innerTable) {
+                    innerTable.style.maxHeight = '';
+                    innerTable.style.overflowY = '';
+                }
+            } else {
+                detailSection.style.overflow = 'visible';
+                if (content) content.style.visibility = '';
+            }
+            detailSection.removeEventListener('transitionend', onEnd);
+            detailSection._adjustTimeout = null;
+        }, 700);
+
+        // Re-adjust after images load
+        if (content) {
+            const imgs = content.querySelectorAll('img');
+            imgs.forEach(img => {
+                if (!img.complete) {
+                    const handler = function () {
+                        adjustDetailHeight(faturaId);
+                        img.removeEventListener('load', handler);
+                    };
+                    img.addEventListener('load', handler);
+                }
+            });
+        }
+    }
+
+    function createDetailHTML(data) {
+        if (!data.detaylar || data.detaylar.length === 0) {
+            return '<div class="alert alert-info">Bu faturaya ait detay bulunmuyor.</div>';
+        }
+
+        let html = `
+        <div class="detail-header">
+            <i class="bi bi-box-seam me-2"></i>Detaylı Malzeme Bilgileri
+            <span class="badge bg-light text-dark ms-2">${data.toplam_kalem} Kalem Ürün</span>
+        </div>
+        
+        <div class="detail-table">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 100px;">Kod</th>
+                        <th style="width: 180px;">Malzeme Adı</th>
+                        <th style="width: 80px;">Marka</th>
+                        <th style="width: 100px;">Türü</th>
+                        <th style="width: 70px;">Miktar</th>
+                        <th style="width: 60px;">Birim</th>
+                        <th style="width: 90px;">Birim Brüt</th>
+                        <th style="width: 90px;">İndirim</th>
+                        <th style="width: 90px;">Birim Net</th>
+                        <th style="width: 90px;">Brüt Toplam</th>
+                        <th style="width: 70px;">KDV %</th>
+                        <th style="width: 90px;">KDV Tutarı</th>
+                        <th style="width: 100px;">Net Toplam</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+        data.detaylar.forEach(detay => {
+            const miktar = parseFloat(detay['MİKTAR'] || detay['MIKTAR'] || 0);
+            const birimBrut = parseFloat(detay['BİRİM BRÜT'] || detay['BIRIM_BRUT'] || 0);
+            const birimIndirim = parseFloat(detay['BİRİM İNDİRİM'] || detay['BIRIM_INDIRIM'] || 0);
+            const birimNet = parseFloat(detay['BİRİM NET'] || detay['BIRIM_NET'] || 0);
+            const brutToplam = parseFloat(detay['BRÜT TOPLAM'] || detay['BRUT_TOPLAM'] || 0);
+            const kdvOrani = parseFloat(detay['KDV %'] || detay['KDV_%'] || 0);
+            const kdvTutari = parseFloat(detay['KDV TUTARI'] || detay['KDV_TUTARI'] || 0);
+            const netToplam = parseFloat(detay['NET TOPLAM'] || detay['NET_TOPLAM'] || 0);
+
+            const malzemeKodu = detay['MALZEME KODU'] || detay['MALZEME_KODU'] || '';
+            const aciklama = detay['AÇIKLAMASI'] || detay['ACIKLAMASI'] || '';
+            const marka = detay['MARKA'] || '';
+            const malzemeTuru = detay['MALZEME TÜRÜ'] || detay['MALZEME_TURU'] || '';
+            const birim = detay['BİRİM'] || detay['BIRIM'] || '';
+
+            html += `
+            <tr>
+                <td class="malzeme-kod">${malzemeKodu}</td>
+                <td class="malzeme-ad">${aciklama}</td>
+                <td class="marka">${marka}</td>
+                <td><span class="malzeme-tur">${malzemeTuru}</span></td>
+                <td class="miktar">${miktar.toFixed(2)}</td>
+                <td class="birim">${birim}</td>
+                <td class="fiyat">${birimBrut.toFixed(2)} ₺</td>
+                <td class="indirim">${birimIndirim.toFixed(2)} ₺</td>
+                <td class="fiyat">${birimNet.toFixed(2)} ₺</td>
+                <td class="tutar">${brutToplam.toFixed(2)} ₺</td>
+                <td class="kdv-info">${kdvOrani.toFixed(0)}%</td>
+                <td class="tutar">${kdvTutari.toFixed(2)} ₺</td>
+                <td class="tutar"><strong>${netToplam.toFixed(2)} ₺</strong></td>
+            </tr>
+        `;
+        });
+
+        html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+
+        return html;
+    }
+
+    // CSRF Token helper
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+</script>
+{% endblock %}

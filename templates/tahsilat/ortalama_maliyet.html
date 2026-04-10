@@ -1,0 +1,839 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+{% block title %}Ortalama Maliyet - MRK OTOMOTİV{% endblock %}
+
+{% block extra_css %}
+<style>
+    .om-page {
+        --om-accent: #5b6fd8;
+        --om-accent-soft: rgba(91, 111, 216, 0.12);
+        --om-radius: 0.75rem;
+    }
+
+    .om-hero {
+        background: linear-gradient(135deg, rgba(91, 111, 216, 0.08) 0%, rgba(102, 126, 234, 0.04) 100%);
+        border: 1px solid rgba(91, 111, 216, 0.15);
+        border-radius: var(--om-radius);
+        padding: 1.25rem 1.5rem;
+    }
+
+    .om-toolbar {
+        background: #fff;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: var(--om-radius);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .om-filter-card {
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: var(--om-radius);
+        overflow: hidden;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .om-filter-card:hover {
+        border-color: rgba(91, 111, 216, 0.25);
+        box-shadow: 0 4px 14px rgba(91, 111, 216, 0.08);
+    }
+
+    .om-filter-card .om-panel-toggle {
+        color: #212529;
+        font-weight: 600;
+        font-size: 0.9rem;
+        padding: 0.65rem 1rem;
+        width: 100%;
+        text-align: left;
+        border: 0;
+        background: linear-gradient(180deg, #fafbff 0%, #f4f6fb 100%);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+
+    .om-filter-card .om-panel-toggle:hover {
+        background: linear-gradient(180deg, #f4f6fb 0%, #eef1f9 100%);
+    }
+
+    .om-filter-card .om-panel-toggle:not(.collapsed) {
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    .om-filter-card .om-panel-toggle .om-chevron {
+        transition: transform 0.2s ease;
+        color: var(--om-accent);
+    }
+
+    .om-filter-card .om-panel-toggle:not(.collapsed) .om-chevron {
+        transform: rotate(180deg);
+    }
+
+    .om-multi-select {
+        min-height: 11rem;
+        border-radius: 0.5rem;
+        font-size: 0.8125rem;
+        line-height: 1.35;
+    }
+
+    .om-multi-select:focus {
+        border-color: var(--om-accent);
+        box-shadow: 0 0 0 0.2rem var(--om-accent-soft);
+    }
+
+    .om-actions-sticky {
+        position: sticky;
+        bottom: 0;
+        z-index: 5;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #fff 18%);
+        padding-top: 0.75rem;
+        margin-top: 0.25rem;
+    }
+
+    @media (min-width: 992px) {
+        .om-actions-sticky {
+            position: static;
+            background: transparent;
+            padding-top: 0;
+        }
+    }
+
+    .om-results-card .table thead th {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        font-weight: 600;
+        color: #5c5f66;
+        border-bottom-width: 2px;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    .om-results-card .table tbody td {
+        font-size: 0.875rem;
+        vertical-align: middle;
+    }
+
+    .om-results-card .table tbody tr:hover {
+        background-color: rgba(91, 111, 216, 0.04);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 om-page">
+    <div class="om-hero mb-4">
+        <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+            <div>
+                <h1 class="h3 mb-2 fw-semibold d-flex align-items-center gap-2">
+                    <span
+                        class="d-inline-flex align-items-center justify-content-center rounded-3 bg-primary bg-opacity-10 text-primary p-2">
+                        <i class="bi bi-currency-exchange"></i>
+                    </span>
+                    Ortalama Maliyet
+                </h1>
+                <div style="min-height: 1rem;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4" style="border-radius: var(--om-radius);">
+        <div class="card-body p-3 p-lg-4">
+            <form method="get" id="omFilterForm">
+                <input type="hidden" name="uygula" value="1">
+
+                <div class="om-toolbar d-flex flex-wrap align-items-center gap-2 p-3 mb-3">
+                    <div class="d-flex flex-wrap align-items-center gap-2 flex-grow-1">
+                        <span class="small text-muted text-nowrap"><i
+                                class="bi bi-funnel-fill me-1 text-primary"></i>Özet</span>
+                        {% if sel_fatura_turu %}
+                        <span class="badge rounded-pill text-bg-primary">
+                            Fatura {{ sel_fatura_turu|length }}
+                        </span>
+                        {% endif %}
+                        {% if sel_malzeme_turu %}
+                        <span class="badge rounded-pill text-bg-primary">
+                            Malz. tür {{ sel_malzeme_turu|length }}
+                        </span>
+                        {% endif %}
+                        {% if sel_malzeme_kodu %}
+                        <span class="badge rounded-pill text-bg-primary">
+                            Kod {{ sel_malzeme_kodu|length }}
+                        </span>
+                        {% endif %}
+                        {% if sel_marka %}
+                        <span class="badge rounded-pill text-bg-primary">
+                            Marka {{ sel_marka|length }}
+                        </span>
+                        {% endif %}
+                        {% if toplam_miktar_min or toplam_miktar_max %}<span
+                            class="badge rounded-pill bg-secondary">Miktar aralığı</span>{% endif %}
+                        {% if not sel_fatura_turu %}
+                        {% if not sel_malzeme_turu %}
+                        {% if not sel_malzeme_kodu %}
+                        {% if not sel_marka %}
+                        {% if not toplam_miktar_min %}
+                        {% if not toplam_miktar_max %}
+                        <span class="small text-muted">Henüz seçim yok — tüm kayıtlar listelenebilir.</span>
+                        {% endif %}{% endif %}{% endif %}{% endif %}{% endif %}{% endif %}
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="omExpandAll"
+                            title="Tüm panelleri aç">
+                            <i class="bi bi-arrows-expand me-1"></i>Aç
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="omCollapseAll"
+                            title="Tüm panelleri kapat">
+                            <i class="bi bi-arrows-collapse me-1"></i>Kapat
+                        </button>
+                    </div>
+                </div>
+
+                <div class="row row-cols-1 row-cols-xl-2 g-3 mb-2">
+                    <!-- Fatura türü -->
+                    <div class="col">
+                        <div class="card om-filter-card h-100 shadow-sm">
+                            <button class="om-panel-toggle {% if not sel_fatura_turu %}collapsed{% endif %}"
+                                type="button" data-bs-toggle="collapse" data-bs-target="#omColFatura"
+                                aria-expanded="{% if sel_fatura_turu %}true{% else %}false{% endif %}"
+                                aria-controls="omColFatura">
+                                <span class="d-flex align-items-center gap-2 min-w-0">
+                                    <i class="bi bi-receipt text-primary flex-shrink-0"></i>
+                                    <span class="text-truncate">Fatura türü</span>
+                                    {% if sel_fatura_turu %}
+                                    <span class="badge bg-primary ms-1">{{ sel_fatura_turu|length }}</span>
+                                    {% endif %}
+                                </span>
+                                <span class="d-flex align-items-center gap-2 flex-shrink-0">
+                                    <span
+                                        class="badge rounded-pill bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">
+                                        {{ om_filter_opts.fatura_turleri|length }}
+                                    </span>
+                                    <i class="bi bi-chevron-down om-chevron"></i>
+                                </span>
+                            </button>
+                            <div id="omColFatura" class="collapse {% if sel_fatura_turu %}show{% endif %}">
+                                <div class="card-body pt-2 pb-3">
+                                    <div class="input-group input-group-sm mb-2">
+                                        <span class="input-group-text bg-white border-end-0"><i
+                                                class="bi bi-search text-muted"></i></span>
+                                        <input type="search"
+                                            class="form-control border-start-0 ps-0 js-om-filter-search"
+                                            placeholder="Listede ara…" data-om-target="omSelFatura" autocomplete="off">
+                                    </div>
+                                    <div class="btn-group btn-group-sm w-100 mb-2" role="group"
+                                        aria-label="Fatura seçim">
+                                        <button type="button" class="btn btn-outline-secondary om-sel-all"
+                                            data-om-select="omSelFatura">Tümü</button>
+                                        <button type="button" class="btn btn-outline-secondary om-sel-none"
+                                            data-om-select="omSelFatura">Hiçbiri</button>
+                                        <button type="button" class="btn btn-outline-secondary om-sel-visible"
+                                            data-om-select="omSelFatura">Görünenler</button>
+                                    </div>
+                                    <select name="fatura_turu" id="omSelFatura"
+                                        class="form-select form-select-sm om-multi-select" multiple
+                                        title="Ctrl/Cmd ile çoklu seçim">
+                                        {% for o in om_filter_opts.fatura_turleri %}
+                                        {% if o in sel_fatura_turu %}
+                                        <option value="{{ o|escape }}" selected>{{ o|truncatechars:72 }}</option>
+                                        {% else %}
+                                        <option value="{{ o|escape }}">{{ o|truncatechars:72 }}</option>
+                                        {% endif %}
+                                        {% empty %}
+                                        <option disabled>(Veri yok)</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Malzeme türü -->
+                    <div class="col">
+                        <div class="card om-filter-card h-100 shadow-sm">
+                            <button class="om-panel-toggle {% if not sel_malzeme_turu %}collapsed{% endif %}"
+                                type="button" data-bs-toggle="collapse" data-bs-target="#omColMalzemeTur"
+                                aria-expanded="{% if sel_malzeme_turu %}true{% else %}false{% endif %}">
+                                <span class="d-flex align-items-center gap-2 min-w-0">
+                                    <i class="bi bi-tags text-primary flex-shrink-0"></i>
+                                    <span class="text-truncate">Malzeme türü</span>
+                                    {% if sel_malzeme_turu %}
+                                    <span class="badge bg-primary ms-1">{{ sel_malzeme_turu|length }}</span>
+                                    {% endif %}
+                                </span>
+                                <span class="d-flex align-items-center gap-2 flex-shrink-0">
+                                    <span
+                                        class="badge rounded-pill bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">
+                                        {{ om_filter_opts.malzeme_turleri|length }}
+                                    </span>
+                                    <i class="bi bi-chevron-down om-chevron"></i>
+                                </span>
+                            </button>
+                            <div id="omColMalzemeTur" class="collapse {% if sel_malzeme_turu %}show{% endif %}">
+                                <div class="card-body pt-2 pb-3">
+                                    <div class="input-group input-group-sm mb-2">
+                                        <span class="input-group-text bg-white border-end-0"><i
+                                                class="bi bi-search text-muted"></i></span>
+                                        <input type="search"
+                                            class="form-control border-start-0 ps-0 js-om-filter-search"
+                                            placeholder="Listede ara…" data-om-target="omSelMalzemeTur"
+                                            autocomplete="off">
+                                    </div>
+                                    <div class="btn-group btn-group-sm w-100 mb-2" role="group">
+                                        <button type="button" class="btn btn-outline-secondary om-sel-all"
+                                            data-om-select="omSelMalzemeTur">Tümü</button>
+                                        <button type="button" class="btn btn-outline-secondary om-sel-none"
+                                            data-om-select="omSelMalzemeTur">Hiçbiri</button>
+                                        <button type="button" class="btn btn-outline-secondary om-sel-visible"
+                                            data-om-select="omSelMalzemeTur">Görünenler</button>
+                                    </div>
+                                    <select name="malzeme_turu" id="omSelMalzemeTur"
+                                        class="form-select form-select-sm om-multi-select" multiple>
+                                        {% for o in om_filter_opts.malzeme_turleri %}
+                                        {% if o in sel_malzeme_turu %}
+                                        <option value="{{ o|escape }}" selected>{{ o|truncatechars:72 }}</option>
+                                        {% else %}
+                                        <option value="{{ o|escape }}">{{ o|truncatechars:72 }}</option>
+                                        {% endif %}
+                                        {% empty %}
+                                        <option disabled>(Veri yok)</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Malzeme kodu -->
+                    <div class="col">
+                        <div class="card om-filter-card h-100 shadow-sm">
+                            <button class="om-panel-toggle {% if not sel_malzeme_kodu %}collapsed{% endif %}"
+                                type="button" data-bs-toggle="collapse" data-bs-target="#omColKod"
+                                aria-expanded="{% if sel_malzeme_kodu %}true{% else %}false{% endif %}">
+                                <span class="d-flex align-items-center gap-2 min-w-0">
+                                    <i class="bi bi-upc-scan text-primary flex-shrink-0"></i>
+                                    <span class="text-truncate">Malzeme kodu</span>
+                                    {% if sel_malzeme_kodu %}
+                                    <span class="badge bg-primary ms-1">{{ sel_malzeme_kodu|length }}</span>
+                                    {% endif %}
+                                </span>
+                                <span class="d-flex align-items-center gap-2 flex-shrink-0">
+                                    <span
+                                        class="badge rounded-pill bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">
+                                        {{ om_filter_opts.malzeme_kodlari|length }}
+                                    </span>
+                                    <i class="bi bi-chevron-down om-chevron"></i>
+                                </span>
+                            </button>
+                            <div id="omColKod" class="collapse {% if sel_malzeme_kodu %}show{% endif %}">
+                                <div class="card-body pt-2 pb-3">
+                                    <div class="input-group input-group-sm mb-2">
+                                        <span class="input-group-text bg-white border-end-0"><i
+                                                class="bi bi-search text-muted"></i></span>
+                                        <input type="search"
+                                            class="form-control border-start-0 ps-0 js-om-filter-search"
+                                            placeholder="Listede ara…" data-om-target="omSelKod" autocomplete="off">
+                                    </div>
+                                    <div class="btn-group btn-group-sm w-100 mb-2" role="group">
+                                        <button type="button" class="btn btn-outline-secondary om-sel-all"
+                                            data-om-select="omSelKod">Tümü</button>
+                                        <button type="button" class="btn btn-outline-secondary om-sel-none"
+                                            data-om-select="omSelKod">Hiçbiri</button>
+                                        <button type="button" class="btn btn-outline-secondary om-sel-visible"
+                                            data-om-select="omSelKod">Görünenler</button>
+                                    </div>
+                                    <select name="malzeme_kodu" id="omSelKod"
+                                        class="form-select form-select-sm om-multi-select" multiple>
+                                        {% for o in om_filter_opts.malzeme_kodlari %}
+                                        {% if o in sel_malzeme_kodu %}
+                                        <option value="{{ o|escape }}" selected>{{ o|truncatechars:72 }}</option>
+                                        {% else %}
+                                        <option value="{{ o|escape }}">{{ o|truncatechars:72 }}</option>
+                                        {% endif %}
+                                        {% empty %}
+                                        <option disabled>(Veri yok)</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Marka (full width on xl grid: span 2 cols) -->
+                    <div class="col col-xl-12">
+                        <div class="card om-filter-card shadow-sm">
+                            <button class="om-panel-toggle {% if not sel_marka %}collapsed{% endif %}" type="button"
+                                data-bs-toggle="collapse" data-bs-target="#omColMarka"
+                                aria-expanded="{% if sel_marka %}true{% else %}false{% endif %}">
+                                <span class="d-flex align-items-center gap-2 min-w-0">
+                                    <i class="bi bi-bookmark-star text-primary flex-shrink-0"></i>
+                                    <span class="text-truncate">Marka</span>
+                                    {% if sel_marka %}
+                                    <span class="badge bg-primary ms-1">{{ sel_marka|length }}</span>
+                                    {% endif %}
+                                </span>
+                                <span class="d-flex align-items-center gap-2 flex-shrink-0">
+                                    <span
+                                        class="badge rounded-pill bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">
+                                        {{ om_filter_opts.markalar|length }}
+                                    </span>
+                                    <i class="bi bi-chevron-down om-chevron"></i>
+                                </span>
+                            </button>
+                            <div id="omColMarka" class="collapse {% if sel_marka %}show{% endif %}">
+                                <div class="card-body pt-2 pb-3">
+                                    <div class="row g-3">
+                                        <div class="col-lg-6">
+                                            <div class="input-group input-group-sm mb-2">
+                                                <span class="input-group-text bg-white border-end-0"><i
+                                                        class="bi bi-search text-muted"></i></span>
+                                                <input type="search"
+                                                    class="form-control border-start-0 ps-0 js-om-filter-search"
+                                                    placeholder="Listede ara…" data-om-target="omSelMarka"
+                                                    autocomplete="off">
+                                            </div>
+                                            <div class="btn-group btn-group-sm w-100 mb-2" role="group">
+                                                <button type="button" class="btn btn-outline-secondary om-sel-all"
+                                                    data-om-select="omSelMarka">Tümü</button>
+                                                <button type="button" class="btn btn-outline-secondary om-sel-none"
+                                                    data-om-select="omSelMarka">Hiçbiri</button>
+                                                <button type="button" class="btn btn-outline-secondary om-sel-visible"
+                                                    data-om-select="omSelMarka">Görünenler</button>
+                                            </div>
+                                            <select name="marka" id="omSelMarka"
+                                                class="form-select form-select-sm om-multi-select" multiple>
+                                                {% for o in om_filter_opts.markalar %}
+                                                {% if o in sel_marka %}
+                                                <option value="{{ o|escape }}" selected>{{ o|truncatechars:72 }}
+                                                </option>
+                                                {% else %}
+                                                <option value="{{ o|escape }}">{{ o|truncatechars:72 }}</option>
+                                                {% endif %}
+                                                {% empty %}
+                                                <option disabled>(Veri yok)</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="col-lg-6 d-none d-lg-flex align-items-center">
+                                            <p class="small text-muted mb-0 ps-lg-2 border-start border-2"
+                                                style="border-color: rgba(91,111,216,0.25) !important;">
+                                                <i class="bi bi-lightbulb text-warning me-1"></i>
+                                                Marka listesi görünümden en çok 3.000 farklı değerle sınırlıdır. Çoklu
+                                                seçim için <kbd class="small">Ctrl</kbd> / <kbd class="small">Cmd</kbd>
+                                                kullanın.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 align-items-end border-top pt-3 mt-1">
+                    <div class="col-12 col-md-6 col-lg-4 col-xl-3">
+                        <label class="form-label small fw-semibold text-secondary mb-1"><i
+                                class="bi bi-sliders me-1"></i>Toplam miktar ≥</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-light"><i
+                                    class="bi bi-arrow-down-circle text-muted"></i></span>
+                            <input type="text" name="toplam_miktar_min" class="form-control"
+                                value="{{ toplam_miktar_min }}" placeholder="Min" autocomplete="off"
+                                inputmode="decimal">
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-4 col-xl-3">
+                        <label class="form-label small fw-semibold text-secondary mb-1">Toplam miktar ≤</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-light"><i
+                                    class="bi bi-arrow-up-circle text-muted"></i></span>
+                            <input type="text" name="toplam_miktar_max" class="form-control"
+                                value="{{ toplam_miktar_max }}" placeholder="Max" autocomplete="off"
+                                inputmode="decimal">
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-4 col-xl-2">
+                        <label class="form-label small fw-semibold text-secondary mb-1"><i
+                                class="bi bi-list-ol me-1"></i>Sayfa başına</label>
+                        <select name="per_page" class="form-select form-select-sm">
+                            {% if per_page == 25 %}<option value="25" selected>25</option>{% else %}<option value="25">
+                                25</option>{% endif %}
+                            {% if per_page == 50 %}<option value="50" selected>50</option>{% else %}<option value="50">
+                                50</option>{% endif %}
+                            {% if per_page == 100 %}<option value="100" selected>100</option>{% else %}<option
+                                value="100">100</option>{% endif %}
+                            {% if per_page == 200 %}<option value="200" selected>200</option>{% else %}<option
+                                value="200">200</option>{% endif %}
+                            {% if per_page == 'all' %}<option value="all" selected>Hepsi</option>{% else %}<option
+                                value="all">Hepsi</option>{% endif %}
+                        </select>
+                    </div>
+                    <div class="col-12 om-actions-sticky">
+                        <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+                            <button type="submit" class="btn btn-primary px-4">
+                                <i class="bi bi-search me-1"></i>Listele
+                            </button>
+                            <a href="{% url 'tahsilat:ortalama_maliyet' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-lg me-1"></i>Temizle
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if uygula %}
+    <div class="card shadow-sm border-0 om-results-card" style="border-radius: var(--om-radius);">
+        <div
+            class="card-header bg-white border-bottom py-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                {% if pagination.total_count %}
+                <span class="text-muted small">Gösterilen</span>
+                <span class="fw-semibold ms-1">{{ pagination.start_item }} – {{ pagination.end_item }}</span>
+                <span class="text-muted small"> / </span>
+                <span class="fw-semibold">{{ pagination.total_count }}</span>
+                <span class="text-muted small">kayıt</span>
+                {% else %}
+                <span class="text-muted"><i class="bi bi-inbox me-1"></i>Sonuç yok</span>
+                {% endif %}
+            </div>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                {% if pagination.total_count %}
+                <a class="btn btn-success btn-sm"
+                    href="{% url 'tahsilat:ortalama_maliyet' %}?{{ om_query }}&amp;export=excel">
+                    <i class="bi bi-file-earmark-excel me-1"></i>Excel
+                </a>
+                {% endif %}
+                <div class="d-flex align-items-center gap-2">
+                    <label class="small text-muted mb-0 text-nowrap">Sayfa başına</label>
+                    <select id="omPerPage" class="form-select form-select-sm" style="min-width: 4.5rem;"
+                        title="Mevcut filtreler korunur">
+                        {% if per_page == 25 %}<option value="25" selected>25</option>{% else %}<option value="25">25
+                        </option>{% endif %}
+                        {% if per_page == 50 %}<option value="50" selected>50</option>{% else %}<option value="50">50
+                        </option>{% endif %}
+                        {% if per_page == 100 %}<option value="100" selected>100</option>{% else %}<option value="100">
+                            100</option>{% endif %}
+                        {% if per_page == 200 %}<option value="200" selected>200</option>{% else %}<option value="200">
+                            200</option>{% endif %}
+                        {% if per_page == 'all' %}<option value="all" selected>Hepsi</option>{% else %}<option
+                            value="all">Hepsi</option>{% endif %}
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>
+                            <a href="{% url 'tahsilat:ortalama_maliyet' %}?{{ om_base }}&amp;sort=fatura_turu&amp;dir={% if sort_by == 'fatura_turu' %}{% if sort_dir == 'asc' %}desc{% else %}asc{% endif %}{% else %}asc{% endif %}"
+                                class="text-dark text-decoration-none">
+                                Fatura türü
+                                {% if sort_by == 'fatura_turu' %}
+                                {% if sort_dir == 'asc' %}
+                                <i class="bi bi-sort-up text-primary"></i>
+                                {% else %}
+                                <i class="bi bi-sort-down text-primary"></i>
+                                {% endif %}
+                                {% else %}
+                                <i class="bi bi-arrow-down-up text-muted opacity-50"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{% url 'tahsilat:ortalama_maliyet' %}?{{ om_base }}&amp;sort=malzeme_turu&amp;dir={% if sort_by == 'malzeme_turu' %}{% if sort_dir == 'asc' %}desc{% else %}asc{% endif %}{% else %}asc{% endif %}"
+                                class="text-dark text-decoration-none">
+                                Malzeme türü
+                                {% if sort_by == 'malzeme_turu' %}
+                                {% if sort_dir == 'asc' %}
+                                <i class="bi bi-sort-up text-primary"></i>
+                                {% else %}
+                                <i class="bi bi-sort-down text-primary"></i>
+                                {% endif %}
+                                {% else %}
+                                <i class="bi bi-arrow-down-up text-muted opacity-50"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{% url 'tahsilat:ortalama_maliyet' %}?{{ om_base }}&amp;sort=malzeme_kodu&amp;dir={% if sort_by == 'malzeme_kodu' %}{% if sort_dir == 'asc' %}desc{% else %}asc{% endif %}{% else %}asc{% endif %}"
+                                class="text-dark text-decoration-none">
+                                Malzeme kodu
+                                {% if sort_by == 'malzeme_kodu' %}
+                                {% if sort_dir == 'asc' %}
+                                <i class="bi bi-sort-up text-primary"></i>
+                                {% else %}
+                                <i class="bi bi-sort-down text-primary"></i>
+                                {% endif %}
+                                {% else %}
+                                <i class="bi bi-arrow-down-up text-muted opacity-50"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{% url 'tahsilat:ortalama_maliyet' %}?{{ om_base }}&amp;sort=aciklama&amp;dir={% if sort_by == 'aciklama' %}{% if sort_dir == 'asc' %}desc{% else %}asc{% endif %}{% else %}asc{% endif %}"
+                                class="text-dark text-decoration-none">
+                                Açıklaması
+                                {% if sort_by == 'aciklama' %}
+                                {% if sort_dir == 'asc' %}
+                                <i class="bi bi-sort-up text-primary"></i>
+                                {% else %}
+                                <i class="bi bi-sort-down text-primary"></i>
+                                {% endif %}
+                                {% else %}
+                                <i class="bi bi-arrow-down-up text-muted opacity-50"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{% url 'tahsilat:ortalama_maliyet' %}?{{ om_base }}&amp;sort=marka&amp;dir={% if sort_by == 'marka' %}{% if sort_dir == 'asc' %}desc{% else %}asc{% endif %}{% else %}asc{% endif %}"
+                                class="text-dark text-decoration-none">
+                                Marka
+                                {% if sort_by == 'marka' %}
+                                {% if sort_dir == 'asc' %}
+                                <i class="bi bi-sort-up text-primary"></i>
+                                {% else %}
+                                <i class="bi bi-sort-down text-primary"></i>
+                                {% endif %}
+                                {% else %}
+                                <i class="bi bi-arrow-down-up text-muted opacity-50"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{% url 'tahsilat:ortalama_maliyet' %}?{{ om_base }}&amp;sort=fatura_durumu&amp;dir={% if sort_by == 'fatura_durumu' %}{% if sort_dir == 'asc' %}desc{% else %}asc{% endif %}{% else %}asc{% endif %}"
+                                class="text-dark text-decoration-none">
+                                Fatura Durumu
+                                {% if sort_by == 'fatura_durumu' %}
+                                {% if sort_dir == 'asc' %}
+                                <i class="bi bi-sort-up text-primary"></i>
+                                {% else %}
+                                <i class="bi bi-sort-down text-primary"></i>
+                                {% endif %}
+                                {% else %}
+                                <i class="bi bi-arrow-down-up text-muted opacity-50"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="{% url 'tahsilat:ortalama_maliyet' %}?{{ om_base }}&amp;sort=toplam_miktar&amp;dir={% if sort_by == 'toplam_miktar' %}{% if sort_dir == 'asc' %}desc{% else %}asc{% endif %}{% else %}asc{% endif %}"
+                                class="text-dark text-decoration-none">
+                                Toplam miktar
+                                {% if sort_by == 'toplam_miktar' %}
+                                {% if sort_dir == 'asc' %}
+                                <i class="bi bi-sort-up text-primary"></i>
+                                {% else %}
+                                <i class="bi bi-sort-down text-primary"></i>
+                                {% endif %}
+                                {% else %}
+                                <i class="bi bi-arrow-down-up text-muted opacity-50"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="{% url 'tahsilat:ortalama_maliyet' %}?{{ om_base }}&amp;sort=agirlikli_ort_birim&amp;dir={% if sort_by == 'agirlikli_ort_birim' %}{% if sort_dir == 'asc' %}desc{% else %}asc{% endif %}{% else %}asc{% endif %}"
+                                class="text-dark text-decoration-none">
+                                Ağırlıklı ort. birim
+                                {% if sort_by == 'agirlikli_ort_birim' %}
+                                {% if sort_dir == 'asc' %}
+                                <i class="bi bi-sort-up text-primary"></i>
+                                {% else %}
+                                <i class="bi bi-sort-down text-primary"></i>
+                                {% endif %}
+                                {% else %}
+                                <i class="bi bi-arrow-down-up text-muted opacity-50"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td>{{ r.fatura_turu|default:"—" }}</td>
+                        <td>{{ r.malzeme_turu|default:"—" }}</td>
+                        <td class="font-monospace small">{{ r.malzeme_kodu|default:"—" }}</td>
+                        <td>{{ r.aciklama|default:"—" }}</td>
+                        <td>{{ r.marka|default:"—" }}</td>
+                        <td>{{ r.fatura_durumu|default:"—" }}</td>
+                        <td class="text-end text-nowrap font-monospace small">{{ r.toplam_miktar|om_qty_display }}</td>
+                        <td class="text-end text-nowrap small">
+                            {% if r.agirlikli_ort_birim is not None %}
+                            {{ r.agirlikli_ort_birim|currency_format_decimal:2 }}
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-5">
+                            <i class="bi bi-search d-block fs-3 mb-2 opacity-50"></i>
+                            Bu kriterlerle kayıt bulunamadı. Filtreleri genişletip tekrar <strong>Listele</strong>
+                            deneyin.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if pagination.total_pages > 1 %}
+        <div class="card-footer bg-light py-3 border-top-0">
+            <nav aria-label="Sayfalar">
+                <ul class="pagination pagination-sm mb-0 flex-wrap justify-content-center gap-1">
+                    {% if pagination.previous_page %}
+                    <li class="page-item"><a class="page-link rounded-pill px-3"
+                            href="{% url 'tahsilat:ortalama_maliyet' %}?{{ om_query }}&amp;page={{ pagination.previous_page }}"><i
+                                class="bi bi-chevron-left me-1"></i>Önceki</a></li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link rounded-pill px-3">Önceki</span></li>
+                    {% endif %}
+                    <li class="page-item active">
+                        <span class="page-link rounded-pill border-primary">
+                            Sayfa {{ pagination.current_page }} / {{ pagination.total_pages }}
+                        </span>
+                    </li>
+                    {% if pagination.next_page %}
+                    <li class="page-item"><a class="page-link rounded-pill px-3"
+                            href="{% url 'tahsilat:ortalama_maliyet' %}?{{ om_query }}&amp;page={{ pagination.next_page }}">Sonraki<i
+                                class="bi bi-chevron-right ms-1"></i></a></li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link rounded-pill px-3">Sonraki</span></li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="alert alert-light border shadow-sm mb-0 d-flex align-items-start gap-3"
+        style="border-radius: var(--om-radius);">
+        <span
+            class="d-inline-flex align-items-center justify-content-center rounded-3 bg-primary bg-opacity-10 text-primary p-2 flex-shrink-0"><i
+                class="bi bi-info-circle"></i></span>
+        <div class="small mb-0">
+            <strong class="d-block text-dark mb-1">Nasıl kullanılır?</strong>
+            Filtre panellerinden değer seçin (veya boş bırakıp tümünü görün), gerekirse toplam miktar aralığı girin ve
+            <strong>Listele</strong>ye basın.
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    (function () {
+        var form = document.getElementById('omFilterForm');
+        if (!form) return;
+
+        function eachVisibleOption(sel, fn) {
+            var i, opt;
+            for (i = 0; i < sel.options.length; i++) {
+                opt = sel.options[i];
+                if (opt.disabled && !opt.value) continue;
+                var hidden = opt.hidden || opt.style.display === 'none';
+                if (!hidden) fn(opt);
+            }
+        }
+
+        document.querySelectorAll('.js-om-filter-search').forEach(function (input) {
+            var selId = input.getAttribute('data-om-target');
+            var sel = selId ? document.getElementById(selId) : null;
+            if (!sel) return;
+            input.addEventListener('input', function () {
+                var q = (input.value || '').trim().toLowerCase();
+                var i, opt, t, v, show;
+                for (i = 0; i < sel.options.length; i++) {
+                    opt = sel.options[i];
+                    if (opt.disabled && !opt.value) continue;
+                    t = (opt.textContent || '').toLowerCase();
+                    v = (opt.value || '').toLowerCase();
+                    show = !q || t.indexOf(q) !== -1 || v.indexOf(q) !== -1;
+                    opt.hidden = !show;
+                    opt.style.display = show ? '' : 'none';
+                }
+            });
+        });
+
+        document.querySelectorAll('.om-sel-all').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var id = btn.getAttribute('data-om-select');
+                var sel = id ? document.getElementById(id) : null;
+                if (!sel) return;
+                var i, opt;
+                for (i = 0; i < sel.options.length; i++) {
+                    opt = sel.options[i];
+                    if (opt.disabled && !opt.value) continue;
+                    opt.selected = true;
+                }
+            });
+        });
+        document.querySelectorAll('.om-sel-none').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var id = btn.getAttribute('data-om-select');
+                var sel = id ? document.getElementById(id) : null;
+                if (!sel) return;
+                var i, opt;
+                for (i = 0; i < sel.options.length; i++) {
+                    opt = sel.options[i];
+                    if (opt.disabled && !opt.value) continue;
+                    opt.selected = false;
+                }
+            });
+        });
+        document.querySelectorAll('.om-sel-visible').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var id = btn.getAttribute('data-om-select');
+                var sel = id ? document.getElementById(id) : null;
+                if (!sel) return;
+                var i, opt;
+                for (i = 0; i < sel.options.length; i++) {
+                    opt = sel.options[i];
+                    if (opt.disabled && !opt.value) continue;
+                    opt.selected = false;
+                }
+                eachVisibleOption(sel, function (opt) { opt.selected = true; });
+            });
+        });
+
+        var expandBtn = document.getElementById('omExpandAll');
+        var collapseBtn = document.getElementById('omCollapseAll');
+        if (expandBtn) {
+            expandBtn.addEventListener('click', function () {
+                document.querySelectorAll('#omFilterForm .collapse').forEach(function (el) {
+                    try { bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }).show(); } catch (e) { }
+                });
+            });
+        }
+        if (collapseBtn) {
+            collapseBtn.addEventListener('click', function () {
+                document.querySelectorAll('#omFilterForm .collapse').forEach(function (el) {
+                    try { bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }).hide(); } catch (e) { }
+                });
+            });
+        }
+
+        form.addEventListener('submit', function () {
+            form.querySelectorAll('select[multiple]').forEach(function (selEl) {
+                var j, o;
+                for (j = 0; j < selEl.options.length; j++) {
+                    o = selEl.options[j];
+                    if (!o.selected && (o.hidden || o.style.display === 'none')) {
+                        o.disabled = true;
+                    }
+                }
+            });
+        });
+    })();
+    {% if uygula %}
+    (function () {
+        var sel = document.getElementById('omPerPage');
+        if (!sel) return;
+        sel.addEventListener('change', function () {
+            var u = new URL(window.location.href);
+            u.searchParams.set('uygula', '1');
+            u.searchParams.set('per_page', this.value);
+            u.searchParams.delete('page');
+            window.location.href = u.toString();
+        });
+    })();
+    {% endif %}
+</script>
+{% endblock %}

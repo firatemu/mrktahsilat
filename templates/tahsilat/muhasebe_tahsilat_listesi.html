@@ -1,0 +1,872 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}Genel Tahsilat Listesi - MRK OTOMOTİV{% endblock %}
+
+{% block extra_head %}
+<!-- CSRF Token'ı meta tag olarak ekle -->
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .muhasebe-tahsilat-page {
+        --mtl-navy: #0f2744;
+        --mtl-navy-mid: #1a3a5c;
+        --mtl-teal: #0d9488;
+        --mtl-teal-soft: rgba(13, 148, 136, 0.12);
+        --mtl-amber: #b45309;
+        --mtl-amber-bg: #fffbeb;
+        --mtl-border: #e2e8f0;
+        --mtl-muted: #64748b;
+        --mtl-radius: 12px;
+        --mtl-shadow: 0 1px 3px rgba(15, 39, 68, 0.06), 0 8px 24px rgba(15, 39, 68, 0.06);
+    }
+
+    .muhasebe-tahsilat-page.main-content {
+        padding: 1.5rem 0;
+    }
+
+    .muhasebe-tahsilat-page .card-custom {
+        border: 1px solid var(--mtl-border);
+        border-radius: var(--mtl-radius);
+        box-shadow: var(--mtl-shadow);
+        transition: box-shadow 0.25s ease;
+        overflow: hidden;
+        background: #fff;
+    }
+
+    .muhasebe-tahsilat-page .card-custom:hover {
+        box-shadow: 0 4px 20px rgba(15, 39, 68, 0.1);
+    }
+
+    /* Tablo kartı başlığı — mor yok, kurumsal lacivert */
+    .muhasebe-tahsilat-page .card-custom > .card-header:not(.bg-transparent) {
+        background: linear-gradient(135deg, var(--mtl-navy) 0%, var(--mtl-navy-mid) 100%);
+        color: #fff;
+        border-bottom: none;
+        padding: 1.1rem 1.35rem;
+    }
+
+    .muhasebe-tahsilat-page .card-custom > .card-header.bg-transparent {
+        background: #f8fafc !important;
+        border-bottom: 1px solid var(--mtl-border) !important;
+        padding: 1rem 1.35rem;
+    }
+
+    .muhasebe-tahsilat-page .card-title {
+        font-weight: 600;
+        font-size: 1.2rem;
+        color: #0f172a;
+        margin: 0;
+        letter-spacing: -0.02em;
+    }
+
+    .muhasebe-tahsilat-page .card-custom > .card-header:not(.bg-transparent) .card-title {
+        color: #fff;
+    }
+
+    .muhasebe-tahsilat-page .card-header.bg-transparent .card-title {
+        color: var(--mtl-navy);
+    }
+
+    /* Filtre paneli */
+    .mtl-filter-panel {
+        background: #fff;
+        border: 1px solid var(--mtl-border);
+        border-radius: var(--mtl-radius);
+        box-shadow: var(--mtl-shadow);
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+    }
+
+    .mtl-filter-panel__head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1rem 1.25rem;
+        background: linear-gradient(135deg, var(--mtl-navy) 0%, var(--mtl-navy-mid) 100%);
+        color: #fff;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .mtl-filter-panel__title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        margin: 0 0 0.25rem 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        letter-spacing: -0.02em;
+    }
+
+    .mtl-filter-panel__sub {
+        margin: 0;
+        font-size: 0.8rem;
+        opacity: 0.88;
+        line-height: 1.4;
+        max-width: 36rem;
+    }
+
+    .mtl-filter-panel__body {
+        padding: 1.15rem 1.25rem 1.25rem;
+        background: #fafbfc;
+    }
+
+    .mtl-filter-group {
+        background: #fff;
+        border: 1px solid var(--mtl-border);
+        border-radius: 10px;
+        padding: 0.85rem 1rem 1rem;
+        height: 100%;
+        box-shadow: 0 1px 2px rgba(15, 39, 68, 0.04);
+    }
+
+    .mtl-filter-group__title {
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--mtl-muted);
+        margin: 0 0 0.65rem 0;
+        padding-bottom: 0.45rem;
+        border-bottom: 1px solid var(--mtl-border);
+    }
+
+    .mtl-filter-panel .form-label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--mtl-navy);
+        margin-bottom: 0.35rem;
+    }
+
+    .mtl-filter-panel .form-control,
+    .mtl-filter-panel .form-select {
+        border-radius: 8px;
+        border: 1px solid #cbd5e1;
+        font-size: 0.875rem;
+    }
+
+    .mtl-filter-panel .form-control:focus,
+    .mtl-filter-panel .form-select:focus {
+        border-color: var(--mtl-teal);
+        box-shadow: 0 0 0 0.2rem var(--mtl-teal-soft);
+    }
+
+    .mtl-filter-panel__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--mtl-border);
+    }
+
+    .mtl-filter-panel__actions .btn-primary {
+        background: var(--mtl-teal);
+        border-color: var(--mtl-teal);
+        font-weight: 600;
+        border-radius: 8px;
+        padding: 0.5rem 1.1rem;
+    }
+
+    .mtl-filter-panel__actions .btn-primary:hover {
+        background: #0f766e;
+        border-color: #0f766e;
+    }
+
+    .mtl-filter-panel__actions .btn-outline-secondary {
+        border-radius: 8px;
+        font-weight: 600;
+        border-color: #cbd5e1;
+        color: var(--mtl-navy-mid);
+    }
+
+    /* Teslim edilmeyen nakit — mor yok; amber + slate */
+    .mtl-nakit-banner {
+        border: 1px solid #fde68a;
+        border-radius: var(--mtl-radius);
+        box-shadow: var(--mtl-shadow);
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+        background: #fff;
+    }
+
+    .mtl-nakit-banner__head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.25rem;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        color: #fff;
+        border-bottom: 3px solid #f59e0b;
+    }
+
+    .mtl-nakit-banner__head i {
+        font-size: 1.75rem;
+        opacity: 0.95;
+        color: #fcd34d;
+    }
+
+    .mtl-nakit-banner__head h2 {
+        font-size: 1.05rem;
+        font-weight: 700;
+        margin: 0 0 0.2rem 0;
+        letter-spacing: -0.02em;
+    }
+
+    .mtl-nakit-banner__head p {
+        margin: 0;
+        font-size: 0.8rem;
+        opacity: 0.85;
+    }
+
+    .mtl-nakit-banner__total {
+        margin-left: auto;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        padding: 0.5rem 1rem;
+        font-weight: 700;
+        font-size: 0.95rem;
+        white-space: nowrap;
+    }
+
+    .mtl-nakit-banner__body {
+        padding: 1.15rem 1.25rem;
+        background: var(--mtl-amber-bg);
+    }
+
+    .mtl-nakit-tile {
+        background: #fff;
+        border: 1px solid #fde68a;
+        border-radius: 10px;
+        padding: 1rem;
+        height: 100%;
+        box-shadow: 0 1px 2px rgba(180, 83, 9, 0.06);
+        transition: box-shadow 0.2s ease;
+    }
+
+    .mtl-nakit-tile:hover {
+        box-shadow: 0 4px 12px rgba(180, 83, 9, 0.1);
+    }
+
+    .mtl-nakit-tile__user {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--mtl-navy);
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .mtl-nakit-tile__user i {
+        color: var(--mtl-teal);
+    }
+
+    .mtl-nakit-tile__amount {
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: var(--mtl-amber);
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* Modal görüntü için stil */
+    #evrakImage {
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        transition: transform 0.3s ease;
+    }
+
+    #evrakImage:hover {
+        transform: scale(1.02);
+    }
+
+    /* Form Elements Modern Styling */
+    .form-label {
+        font-weight: 600;
+        color: #374151;
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-control,
+    .form-select {
+        border: 1.5px solid #d1d5db;
+        border-radius: 8px;
+        padding: 0.625rem 0.875rem;
+        transition: all 0.2s ease;
+        font-size: 0.9375rem;
+    }
+
+    .muhasebe-tahsilat-page .form-control:focus,
+    .muhasebe-tahsilat-page .form-select:focus {
+        border-color: var(--mtl-teal);
+        box-shadow: 0 0 0 3px var(--mtl-teal-soft);
+        outline: none;
+    }
+
+    /* Context Menu Styling */
+    .context-menu {
+        position: fixed;
+        z-index: 10000;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        padding: 8px 0;
+        min-width: 200px;
+        border: 1px solid #e9ecef;
+    }
+
+    .context-menu-item {
+        padding: 10px 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.9rem;
+        color: #374151;
+        transition: background 0.2s;
+    }
+
+    .context-menu-item:hover {
+        background-color: #f8f9fa;
+    }
+
+    .muhasebe-tahsilat-page .selected {
+        background-color: var(--mtl-teal-soft) !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid main-content muhasebe-tahsilat-page">
+    <!-- Başlık -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="display-5 fw-bold mb-1">
+                <i class="bi bi-person-check me-3"></i>Genel Tahsilat Listesi <small
+                    class="badge bg-primary ms-2">v6.8</small>
+            </h1>
+            <p class="text-muted">Tüm plasiyerlerin tahsilat kayıtları</p>
+        </div>
+    </div>
+
+    <!-- Nakit Teslim Edilmedi Toplamları -->
+    {% if nakit_teslim_edilmedi_toplam > 0 %}
+    <div class="mtl-nakit-banner" role="region" aria-label="Teslim edilmeyen nakit özeti">
+        <div class="mtl-nakit-banner__head">
+            <i class="bi bi-cash-coin" aria-hidden="true"></i>
+            <div>
+                <h2>Teslim edilmeyen nakit toplamları</h2>
+                <p>Logo'da işlenmiş ancak henüz teslim edilmemiş nakit tutarları, kullanıcı bazında.</p>
+            </div>
+            <div class="mtl-nakit-banner__total">
+                Genel toplam: {{ nakit_teslim_edilmedi_toplam|currency_display }}
+            </div>
+        </div>
+        <div class="mtl-nakit-banner__body">
+            <div class="row g-3">
+                {% for user_data in nakit_teslim_edilmedi_by_user %}
+                <div class="col-lg-3 col-md-4 col-sm-6">
+                    <div class="mtl-nakit-tile">
+                        <div class="mtl-nakit-tile__user">
+                            <i class="bi bi-person-circle" aria-hidden="true"></i>
+                            {{ user_data.kullanici|default:"Bilinmeyen" }}
+                        </div>
+                        <div class="mtl-nakit-tile__amount">{{ user_data.tutar|currency_display }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Filtreler -->
+    <div class="mtl-filter-panel">
+        <div class="mtl-filter-panel__head">
+            <div>
+                <h2 class="mtl-filter-panel__title"><i class="bi bi-sliders" aria-hidden="true"></i> Filtreler</h2>
+                <p class="mtl-filter-panel__sub">Tarih aralığı, plasiyer, tahsilat türü ve teslim durumuna göre listeyi daraltın. Sonuçlar aşağıdaki tabloda güncellenir.</p>
+            </div>
+        </div>
+        <div class="mtl-filter-panel__body">
+            <form method="GET" id="filterForm" action="{% url 'tahsilat:muhasebe_tahsilat_listesi' %}">
+                <div class="row g-3 align-items-stretch">
+                    <div class="col-12 col-lg-4 col-xl-3">
+                        <div class="mtl-filter-group">
+                            <p class="mtl-filter-group__title">Tarih aralığı</p>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label" for="id_baslangic_tarihi">Başlangıç</label>
+                                    <input id="id_baslangic_tarihi" type="date" class="form-control" name="baslangic_tarihi"
+                                        value="{{ baslangic_tarihi|default:'' }}">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label" for="id_bitis_tarihi">Bitiş</label>
+                                    <input id="id_bitis_tarihi" type="date" class="form-control" name="bitis_tarihi"
+                                        value="{{ bitis_tarihi|default:'' }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% if current_user|upper == 'FIRAT' or current_user|upper == 'SEZEN' %}
+                    <div class="col-12 col-lg-4 col-xl-3">
+                        <div class="mtl-filter-group">
+                            <p class="mtl-filter-group__title">Plasiyer</p>
+                            <label class="form-label" for="id_plasiyer">Plasiyer seçimi</label>
+                            <select id="id_plasiyer" class="form-select" name="plasiyer">
+                                <option value="">Tümü</option>
+                                {% for p in plasiyerler %}
+                                <option value="{{ p }}" {% if plasiyer_filter == p %}selected{% endif %}>{{ p }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="col-12 col-lg">
+                        <div class="mtl-filter-group">
+                            <p class="mtl-filter-group__title">Kayıt özellikleri</p>
+                            <div class="row g-2">
+                                <div class="col-12 col-sm-6 col-xl-4">
+                                    <label class="form-label" for="id_tahsilat_turu">Tahsilat türü</label>
+                                    <select id="id_tahsilat_turu" class="form-select" name="tahsilat_turu">
+                                        <option value="">Tümü</option>
+                                        <option value="Nakit" {% if tahsilat_turu == 'Nakit' %}selected{% endif %}>Nakit</option>
+                                        <option value="Kredi Kartı" {% if tahsilat_turu == 'Kredi Kartı' %}selected{% endif %}>Kredi Kartı</option>
+                                        <option value="Banka Havalesi" {% if tahsilat_turu == 'Banka Havalesi' %}selected{% endif %}>Banka Havalesi</option>
+                                        <option value="Senet" {% if tahsilat_turu == 'Senet' %}selected{% endif %}>Senet</option>
+                                        <option value="Çek" {% if tahsilat_turu == 'Çek' %}selected{% endif %}>Çek</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-sm-6 col-xl-4">
+                                    <label class="form-label" for="id_teslim_durumu">Teslim durumu</label>
+                                    <select id="id_teslim_durumu" class="form-select" name="teslim_durumu">
+                                        <option value="">Tümü</option>
+                                        <option value="TESLİM EDİLDİ" {% if teslim_durumu == 'TESLİM EDİLDİ' %}selected{% endif %}>Teslim Edildi</option>
+                                        <option value="TESLİM EDİLMEDİ" {% if teslim_durumu == 'TESLİM EDİLMEDİ' %}selected{% endif %}>Teslim Edilmedi</option>
+                                    </select>
+                                </div>
+                                {% if current_user|upper == 'FIRAT' or current_user|upper == 'SEZEN' %}
+                                <div class="col-12 col-sm-6 col-xl-4">
+                                    <label class="form-label" for="id_kullanici">Kullanıcı</label>
+                                    <select id="id_kullanici" class="form-select" name="kullanici">
+                                        <option value="">Tümü</option>
+                                        {% for k in kullanicilar %}
+                                        <option value="{{ k }}" {% if kullanici == k %}selected{% endif %}>{{ k }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mtl-filter-panel__actions">
+                    <input type="hidden" name="per_page" value="{{ page_size }}">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1" aria-hidden="true"></i>Filtrele</button>
+                    <a href="{% url 'tahsilat:muhasebe_tahsilat_listesi' %}" class="btn btn-outline-secondary">Temizle</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tablo -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card card-custom">
+                <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Tahsilat Kayıtları</h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-success btn-sm" id="btnExportTahsilatVisible"
+                            title="Yalnızca tabloda şu an görünen satırlar (bu sayfa + hızlı arama ve sütun filtreleri) Excel uyumlu CSV olarak indirilir">
+                            <i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Excel ile aktar
+                        </button>
+                        <span class="badge bg-primary">{{ pagination_info.total_count }} kayıt</span>
+                        <span class="text-muted small">sayfa başına {{ page_size }}</span>
+                        <input type="checkbox" id="selectAll" class="form-check-input"
+                            onchange="toggleSelectAll(event)">
+                    </div>
+                </div>
+                {% include 'tahsilat/components/tahsilat_table_component.html' %}
+                <div class="card-footer bg-light py-3">
+                    <div class="row align-items-center justify-content-between g-2">
+                        <div class="col-12 col-md-auto">
+                            <span class="text-muted small">
+                                <strong>{{ pagination_info.start_item|default:0 }}</strong> – <strong>{{ pagination_info.end_item|default:0 }}</strong> / Toplam <strong>{{ pagination_info.total_count }}</strong> kayıt
+                            </span>
+                        </div>
+                        <div
+                            class="col-12 col-md-auto d-flex flex-wrap align-items-center justify-content-center gap-3">
+                            <div class="d-inline-flex align-items-center">
+                                <label class="text-muted small me-2 mb-0">Sayfa başına:</label>
+                                <select class="form-select form-select-sm" id="per_page_tahsilat" style="width: auto;"
+                                    onchange="changePerPageTahsilat(this.value)"
+                                    title="Seçim yapıldığında mevcut filtreler korunur">
+                                    <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+                                    <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+                                    <option value="150" {% if page_size == 150 %}selected{% endif %}>150</option>
+                                    <option value="200" {% if page_size == 200 %}selected{% endif %}>200</option>
+                                </select>
+                            </div>
+                            {% if pagination_info.total_pages > 0 %}
+                            <nav aria-label="Sayfa navigasyonu">
+                                <ul class="pagination pagination-sm mb-0 flex-wrap justify-content-center">
+                                    {% if pagination_info.previous_page %}
+                                    <li class="page-item"><a class="page-link" href="?page=1&{{ query_for_links }}"
+                                            title="İlk sayfa"><i class="bi bi-chevron-double-left"></i></a></li>
+                                    <li class="page-item"><a class="page-link"
+                                            href="?page={{ pagination_info.previous_page }}&{{ query_for_links }}"
+                                            title="Önceki"><i class="bi bi-chevron-left"></i></a></li>
+                                    {% else %}
+                                    <li class="page-item disabled"><span class="page-link"><i
+                                                class="bi bi-chevron-double-left"></i></span></li>
+                                    <li class="page-item disabled"><span class="page-link"><i
+                                                class="bi bi-chevron-left"></i></span></li>
+                                    {% endif %}
+                                    <li class="page-item active"><span class="page-link">Sayfa {{ pagination_info.current_page }} / {{ pagination_info.total_pages }}</span>
+                                    </li>
+                                    {% if pagination_info.next_page %}
+                                    <li class="page-item"><a class="page-link"
+                                            href="?page={{ pagination_info.next_page }}&{{ query_for_links }}"
+                                            title="Sonraki"><i class="bi bi-chevron-right"></i></a></li>
+                                    <li class="page-item"><a class="page-link"
+                                            href="?page={{ pagination_info.total_pages }}&{{ query_for_links }}"
+                                            title="Son sayfa"><i class="bi bi-chevron-double-right"></i></a></li>
+                                    {% else %}
+                                    <li class="page-item disabled"><span class="page-link"><i
+                                                class="bi bi-chevron-right"></i></span></li>
+                                    <li class="page-item disabled"><span class="page-link"><i
+                                                class="bi bi-chevron-double-right"></i></span></li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="evrakModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="evrakModalTitle">Evrak</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="evrakImage" src="" class="img-fluid rounded">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary"
+                    onclick="window.open(document.getElementById('evrakImage').src, '_blank')">Yeni Sekme</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Global Helpers
+    window.csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
+    window.csrfFetch = function (url, options = {}) {
+        options.headers = options.headers || {};
+        options.headers['X-CSRFToken'] = window.csrfToken;
+        return fetch(url, options);
+    };
+
+    function isTahsilatRowVisible(row) {
+        if (!row || !row.classList.contains('tahsilat-row')) return false;
+        if (row.style.display === 'none') return false;
+        return window.getComputedStyle(row).display !== 'none';
+    }
+
+    function csvEscapeField(val) {
+        var s = String(val == null ? '' : val).replace(/\r\n|\n|\r/g, ' ').trim();
+        if (/[;"\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+        return s;
+    }
+
+    /** Tabloda görünen satırları (sayfa + istemci filtreleri) Excel’in açtığı UTF-8 CSV olarak indirir */
+    function exportVisibleTahsilatGridToExcel() {
+        var table = document.getElementById('tahsilat-table');
+        if (!table) {
+            alert('Tablo bulunamadı.');
+            return;
+        }
+        var headers = [
+            'ID', 'Tarih', 'CariKod', 'KOD', 'Cari Ünvan', 'Tahsilat Türü', 'Banka', 'Taksit', 'Tutar',
+            'Plasiyer', 'Durum', 'Kullanıcı', 'Ekleme Tarihi', 'Teslim Durumu', 'Evrak No'
+        ];
+        var rows = [];
+        rows.push(headers.map(csvEscapeField).join(';'));
+
+        var dataRows = table.querySelectorAll('tbody tr.tahsilat-row');
+        var count = 0;
+        dataRows.forEach(function (tr) {
+            if (!isTahsilatRowVisible(tr)) return;
+            var tds = tr.querySelectorAll('td');
+            if (tds.length < 15) return;
+            var cells = [];
+            cells.push(csvEscapeField(tds[1].innerText));
+            cells.push(csvEscapeField(tds[2].innerText));
+            var cariKod = tr.getAttribute('data-carikod');
+            if (cariKod === null || cariKod === '') cariKod = tds[3] ? tds[3].innerText : '';
+            cells.push(csvEscapeField(cariKod || ''));
+            var kod = tr.getAttribute('data-kod');
+            if (kod === null) kod = '';
+            cells.push(csvEscapeField(kod));
+            for (var i = 4; i <= 14; i++) {
+                cells.push(csvEscapeField(tds[i].innerText));
+            }
+            rows.push(cells.join(';'));
+            count++;
+        });
+
+        if (count === 0) {
+            alert('Dışa aktarılacak görünür satır yok. Filtreleri veya aramayı kontrol edin.');
+            return;
+        }
+
+        var bom = '\ufeff';
+        var blob = new Blob([bom + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        var stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '').slice(0, 14);
+        a.href = url;
+        a.download = 'tahsilat_gorunen_satirlar_' + stamp + '.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // Sayfa başına kayıt değiştir (mevcut URL parametrelerini korur)
+    function changePerPageTahsilat(perPage) {
+        var url = new URL(window.location.href);
+        url.searchParams.set('per_page', perPage);
+        url.searchParams.delete('page');
+        window.location.href = url.toString();
+    }
+
+    // calculatePageSubtotal
+    function calculatePageSubtotal() {
+        let total = 0;
+        document.querySelectorAll('.tahsilat-row').forEach(row => {
+            if (row.style.display !== 'none') {
+                const tutarCell = row.querySelector('td:nth-child(9)');
+                if (tutarCell) {
+                    const val = parseFloat(tutarCell.textContent.replace(/[^0-9,-]/g, '').replace(',', '.'));
+                    if (!isNaN(val)) total += val;
+                }
+            }
+        });
+        const el = document.getElementById('pageSubtotal');
+        if (el) el.textContent = new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(total);
+    }
+
+    // Selection logic
+    function toggleSelectAll(event) {
+        const isChecked = event.target.checked;
+        document.querySelectorAll('.tahsilat-checkbox').forEach(cb => {
+            cb.checked = isChecked;
+            const row = cb.closest('tr');
+            if (row) isChecked ? row.classList.add('selected') : row.classList.remove('selected');
+        });
+    }
+
+    function updateSelectAllState() {
+        const cbs = document.querySelectorAll('.tahsilat-checkbox');
+        const checked = document.querySelectorAll('.tahsilat-checkbox:checked');
+        const allCb = document.getElementById('selectAll');
+        const tableCb = document.getElementById('selectAllTable');
+
+        if (allCb) allCb.checked = checked.length === cbs.length && cbs.length > 0;
+        if (tableCb) tableCb.checked = checked.length === cbs.length && cbs.length > 0;
+
+        cbs.forEach(cb => {
+            const row = cb.closest('tr');
+            if (row) cb.checked ? row.classList.add('selected') : row.classList.remove('selected');
+        });
+    }
+
+    // Evrak Göster
+    function evrakGoster(url, id) {
+        document.getElementById('evrakImage').src = url;
+        document.getElementById('evrakModalTitle').textContent = `ID: ${id} - Evrak`;
+        new bootstrap.Modal(document.getElementById('evrakModal')).show();
+    }
+
+    // Tahsilat Sil
+    function tahsilatSil(id, unvan) {
+        if (confirm(`${unvan} kaydını silmek istediğinize emin misiniz?`)) {
+            const formData = new FormData();
+            formData.append('tahsilat_id', id);
+            csrfFetch('/sil-tahsilat/', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) { alert(data.message); location.reload(); }
+                    else alert(data.message || 'Hata oluştu');
+                });
+        }
+    }
+
+    // Status Updates
+    function updateLogoDurumu(ids) {
+        csrfFetch('{% url "tahsilat:update_logo_durumu" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tahsilat_ids: ids, status: `LOGO'DA İŞLENDİ` })
+        }).then(r => r.json()).then(data => {
+            if (data.success) { alert(data.message); location.reload(); }
+            else alert(data.message);
+        });
+    }
+
+    function updateTeslimDurumu(ids, status) {
+        csrfFetch('{% url "tahsilat:update_teslim_durumu" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tahsilat_ids: ids, new_status: status })
+        }).then(r => r.json()).then(data => {
+            if (data.success) { alert(data.message); location.reload(); }
+            else alert(data.message);
+        });
+    }
+
+    function showContextMenu(e, id, teslimStatus, row) {
+        e.preventDefault();
+        const existing = document.querySelector('.context-menu');
+        if (existing) existing.remove();
+
+        const menu = document.createElement('div');
+        menu.className = 'context-menu';
+        menu.style.left = e.clientX + 'px';
+        menu.style.top = e.clientY + 'px';
+
+        const selected = Array.from(document.querySelectorAll('.tahsilat-checkbox:checked'));
+        const targetIds = selected.length > 0 ? selected.map(cb => cb.value) : [id];
+
+        // Logo item
+        const logoItem = document.createElement('div');
+        logoItem.className = 'context-menu-item';
+        logoItem.innerHTML = `<i class="bi bi-check-circle text-success"></i>Logo'da İşlendi Yap`;
+        logoItem.onclick = () => updateLogoDurumu(targetIds);
+        menu.appendChild(logoItem);
+
+        // Teslim item - sadece TESLİM EDİLMEDİ ve LOGO'DA İŞLENDİ olan kayıtlar için
+        if (teslimStatus === 'TESLİM EDİLMEDİ') {
+            // Seçili kayıtlar arasında LOGO'DA İŞLENDİ olanları filtrele
+            const logoTargetCbs = selected.length > 0
+                ? selected.filter(cb => cb.dataset.durum && cb.dataset.durum.toUpperCase().includes("LOGO"))
+                : [];
+            // Tek satır için
+            const singleRowCb = row.querySelector('.tahsilat-checkbox');
+            const singleIsLogo = singleRowCb && singleRowCb.dataset.durum && singleRowCb.dataset.durum.toUpperCase().includes("LOGO");
+
+            const teslimTargetIds = selected.length > 0
+                ? logoTargetCbs.map(cb => cb.value)
+                : (singleIsLogo ? [id] : []);
+
+            const teslimItem = document.createElement('div');
+            teslimItem.className = 'context-menu-item';
+            teslimItem.innerHTML = '<i class="bi bi-truck text-primary"></i>Teslim Edildi Yap';
+            teslimItem.onclick = () => {
+                if (teslimTargetIds.length === 0) {
+                    alert("Seçili kayıtlar arasında durumu 'LOGO'DA İŞLENDİ' olan tahsilat bulunamadı!");
+                    return;
+                }
+                updateTeslimDurumu(teslimTargetIds, 'TESLİM EDİLDİ');
+            };
+            menu.appendChild(teslimItem);
+        }
+
+        document.body.appendChild(menu);
+
+        const closer = () => { menu.remove(); document.removeEventListener('click', closer); };
+        setTimeout(() => document.addEventListener('click', closer), 10);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        calculatePageSubtotal();
+
+        // Right click listener
+        const currentUser = '{{ user.username|upper|escapejs }}';
+        if (currentUser === 'FIRAT' || currentUser === 'SEZEN') {
+            document.querySelectorAll('.tahsilat-row').forEach(row => {
+                row.addEventListener('contextmenu', e => {
+                    const cb = row.querySelector('.tahsilat-checkbox');
+                    if (cb) {
+                        const status = cb.dataset.teslimDurumu || '';
+                        showContextMenu(e, cb.value, status, row);
+                    }
+                });
+            });
+        }
+
+        // Hızlı Arama + Kolon filtreleme (sadece #tahsilat-table içinde)
+        const tableEl = document.getElementById('tahsilat-table');
+        const searchInput = document.getElementById('tableQuickSearch');
+
+        function applyTableFilters() {
+            if (!tableEl) return;
+            var quickTerm = (searchInput && searchInput.value || '').trim().toLocaleLowerCase('tr-TR');
+            var colFilters = {};
+            tableEl.querySelectorAll('.col-filter').forEach(function (input) {
+                var col = input.getAttribute('data-col');
+                if (col !== null && col !== '') {
+                    var val = (input.value || '').trim().toLocaleLowerCase('tr-TR');
+                    if (val) colFilters[col] = val;
+                }
+            });
+            tableEl.querySelectorAll('tbody tr.tahsilat-row').forEach(function (row) {
+                var show = true;
+                if (quickTerm && !row.textContent.toLocaleLowerCase('tr-TR').includes(quickTerm))
+                    show = false;
+                if (show && Object.keys(colFilters).length > 0) {
+                    for (var col in colFilters) {
+                        var cell = row.querySelector('td[data-col="' + col + '"]');
+                        var cellText = (cell && cell.textContent || '').trim().toLocaleLowerCase('tr-TR');
+                        if (!cell || cellText.indexOf(colFilters[col]) === -1) {
+                            show = false;
+                            break;
+                        }
+                    }
+                }
+                row.style.display = show ? '' : 'none';
+            });
+            calculatePageSubtotal();
+        }
+
+        if (searchInput)
+            searchInput.addEventListener('keyup', applyTableFilters);
+
+        if (tableEl) {
+            tableEl.addEventListener('input', function (e) {
+                if (e.target && e.target.classList && e.target.classList.contains('col-filter'))
+                    applyTableFilters();
+            });
+            tableEl.addEventListener('keyup', function (e) {
+                if (e.target && e.target.classList && e.target.classList.contains('col-filter'))
+                    applyTableFilters();
+            });
+        }
+
+        var btnExport = document.getElementById('btnExportTahsilatVisible');
+        if (btnExport) btnExport.addEventListener('click', exportVisibleTahsilatGridToExcel);
+    });
+</script>
+{% endblock %}

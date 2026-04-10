@@ -1,0 +1,314 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}Genel Görünüm - MRK OTOMOTİV{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stats-card {
+        border-left: 4px solid #007bff;
+        transition: all 0.3s ease;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    }
+    
+    .stats-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .plasiyer-card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        background: white;
+    }
+    
+    .plasiyer-card:hover {
+        border-color: #007bff;
+        box-shadow: 0 2px 10px rgba(0,123,255,0.15);
+    }
+    
+    .plasiyer-header {
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        color: white;
+        font-weight: bold;
+        border-radius: 8px 8px 0 0;
+    }
+    
+    .stat-item {
+        border-bottom: 1px solid #f8f9fa;
+        padding: 0.5rem;
+    }
+    
+    .stat-item:last-child {
+        border-bottom: none;
+    }
+    
+    .stat-label {
+        font-size: 0.85rem;
+        color: #6c757d;
+        font-weight: 500;
+    }
+    
+    .stat-value {
+        font-size: 1rem;
+        font-weight: bold;
+        color: #495057;
+    }
+    
+    .toplam-section {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+    }
+    
+    .toplam-item {
+        text-align: center;
+        padding: 1rem;
+    }
+    
+    .toplam-label {
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+    
+    .toplam-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-top: 0.25rem;
+    }
+    
+    .admin-badge {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2>
+                    <i class="bi bi-bar-chart me-2"></i>
+                    Genel Görünüm
+                    <span class="admin-badge ms-2">ADMIN</span>
+                </h2>
+                <div class="text-muted">
+                    <i class="bi bi-calendar3 me-1"></i>
+                    {{ "now"|date:"d.m.Y" }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toplam İstatistikler -->
+    <div class="toplam-section p-4 mb-4">
+        <h4 class="text-center mb-4">
+            <i class="bi bi-graph-up me-2"></i>
+            Tüm Plasiyer Toplamları
+        </h4>
+        <div class="row">
+            <div class="col-md-2">
+                <div class="toplam-item">
+                    <div class="toplam-label">Günlük Tahsilat</div>
+                    <div class="toplam-value">{{ toplam_stats.gunluk_tutar|currency_display }}</div>
+                    <small>({{ toplam_stats.gunluk_adet }} adet)</small>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="toplam-item">
+                    <div class="toplam-label">Haftalık Tahsilat</div>
+                    <div class="toplam-value">{{ toplam_stats.haftalik_tutar|currency_display }}</div>
+                    <small>({{ toplam_stats.haftalik_adet }} adet)</small>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="toplam-item">
+                    <div class="toplam-label">Aylık Tahsilat</div>
+                    <div class="toplam-value">{{ toplam_stats.aylik_tutar|currency_display }}</div>
+                    <small>({{ toplam_stats.aylik_adet }} adet)</small>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="toplam-item">
+                    <div class="toplam-label">Aktif Plasiyer</div>
+                    <div class="toplam-value">{{ plasiyer_verileri|length }}</div>
+                    <small>kişi</small>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="toplam-item">
+                    <div class="toplam-label">Ortalama Günlük</div>
+                    <div class="toplam-value">
+                        {% if plasiyer_verileri %}
+                            ₺{% widthratio toplam_stats.gunluk_tutar plasiyer_verileri|length 1 %}
+                        {% else %}
+                            ₺0,00
+                        {% endif %}
+                    </div>
+                    <small>plasiyer başı</small>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="toplam-item">
+                    <div class="toplam-label">Ortalama Aylık</div>
+                    <div class="toplam-value">
+                        {% if plasiyer_verileri %}
+                            ₺{% widthratio toplam_stats.aylik_tutar plasiyer_verileri|length 1 %}
+                        {% else %}
+                            ₺0,00
+                        {% endif %}
+                    </div>
+                    <small>plasiyer başı</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Plasiyer Kartları -->
+    <div class="row">
+        {% for plasiyer_veri in plasiyer_verileri %}
+        <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
+            <div class="plasiyer-card h-100">
+                <!-- Plasiyer Header -->
+                <div class="plasiyer-header p-3 text-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person-circle me-2"></i>
+                        {{ plasiyer_veri.plasiyer }}
+                    </h5>
+                </div>
+                
+                <!-- Tahsilat İstatistikleri -->
+                <div class="p-3">
+                    <h6 class="text-primary mb-3">
+                        <i class="bi bi-cash-coin me-1"></i>
+                        Tahsilat Performansı
+                    </h6>
+                    
+                    <div class="stat-item">
+                        <div class="d-flex justify-content-between">
+                            <span class="stat-label">Günlük</span>
+                            <span class="stat-value text-success">{{ plasiyer_veri.tahsilat.gunluk_tutar|currency_display }}</span>
+                        </div>
+                        <small class="text-muted">{{ plasiyer_veri.tahsilat.gunluk_adet }} işlem</small>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="d-flex justify-content-between">
+                            <span class="stat-label">Haftalık</span>
+                            <span class="stat-value text-info">{{ plasiyer_veri.tahsilat.haftalik_tutar|currency_display }}</span>
+                        </div>
+                        <small class="text-muted">{{ plasiyer_veri.tahsilat.haftalik_adet }} işlem</small>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="d-flex justify-content-between">
+                            <span class="stat-label">Aylık</span>
+                            <span class="stat-value text-primary">{{ plasiyer_veri.tahsilat.aylik_tutar|currency_display }}</span>
+                        </div>
+                        <small class="text-muted">{{ plasiyer_veri.tahsilat.aylik_adet }} işlem</small>
+                    </div>
+                </div>
+                
+                <!-- Performans Göstergesi -->
+                <div class="p-3 pt-0">
+                    {% if plasiyer_veri.tahsilat.aylik_tutar > 0 %}
+                        {% widthratio plasiyer_veri.tahsilat.aylik_tutar toplam_stats.aylik_tutar 100 as percentage %}
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar bg-success" style="width: {{ percentage }}%"></div>
+                        </div>
+                        <small class="text-muted">
+                            Toplam içindeki payı: %{{ percentage }}
+                        </small>
+                    {% else %}
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar bg-light" style="width: 100%"></div>
+                        </div>
+                        <small class="text-muted">Henüz tahsilat yok</small>
+                    {% endif %}
+                </div>
+                
+                <!-- Hata Durumu -->
+                {% if plasiyer_veri.hata %}
+                <div class="p-3 pt-0">
+                    <div class="alert alert-warning alert-sm mb-0">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        <small>Veri alınamadı</small>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info text-center">
+                <i class="bi bi-info-circle me-2"></i>
+                Henüz plasiyer verisi bulunmuyor.
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Footer İstatistikler -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <h6 class="text-muted">En Yüksek Günlük</h6>
+                            <h4 class="text-success">
+                                {% for pv in plasiyer_verileri %}
+                                    {% if forloop.first %}{{ pv.tahsilat.gunluk_tutar|currency_display }}{% endif %}
+                                {% endfor %}
+                            </h4>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">En Yüksek Haftalık</h6>
+                            <h4 class="text-info">
+                                {% for pv in plasiyer_verileri %}
+                                    {% if forloop.first %}{{ pv.tahsilat.haftalik_tutar|currency_display }}{% endif %}
+                                {% endfor %}
+                            </h4>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">En Yüksek Aylık</h6>
+                            <h4 class="text-primary">
+                                {% for pv in plasiyer_verileri %}
+                                    {% if forloop.first %}{{ pv.tahsilat.aylik_tutar|currency_display }}{% endif %}
+                                {% endfor %}
+                            </h4>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">Toplam İşlem</h6>
+                            <h4 class="text-dark">{{ toplam_stats.aylik_adet }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Otomatik yenileme yok; güncel veri için Yenile kullanın.
+
+    // Yenile butonu
+    const refreshBtn = document.createElement('button');
+    refreshBtn.className = 'btn btn-outline-primary btn-sm position-fixed';
+    refreshBtn.style.cssText = 'top: 100px; right: 20px; z-index: 1000;';
+    refreshBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Yenile';
+    refreshBtn.onclick = () => location.reload();
+    document.body.appendChild(refreshBtn);
+});
+</script>
+{% endblock %}

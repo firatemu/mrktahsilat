@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block title %}KDV Raporu{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h4 class="mb-0"><i class="bi bi-percent"></i> KDV Raporu</h4>
+        <form method="get" class="d-flex" role="search">
+            <input type="number" class="form-control me-2" name="yil" value="{{ yil }}" min="2000" max="2100" placeholder="Yıl">
+            <button class="btn btn-primary" type="submit"><i class="bi bi-search"></i> Getir</button>
+        </form>
+    </div>
+
+    <div class="card card-custom mb-3">
+        <div class="card-body">
+            <div class="row text-center">
+                <div class="col-md-4 mb-2">
+                    <div class="p-3 bg-light rounded">
+                        <div class="text-muted small">Toplam Giden KDV</div>
+                        <div class="fs-5 fw-bold currency">{{ toplam_giden_kdv|floatformat:2 }} ₺</div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <div class="p-3 bg-light rounded">
+                        <div class="text-muted small">Toplam Gelen KDV</div>
+                        <div class="fs-5 fw-bold currency">{{ toplam_gelen_kdv|floatformat:2 }} ₺</div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <div class="p-3 bg-light rounded">
+                        <div class="text-muted small">Ödenecek KDV</div>
+                        <div class="fs-5 fw-bold currency">{{ genel_odenecek|floatformat:2 }} ₺</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card card-custom">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th>Ay</th>
+                            <th class="text-end">Giden Brüt (KDV Dahil)</th>
+                            <th class="text-end">Giden KDV</th>
+                            <th class="text-end">Gelen Brüt (KDV Dahil)</th>
+                            <th class="text-end">Gelen KDV</th>
+                            <th class="text-end">Ödenecek KDV (Giden - Gelen)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in monthly %}
+                        <tr>
+                            <td>
+                                {% if r.ay_num == 1 %}Ocak{% elif r.ay_num == 2 %}Şubat{% elif r.ay_num == 3 %}Mart{% elif r.ay_num == 4 %}Nisan{% elif r.ay_num == 5 %}Mayıs{% elif r.ay_num == 6 %}Haziran{% elif r.ay_num == 7 %}Temmuz{% elif r.ay_num == 8 %}Ağustos{% elif r.ay_num == 9 %}Eylül{% elif r.ay_num == 10 %}Ekim{% elif r.ay_num == 11 %}Kasım{% elif r.ay_num == 12 %}Aralık{% else %}{{ r.ay_num }}{% endif %}
+                                {{ r.yil }}
+                            </td>
+                            <td class="text-end">{{ r.giden_brut|floatformat:2 }} ₺</td>
+                            <td class="text-end">{{ r.giden_kdv|floatformat:2 }} ₺</td>
+                            <td class="text-end">{{ r.gelen_brut|floatformat:2 }} ₺</td>
+                            <td class="text-end">{{ r.gelen_kdv|floatformat:2 }} ₺</td>
+                            <td class="text-end fw-semibold">{{ r.odenecek_kdv|floatformat:2 }} ₺</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

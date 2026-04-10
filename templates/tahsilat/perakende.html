@@ -1,0 +1,639 @@
+{% extends 'base.html' %}
+
+{% block title %}Perakende Cari Takibi{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem 0;
+        margin-bottom: 2rem;
+        border-radius: 0 0 20px 20px;
+    }
+
+    .cari-card {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid #dee2e6;
+        border-radius: 15px;
+        box-shadow: 0 3px 15px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+        overflow: hidden;
+    }
+
+    .cari-header {
+        padding: 1.5rem;
+        border-bottom: none;
+    }
+    
+    /* Cari Renkleri */
+    .cari-card:nth-child(1) .cari-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    .cari-card:nth-child(2) .cari-header {
+        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+        color: white;
+    }
+    .cari-card:nth-child(3) .cari-header {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        color: white;
+    }
+    .cari-card:nth-child(4) .cari-header {
+        background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        color: white;
+    }
+    .cari-card:nth-child(5) .cari-header {
+        background: linear-gradient(135deg, #ffa726 0%, #ff7043 100%);
+        color: white;
+    }
+    .cari-card:nth-child(6) .cari-header {
+        background: linear-gradient(135deg, #26c6da 0%, #00acc1 100%);
+        color: white;
+    }
+
+    .cari-body {
+        padding: 0;
+    }
+
+    .stats-row {
+        padding: 1rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    /* Stats Row Renkleri */
+    .cari-card:nth-child(1) .stats-row {
+        background: rgba(102, 126, 234, 0.1);
+    }
+    .cari-card:nth-child(2) .stats-row {
+        background: rgba(255, 107, 107, 0.1);
+    }
+    .cari-card:nth-child(3) .stats-row {
+        background: rgba(79, 172, 254, 0.1);
+    }
+    .cari-card:nth-child(4) .stats-row {
+        background: rgba(67, 233, 123, 0.1);
+    }
+    .cari-card:nth-child(5) .stats-row {
+        background: rgba(255, 167, 38, 0.1);
+    }
+    .cari-card:nth-child(6) .stats-row {
+        background: rgba(38, 198, 218, 0.1);
+    }
+
+    .stat-card {
+        text-align: center;
+        padding: 1rem;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin: 0.5rem;
+    }
+
+    .stat-number {
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+    
+    /* Stat Number Renkleri */
+    .cari-card:nth-child(1) .stat-number {
+        color: #667eea;
+    }
+    .cari-card:nth-child(2) .stat-number {
+        color: #ff6b6b;
+    }
+    .cari-card:nth-child(3) .stat-number {
+        color: #4facfe;
+    }
+    .cari-card:nth-child(4) .stat-number {
+        color: #43e97b;
+    }
+    .cari-card:nth-child(5) .stat-number {
+        color: #ffa726;
+    }
+    .cari-card:nth-child(6) .stat-number {
+        color: #26c6da;
+    }
+
+    .stat-label {
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+    }
+
+    .tab-content {
+        padding: 1.5rem;
+    }
+
+    .nav-tabs .nav-link {
+        border: none;
+        border-radius: 0;
+        color: #6c757d;
+        font-weight: 500;
+        padding: 1rem 1.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .nav-tabs .nav-link.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+    }
+
+    .nav-tabs .nav-link:hover {
+        border: none;
+        background: rgba(102, 126, 234, 0.1);
+        color: #667eea;
+    }
+
+    .table-responsive {
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .table {
+        margin-bottom: 0;
+    }
+
+    .table thead th {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        font-weight: 600;
+        padding: 1rem 0.75rem;
+    }
+
+    .table tbody tr {
+        transition: all 0.3s ease;
+    }
+
+    .table tbody tr:hover {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .table tbody td {
+        padding: 1rem 0.75rem;
+        border-color: #f1f3f4;
+        vertical-align: middle;
+    }
+
+    .badge {
+        font-size: 0.8rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 20px;
+    }
+
+    .badge-success {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    }
+
+    .badge-info {
+        background: linear-gradient(135deg, #17a2b8 0%, #6f42c1 100%);
+    }
+
+    .badge-warning {
+        background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+    }
+
+    .no-data {
+        text-align: center;
+        padding: 3rem;
+        color: #6c757d;
+    }
+
+    .no-data i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .cari-kod {
+        font-family: 'Courier New', monospace;
+        background: rgba(255, 255, 255, 0.2);
+        padding: 0.25rem 0.5rem;
+        border-radius: 5px;
+        font-size: 0.9rem;
+    }
+
+    .scroll-container {
+        max-height: 500px;
+        overflow-y: auto;
+        border-radius: 12px;
+        background: linear-gradient(145deg, #ffffff, #f8f9fa);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+
+    .scroll-container::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .scroll-container::-webkit-scrollbar-track {
+        background: #f1f3f4;
+        border-radius: 3px;
+    }
+
+    .scroll-container::-webkit-scrollbar-thumb {
+        background: linear-gradient(45deg, #667eea, #764ba2);
+        border-radius: 3px;
+    }
+
+    .scroll-container::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(45deg, #5a6fd8, #6a4190);
+    }
+    
+    .table {
+        margin-bottom: 0;
+        font-size: 0.85rem;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    .table th {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+        padding: 12px 8px;
+        border: none;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    .table td {
+        padding: 10px 8px;
+        border-bottom: 1px solid #e9ecef;
+        vertical-align: middle;
+        background: white;
+    }
+    .table tbody tr {
+        transition: all 0.3s ease;
+    }
+    .table tbody tr:hover {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.05), rgba(118, 75, 162, 0.05));
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    .table tbody tr:nth-child(even) {
+        background: #f8f9fa;
+    }
+    .table tbody tr:nth-child(even):hover {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.08), rgba(118, 75, 162, 0.08));
+    }
+
+    @media (max-width: 768px) {
+        .cari-card {
+            margin-bottom: 1rem;
+        }
+        
+        .stats-row {
+            padding: 0.5rem;
+        }
+        
+        .stat-card {
+            margin: 0.25rem;
+            padding: 0.75rem;
+        }
+        
+        .tab-content {
+            padding: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1 class="mb-0">
+                        <i class="bi bi-shop me-3"></i>Perakende Cari Takibi
+                    </h1>
+                    <p class="mb-0 mt-2 opacity-75">Perakende cari hesapların satış ve tahsilat işlemlerini takip edin</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="d-flex flex-column align-items-end">
+                        <span class="badge badge-info mb-2">
+                            <i class="bi bi-building me-1"></i>3 Cari Hesap
+                        </span>
+                        <small class="text-light opacity-75">
+                            <i class="bi bi-clock me-1"></i>Güncel Veriler
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Tarih Filtreleme Formu -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">
+                            <i class="bi bi-calendar-range me-2"></i>Tarih Filtreleme
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="GET" class="row g-3">
+                            <div class="col-md-4">
+                                <label for="baslangic_tarihi" class="form-label">Başlangıç Tarihi</label>
+                                <input type="date" 
+                                       class="form-control" 
+                                       id="baslangic_tarihi" 
+                                       name="baslangic_tarihi" 
+                                       value="{{ baslangic_tarihi }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="bitis_tarihi" class="form-label">Bitiş Tarihi</label>
+                                <input type="date" 
+                                       class="form-control" 
+                                       id="bitis_tarihi" 
+                                       name="bitis_tarihi" 
+                                       value="{{ bitis_tarihi }}">
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary me-2">
+                                    <i class="bi bi-search me-1"></i>Filtrele
+                                </button>
+                                <a href="{% url 'tahsilat:perakende' %}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Temizle
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% for cari_kod in perakende_cari_kodlari %}
+        {% for cari_key, cari_data in cari_verileri.items %}
+        {% if cari_key == cari_kod %}
+        <div class="cari-card">
+            <div class="cari-header">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h4 class="mb-1">
+                            <i class="bi bi-person-circle me-2"></i>
+                            {{ cari_data.cari_adi|default:"Cari Adı Bulunamadı" }}
+                        </h4>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <div class="d-flex justify-content-end gap-2">
+                            <span class="badge badge-success">
+                                <i class="bi bi-cart-check me-1"></i>{{ cari_data.satis_sayisi|default:0 }} Satış
+                            </span>
+                            <span class="badge badge-info">
+                                <i class="bi bi-cash-coin me-1"></i>{{ cari_data.tahsilat_sayisi|default:0 }} Tahsilat
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Row -->
+            <div class="stats-row">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-number">{{ cari_data.toplam_satis|default:0|floatformat:2 }} ₺</div>
+                            <div class="stat-label">Toplam Satış</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-number">{{ cari_data.toplam_tahsilat|default:0|floatformat:2 }} ₺</div>
+                            <div class="stat-label">Toplam Tahsilat</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-number">{{ cari_data.satis_sayisi|default:0 }}</div>
+                            <div class="stat-label">Satış Sayısı</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-number">{{ cari_data.tahsilat_sayisi|default:0 }}</div>
+                            <div class="stat-label">Tahsilat Sayısı</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <ul class="nav nav-tabs" id="tabs-{{ forloop.counter }}" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="satislar-{{ forloop.counter }}-tab" data-bs-toggle="tab" 
+                            data-bs-target="#satislar-{{ forloop.counter }}" type="button" role="tab">
+                        <i class="bi bi-cart-check me-2"></i>Satışlar
+                        <span class="badge badge-success ms-2">{{ cari_data.satis_sayisi|default:0 }}</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tahsilatlar-{{ forloop.counter }}-tab" data-bs-toggle="tab" 
+                            data-bs-target="#tahsilatlar-{{ forloop.counter }}" type="button" role="tab">
+                        <i class="bi bi-cash-coin me-2"></i>Tahsilatlar
+                        <span class="badge badge-info ms-2">{{ cari_data.tahsilat_sayisi|default:0 }}</span>
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="tabContent-{{ forloop.counter }}">
+                <!-- Satışlar Tab -->
+                <div class="tab-pane fade show active" id="satislar-{{ forloop.counter }}" role="tabpanel">
+                    {% if cari_data.satislar %}
+                    <div class="scroll-container">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Tarih</th>
+                                        <th>Malzeme Kodu</th>
+                                        <th>Açıklama</th>
+                                        <th>Marka</th>
+                                        <th>Miktar</th>
+                                        <th>Birim</th>
+                                        <th>Birim Net</th>
+                                        <th>Net Toplam</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for satis in cari_data.satislar %}
+                                    <tr>
+                                        <td>{{ satis.TARİH|default:"-" }}</td>
+                                        <td><span class="cari-kod">{{ satis.MALZEME_KODU|default:"-" }}</span></td>
+                                        <td>{{ satis.AÇIKLAMASI|default:"-" }}</td>
+                                        <td>{{ satis.MARKA|default:"-" }}</td>
+                                        <td>{{ satis.MİKTAR|default:0|floatformat:2 }}</td>
+                                        <td>{{ satis.BİRİM|default:"-" }}</td>
+                                        <td>{{ satis.BİRİM_NET|default:0|floatformat:2 }} ₺</td>
+                                        <td><strong>{{ satis.NET_TOPLAM|default:0|floatformat:2 }} ₺</strong></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="no-data">
+                        <i class="bi bi-cart-x"></i>
+                        <h5>Satış Bulunamadı</h5>
+                        <p>Bu cari hesap için henüz satış kaydı bulunmuyor.</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Tahsilatlar Tab -->
+                <div class="tab-pane fade" id="tahsilatlar-{{ forloop.counter }}" role="tabpanel">
+                    {% if cari_data.tahsilatlar %}
+                    <div class="scroll-container">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Tahsilat ID</th>
+                                        <th>Evrak No</th>
+                                        <th>Cari Kod</th>
+                                        <th>Açıklama</th>
+                                        <th>Tarih</th>
+                                        <th>Dosya Boyutu</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for tahsilat in cari_data.tahsilatlar %}
+                                    <tr>
+                                        <td><strong>{{ tahsilat.tahsilat_id|default:"-" }}</strong></td>
+                                        <td>{{ tahsilat.evrak_no|default:"-" }}</td>
+                                        <td><span class="cari-kod">{{ tahsilat.cari_kod|default:"-" }}</span></td>
+                                        <td>{{ tahsilat.aciklama|default:"-" }}</td>
+                                        <td>{{ tahsilat.yuklenen_tarih|date:"d.m.Y H:i"|default:"-" }}</td>
+                                        <td>{{ tahsilat.dosya_boyutu|default:0|filesizeformat }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="no-data">
+                        <i class="bi bi-cash-stack"></i>
+                        <h5>Tahsilat Bulunamadı</h5>
+                        <p>Bu cari hesap için henüz tahsilat kaydı bulunmuyor.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endfor %}
+
+        <!-- Genel Özet -->
+        <div class="cari-card">
+            <div class="cari-header">
+                <h4 class="mb-0">
+                    <i class="bi bi-graph-up me-2"></i>Genel Özet
+                </h4>
+            </div>
+            <div class="stats-row">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-number" id="total-satis">0.00 ₺</div>
+                            <div class="stat-label">Toplam Satış</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-number" id="total-tahsilat">0.00 ₺</div>
+                            <div class="stat-label">Toplam Tahsilat</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-number" id="total-satis-count">0</div>
+                            <div class="stat-label">Toplam Satış Sayısı</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-number" id="total-tahsilat-count">0</div>
+                            <div class="stat-label">Toplam Tahsilat Sayısı</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Tab switching functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize all tabs
+    var tabTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tab"]'));
+    var tabList = tabTriggerList.map(function (tabTriggerEl) {
+        return new bootstrap.Tab(tabTriggerEl);
+    });
+    
+    // Calculate totals
+    calculateTotals();
+});
+
+function calculateTotals() {
+    let totalSatis = 0;
+    let totalTahsilat = 0;
+    let totalSatisCount = 0;
+    let totalTahsilatCount = 0;
+    
+    // Get all stat cards
+    const statCards = document.querySelectorAll('.stat-card');
+    
+    statCards.forEach(card => {
+        const number = card.querySelector('.stat-number');
+        const label = card.querySelector('.stat-label');
+        
+        if (label && number) {
+            const labelText = label.textContent.trim();
+            const numberText = number.textContent.trim();
+            
+            if (labelText === 'Toplam Satış') {
+                const value = parseFloat(numberText.replace('₺', '').replace(',', '.').trim()) || 0;
+                totalSatis += value;
+            } else if (labelText === 'Toplam Tahsilat') {
+                const value = parseFloat(numberText.replace('₺', '').replace(',', '.').trim()) || 0;
+                totalTahsilat += value;
+            } else if (labelText === 'Satış Sayısı') {
+                const value = parseInt(numberText) || 0;
+                totalSatisCount += value;
+            } else if (labelText === 'Tahsilat Sayısı') {
+                const value = parseInt(numberText) || 0;
+                totalTahsilatCount += value;
+            }
+        }
+    });
+    
+    // Update total display
+    document.getElementById('total-satis').textContent = totalSatis.toLocaleString('tr-TR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }) + ' ₺';
+    
+    document.getElementById('total-tahsilat').textContent = totalTahsilat.toLocaleString('tr-TR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }) + ' ₺';
+    
+    document.getElementById('total-satis-count').textContent = totalSatisCount;
+    document.getElementById('total-tahsilat-count').textContent = totalTahsilatCount;
+}
+</script>
+{% endblock %}

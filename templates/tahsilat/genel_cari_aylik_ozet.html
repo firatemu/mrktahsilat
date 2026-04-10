@@ -1,0 +1,254 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+{% load tahsilat_extras %}
+
+{% block title %}{{ sayfa_baslik }} - Genel Görünüm - MRK OTOMOTİV{% endblock %}
+
+{% block extra_css %}
+<style>
+    .admin-badge {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: bold;
+    }
+
+    .table-wrapper {
+        max-height: 70vh;
+        overflow-x: auto;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+    }
+
+    .table-wrapper table {
+        margin-bottom: 0;
+        min-width: 800px;
+    }
+
+    .table-wrapper thead th {
+        position: sticky;
+        top: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+        border-bottom: 2px solid #dee2e6;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        white-space: nowrap;
+    }
+
+    .cari-row:hover {
+        background-color: #f8f9fa;
+    }
+
+    .amount-positive {
+        color: #28a745;
+        font-weight: 600;
+    }
+
+    .amount-negative {
+        color: #dc3545;
+        font-weight: 600;
+    }
+
+    .filter-section {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 0.375rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .export-buttons {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .th-month {
+        text-align: center;
+        font-size: 0.85rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="main-content">
+    <div class="container-fluid mt-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h2>
+                        <i class="{{ sayfa_ikon }} me-2"></i>
+                        Genel Görünüm - {{ sayfa_baslik }}
+                        <span class="admin-badge ms-2">ADMIN</span>
+                    </h2>
+                    <div class="text-muted">
+                        <i class="bi bi-calendar3 me-1"></i>
+                        {{ "now"|date:"d.m.Y" }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Breadcrumb -->
+        <div class="row mb-3">
+            <div class="col-12">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{% url 'tahsilat:dashboard' %}">Dashboard</a></li>
+                        <li class="breadcrumb-item">Genel Görünüm</li>
+                        <li class="breadcrumb-item active">{{ sayfa_baslik }}</li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Filtreler -->
+        <div class="filter-section">
+            <form method="get" id="filterForm" class="row g-3">
+                {% csrf_token %}
+                <div class="col-md-4">
+                    <label class="form-label">Başlangıç Tarihi</label>
+                    <input type="date" class="form-control" name="baslangic_tarihi" value="{{ baslangic_tarihi }}" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Bitiş Tarihi</label>
+                    <input type="date" class="form-control" name="bitis_tarihi" value="{{ bitis_tarihi }}" required>
+                </div>
+                <div class="col-md-12 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search me-1"></i>Filtrele
+                    </button>
+                    <a href="?" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle me-1"></i>Temizle
+                    </a>
+                    <div class="export-buttons ms-auto">
+                        <button type="button" class="btn btn-success" onclick="exportData('excel')">
+                            <i class="bi bi-file-earmark-excel me-1"></i>Excel İndir
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Sonuçlar -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-table me-2"></i>
+                            Cari Aylık Satış / Tahsilat ve Güncel Bakiye
+                            <span class="badge bg-primary ms-2">{{ cari_aylik_rows|length }} Cari</span>
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-wrapper">
+                            <table class="table table-hover table-striped mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 100px;">Cari Kod</th>
+                                        <th style="width: 200px;">Cari Ünvan</th>
+                                        {% for ay in aylar %}
+                                        <th class="th-month" colspan="2">{{ ay.label }}</th>
+                                        {% endfor %}
+                                        <th style="text-align: right; width: 120px;">Güncel Bakiye</th>
+                                        <th style="text-align: right; width: 120px;">Toplam Satış</th>
+                                        <th style="text-align: right; width: 120px;">Toplam Tahsilat</th>
+                                    </tr>
+                                    <tr>
+                                        <th></th>
+                                        <th></th>
+                                        {% for ay in aylar %}
+                                        <th class="th-month" style="width: 100px;">Satış</th>
+                                        <th class="th-month" style="width: 100px;">Tahsilat</th>
+                                        {% endfor %}
+                                        <th></th>
+                                        <th></th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if cari_aylik_rows %}
+                                        {% for row in cari_aylik_rows %}
+                                        <tr class="cari-row">
+                                            <td><strong>{{ row.cari_kod }}</strong></td>
+                                            <td>{{ row.cari_unvan }}</td>
+                                            {% for ay in aylar %}
+                                            {% with satis_key=ay.label|add:"_satis" tahsilat_key=ay.label|add:"_tahsilat" %}
+                                            <td style="text-align: right;" class="amount-positive">
+                                                {{ row|get_item:satis_key|default:0|currency_format_decimal:2 }}
+                                            </td>
+                                            <td style="text-align: right;" class="amount-positive">
+                                                {{ row|get_item:tahsilat_key|default:0|currency_format_decimal:2 }}
+                                            </td>
+                                            {% endwith %}
+                                            {% endfor %}
+                                            <td style="text-align: right;" class="{% if row.guncel_bakiye >= 0 %}amount-positive{% else %}amount-negative{% endif %}">
+                                                {{ row.guncel_bakiye|default:0|currency_format_decimal:2 }}
+                                            </td>
+                                            <td style="text-align: right;" class="amount-negative">{{ row.borc|default:0|currency_format_decimal:2 }}</td>
+                                            <td style="text-align: right;" class="amount-positive">{{ row.alacak|default:0|currency_format_decimal:2 }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="99" class="text-center py-4">
+                                                <i class="bi bi-inbox me-2"></i>
+                                                Filtreleme kriterlerine uygun kayıt bulunamadı.
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function exportData(format) {
+    const form = document.getElementById('filterForm');
+    const formData = new FormData(form);
+    formData.append('action', 'export_' + format);
+
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    formData.append('csrfmiddlewaretoken', csrftoken);
+
+    fetch('{% url "tahsilat:genel_cari_aylik_ozet" %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': csrftoken
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json()
+                .then(data => { throw new Error(data.message || 'Export basarisiz'); })
+                .catch(err => { if (err instanceof Error && err.message) throw err; throw new Error('Export basarisiz'); });
+        }
+        return response.blob();
+    })
+    .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'cari_aylik_ozet.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    })
+    .catch(error => {
+        console.error('Export hatasi:', error);
+        alert('Export sirasinda hata: ' + error.message);
+    });
+}
+</script>
+{% endblock %}

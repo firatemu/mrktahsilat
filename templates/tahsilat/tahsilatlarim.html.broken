@@ -1,0 +1,817 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}{% if is_genel_tahsilat_listesi %}Genel Tahsilat Listesi{% else %}Tahsilatlarım{% endif %} - MRK OTOMOTİV{% endblock %}
+
+{% block extra_head %}
+<!-- CSRF Token'ı meta tag olarak ekle -->
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Evrak butonu için özel stil */
+    .col-evrak {
+        width: 100px !important;
+        min-width: 100px;
+    }
+
+    /* İşlemler kolonu için özel stil */
+    .col-islemler {
+        width: 120px !important;
+        min-width: 120px;
+    }
+
+    /* Modal görüntü için stil */
+    #evrakImage {
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Filter form responsive */
+    .filter-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+    }
+
+    .filter-buttons {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    /* Responsive Breakpoints */
+    @media (max-width: 1200px) {
+        .filter-row {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 768px) {
+        /* Mobile - Tablo yerine Card Tasarımı */
+        .table-responsive {
+            overflow-x: visible;
+            padding: 0 4px;
+            margin: 0 -4px;
+        }
+
+        .table-compact {
+            display: block;
+            border-spacing: 0;
+            margin: 0;
+            width: 100%;
+        }
+
+        .table-compact thead {
+            display: none;
+        }
+
+        .table-compact tbody,
+        .table-compact tr,
+        .table-compact td {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .table-compact tbody {
+            margin-top: 4px;
+        }
+
+        .table-compact tr {
+            background: white;
+            border: 1px solid #ede4d9;
+            border-radius: 10px;
+            margin: 0 0 10px 0;
+            padding: 0;
+            box-shadow: 0 2px 10px rgba(255, 107, 53, 0.06);
+            overflow: hidden;
+        }
+
+        .table-compact tr:active {
+            box-shadow: 0 4px 16px rgba(255, 107, 53, 0.12) !important;
+        }
+
+        .table-compact tr.selected {
+            border: 2px solid #ff9a56 !important;
+            background: linear-gradient(135deg, rgba(255, 154, 86, 0.08) 0%, rgba(255, 107, 53, 0.04) 100%) !important;
+            box-shadow: 0 3px 12px rgba(255, 154, 86, 0.15) !important;
+        }
+
+        .table-compact td {
+            border: none;
+            padding: 6px 10px !important;
+            position: relative;
+            text-align: left;
+            border-bottom: 1px solid #faf8f5;
+            font-size: 0.88rem;
+            line-height: 1.5;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
+            min-height: auto;
+            display: block;
+            box-sizing: border-box;
+        }
+
+        .table-compact td:last-child {
+            border-bottom: none;
+        }
+
+        .table-compact td::before {
+            content: attr(data-label);
+            display: block;
+            width: 100%;
+            font-weight: 600;
+            color: #ff6b35;
+            font-size: 0.70rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            line-height: 1.3;
+            margin-bottom: 4px;
+        }
+
+        /* Mobilde Checkbox - Touch-friendly */
+        .table-compact .col-checkbox {
+            padding: 12px !important;
+            min-height: 44px;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            border-bottom: none !important;
+        }
+
+        .table-compact .col-checkbox input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            margin: 0;
+        }
+
+        .table-compact .col-checkbox::before {
+            display: none !important;
+        }
+
+        /* Mobilde Tutar - Önemli veri */
+        .table-compact .col-tutar {
+            background: linear-gradient(135deg, rgba(255, 154, 86, 0.1) 0%, rgba(255, 107, 53, 0.06) 100%);
+            font-size: 1.05rem !important;
+            font-weight: 700;
+            padding: 10px 12px !important;
+            border-radius: 6px;
+            border-bottom: none !important;
+            color: #d84315;
+        }
+
+        .table-compact .col-tutar::before {
+            font-weight: 600;
+            color: #ff6b35;
+            font-size: 0.72rem;
+            margin-bottom: 4px;
+        }
+
+        /* Aksiyon butonları - Mobil uyumlu */
+        .table-compact .col-evrak,
+        .table-compact .col-islemler {
+            padding: 8px 12px !important;
+            border-bottom: none !important;
+            display: block !important;
+        }
+
+        .table-compact .col-evrak::before,
+        .table-compact .col-islemler::before {
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .table-compact .col-evrak .btn-sm,
+        .table-compact .col-islemler .btn-sm {
+            width: 100%;
+            margin: 4px 0;
+            min-height: 38px;
+            font-size: 0.82rem;
+        }
+
+        /* Badge ve badge grupları */
+        .table-compact .badge {
+            display: inline-block;
+            margin: 3px 2px 3px 0;
+            font-size: 0.75rem;
+            padding: 0.35rem 0.6rem;
+        }
+
+        /* Form kontrolleri - Mobil */
+        .form-control,
+        .form-select {
+            font-size: 16px !important;
+            /* iOS zoom'u engelle */
+            min-height: 40px;
+        }
+
+        .filter-row {
+            grid-template-columns: 1fr;
+        }
+
+        .filter-buttons {
+            flex-direction: column;
+        }
+
+        .filter-buttons .btn {
+            width: 100%;
+        }
+    }
+
+    @media (max-width: 576px) {
+        /* Extra Small Mobile - Optimized */
+        .container-fluid {
+            padding: 4px 2px;
+        }
+
+        .table-responsive {
+            padding: 0 2px;
+            margin: 0;
+        }
+
+        .table-compact tr {
+            margin: 0 0 8px 0;
+            padding: 0;
+            border-radius: 8px;
+        }
+
+        .table-compact td {
+            padding: 6px 9px !important;
+            font-size: 0.85rem;
+            min-height: auto;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            box-sizing: border-box;
+        }
+
+        .table-compact td::before {
+            font-size: 0.66rem;
+            width: 100%;
+            left: auto;
+            top: auto;
+            letter-spacing: 0.4px;
+            margin-bottom: 2px;
+        }
+
+        .table-compact .col-checkbox {
+            min-height: 40px;
+        }
+
+        .table-compact .col-tutar {
+            font-size: 0.95rem !important;
+            padding: 10px !important;
+            margin: 6px 0;
+        }
+
+        .table-compact .col-evrak .btn-sm,
+        .table-compact .col-islemler .btn-sm {
+            min-height: 34px;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.4rem;
+        }
+
+        .table-compact .badge {
+            font-size: 0.65rem;
+            padding: 0.25rem 0.45rem;
+        }
+
+        .card-title {
+            font-size: 0.96rem !important;
+        }
+
+        .btn {
+            font-size: 0.8rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+            padding: 10px;
+        }
+
+        .row {
+            margin-left: -10px;
+            margin-right: -10px;
+        }
+
+        .col-12 {
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+
+        .table-compact tr {
+            margin-bottom: 10px;
+            padding: 12px;
+        }
+
+        .table-compact td {
+            padding: 8px 0 !important;
+            padding-left: 30% !important;
+            font-size: 0.9rem;
+        }
+
+        .table-compact td::before {
+            font-size: 0.75rem;
+            left: 10px;
+        }
+
+        .card-title {
+            font-size: 1.1rem !important;
+        }
+
+        .display-5 {
+            font-size: 1.5rem !important;
+        }
+
+        .filter-btn {
+            flex: 0 0 calc(50% - 4px) !important;
+            font-size: 0.8rem !important;
+            padding: 0.5rem 0.3rem !important;
+        }
+
+        .btn-group {
+            gap: 8px;
+        }
+
+        /* Stats footer mobilde column */
+        .card-footer .row > div {
+            margin-bottom: 10px;
+        }
+    }
+
+    /* Responsif tablo için evrak kolonu */
+    @media (max-width: 768px) {
+        .col-evrak {
+            width: auto !important;
+        }
+
+        .col-evrak .btn {
+            font-size: 0.85rem;
+            padding: 0.4rem 0.7rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Gizli CSRF form -->
+<form id="csrf-form" style="display: none;">
+    {% csrf_token %}
+</form>
+
+<div class="container-fluid main-content">
+    <!-- Başlık -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="display-5 fw-bold mb-1">
+                <i class="bi bi-person-check me-3"></i>{% if is_genel_tahsilat_listesi %}Genel Tahsilat Listesi{% else %}Tahsilatlarım{% endif %}
+            </h1>
+            <p class="text-muted">{% if is_genel_tahsilat_listesi %}Tüm plasiyerlerin tahsilat kayıtları{% else %}{{ plasiyer }} plasiyerine ait tahsilat kayıtları{% endif %}</p>
+        </div>
+    </div>
+
+    <!-- Tahsilat Listesi -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card card-custom">
+                <div class="card-header bg-transparent">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-list-check me-2"></i>
+                            Tahsilat Kayıtları
+                        </h5>
+                        <span class="badge bg-primary" id="kayit-sayisi">{{ tahsilatlar|length }} kayıt</span>
+                    </div>
+
+                    <!-- Hızlı Filtreleme Butonları - Sadece tahsilatlarim sayfasında -->
+                    {% if not is_genel_tahsilat_listesi %}
+                    <div class="row mb-0">
+                        <div class="col-12">
+                            <div class="btn-group w-100" role="group" aria-label="Tarih Filtreleri">
+                                <button type="button"
+                                    class="btn btn-outline-primary filter-btn {% if tarih_filtresi == 'all' %}active{% endif %}"
+                                    data-filter="all">
+                                    <i class="bi bi-grid-3x3-gap me-2"></i>Tüm Tahsilatlarım
+                                </button>
+                                <button type="button"
+                                    class="btn btn-outline-success filter-btn {% if tarih_filtresi == 'today' %}active{% endif %}"
+                                    data-filter="today">
+                                    <i class="bi bi-calendar-check me-2"></i>Günlük
+                                </button>
+                                <button type="button"
+                                    class="btn btn-outline-info filter-btn {% if tarih_filtresi == 'week' %}active{% endif %}"
+                                    data-filter="week">
+                                    <i class="bi bi-calendar-week me-2"></i>Haftalık
+                                </button>
+                                <button type="button"
+                                    class="btn btn-outline-warning filter-btn {% if tarih_filtresi == 'month' %}active{% endif %}"
+                                    data-filter="month">
+                                    <i class="bi bi-calendar-month me-2"></i>Aylık
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                </div>
+
+                <!-- Arama Formu - Sadece tahsilatlarim sayfasında -->
+                {% if not is_genel_tahsilat_listesi %}
+                <div class="card-header bg-light border-top">
+                    <form method="GET" class="row g-3 align-items-end">
+                        {% if tarih_filtresi != 'all' %}
+                        <input type="hidden" name="tarih_filtresi" value="{{ tarih_filtresi }}">
+                        {% endif %}
+                        <div class="col-md-4">
+                            <label for="cari_kod" class="form-label">
+                                <i class="bi bi-search me-1"></i>Cari Kod
+                            </label>
+                            <input type="text" class="form-control" id="cari_kod" name="cari_kod"
+                                placeholder="Cari kod ara..." value="{{ cari_kod }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="cari_unvan" class="form-label">
+                                <i class="bi bi-person-search me-1"></i>Cari Ünvan
+                            </label>
+                            <input type="text" class="form-control" id="cari_unvan" name="cari_unvan"
+                                placeholder="Cari ünvan ara..." value="{{ cari_unvan }}">
+                        </div>
+                        <div class="col-md-2">
+                            <div class="btn-group w-100" role="group">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-search me-1"></i>Ara
+                                </button>
+                                <a href="{% url 'tahsilat:tahsilatlarim' %}{% if tarih_filtresi != 'all' %}?tarih_filtresi={{ tarih_filtresi }}{% endif %}"
+                                    class="btn btn-outline-secondary">
+                                    <i class="bi bi-x-lg"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                {% endif %}
+
+                <div class="card-body p-0">
+                    {% if tahsilatlar %}
+                    <div class="table-responsive">
+                        <table class="table table-compact mb-0" id="tahsilat-table">
+                            <thead>
+                                <tr>
+                                    <th class="col-id">ID</th>
+                                    <th class="col-tarih">Tarih</th>
+                                    <th class="col-cari-kod">Cari Kod</th>
+                                    <th class="col-cari-unvan">Cari Ünvan</th>
+                                    <th class="col-tahsilat-turu">Tahsilat Türü</th>
+                                    <th class="col-banka">Banka</th>
+                                    <th class="col-taksit">Taksit</th>
+                                    <th class="col-tutar">Tutar</th>
+                                    <th class="col-durum">Durum</th>
+                                    <th class="col-evrak-no">Evrak No</th>
+                                    <th class="col-evrak">Evrak</th>
+                                    <th class="col-islemler">İşlemler</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for tahsilat in tahsilatlar %}
+                                <tr>
+                                    <td data-label="ID"><span class="badge bg-secondary">{{ tahsilat.ID }}</span></td>
+                                    <td data-label="Tarih">
+                                        <small>{{ tahsilat.Tarih|date:"d.m.Y" }}</small>
+                                    </td>
+                                    <td data-label="Cari Kod">{{ tahsilat.CariKod }}</td>
+                                    <td data-label="Cari Ünvan" title="{{ tahsilat.CariUnvan }}">{{ tahsilat.CariUnvan }}</td>
+                                    <td data-label="Tür">
+                                        <span class="badge bg-info">{{ tahsilat.TahsilatTuru }}</span>
+                                    </td>
+                                    <td data-label="Banka">
+                                        <span class="badge bg-warning">{{ tahsilat.BANKAADI|default:"-" }}</span>
+                                    </td>
+                                    <td data-label="Taksit">
+                                        <strong>{{ tahsilat.Taksit|default:"-" }}</strong>
+                                    </td>
+                                    <td data-label="Tutar">
+                                        <strong class="text-success currency">{{ tahsilat.Tutar|currency_display }}</strong>
+                                    </td>
+                                    <td data-label="Durum">
+                                        {% if tahsilat.Durum %}
+                                        {% if tahsilat.Durum == "LOGO'DA İŞLENDİ" %}
+                                        <span class="badge bg-success">{{ tahsilat.Durum }}</span>
+                                        {% elif tahsilat.Durum == "TESLİM EDİLDİ" %}
+                                        <span class="badge bg-primary">{{ tahsilat.Durum }}</span>
+                                        {% elif tahsilat.Durum == "BEKLEMEDE" %}
+                                        <span class="badge bg-warning">{{ tahsilat.Durum }}</span>
+                                        {% elif tahsilat.Durum == "İPTAL" %}
+                                        <span class="badge bg-danger">{{ tahsilat.Durum }}</span>
+                                        {% elif tahsilat.Durum == "YENİ" %}
+                                        <span class="badge bg-info">{{ tahsilat.Durum }}</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ tahsilat.Durum }}</span>
+                                        {% endif %}
+                                        {% else %}
+                                        <span class="badge bg-warning">Belirsiz</span>
+                                        {% endif %}
+                                    </td>
+                                    <td data-label="Evrak No">{{ tahsilat.EvrakNo|default:"-" }}</td>
+                                    <td data-label="Evrak">
+                                        {% if tahsilat.evrak_var %}
+                                        <button type="button" class="btn btn-outline-primary btn-sm"
+                                            onclick="evrakGoster('{{ tahsilat.evrak_url }}', '{{ tahsilat.ID }}')"
+                                            title="Evrak Görüntüsünü Göster">
+                                            <i class="bi bi-eye me-1"></i>Görüntüle
+                                        </button>
+                                        {% else %}
+                                        <span class="text-muted small">
+                                            <i class="bi bi-file-x me-1"></i>Yok
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td data-label="İşlemler">
+                                        {% if tahsilat.Durum == "İŞLENMEDİ" %}
+                                        <button type="button" class="btn btn-outline-danger btn-sm"
+                                            onclick="tahsilatSil('{{ tahsilat.ID }}', '{{ tahsilat.CariUnvan|escapejs }}')"
+                                            title="Tahsilat Sil">
+                                            <i class="bi bi-trash3 me-1"></i>Sil
+                                        </button>
+                                        {% else %}
+                                        <span class="text-muted small">
+                                            <i class="bi bi-lock me-1"></i>Korumalı
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if pagination_info.total_pages > 1 %}
+                    <div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+                        <div class="pagination-info">
+                            <small class="text-muted">
+                                Sayfa {{ pagination_info.current_page }} / {{ pagination_info.total_pages }}
+                                (Toplam {{ pagination_info.total_count }} kayıt)
+                            </small>
+                        </div>
+                        <nav aria-label="Sayfa navigasyonu">
+                            <ul class="pagination pagination-sm mb-0">
+                                <!-- İlk sayfa -->
+                                {% if pagination_info.current_page > 1 %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                        href="?page=1{% if cari_kod %}&cari_kod={{ cari_kod|urlencode }}{% endif %}{% if cari_unvan %}&cari_unvan={{ cari_unvan|urlencode }}{% endif %}{% if tarih_filtresi != 'all' %}&tarih_filtresi={{ tarih_filtresi }}{% endif %}"
+                                        aria-label="İlk">
+                                        <i class="bi bi-chevron-double-left"></i>
+                                    </a>
+                                </li>
+                                {% endif %}
+
+                                <!-- Önceki sayfa -->
+                                {% if pagination_info.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                        href="?page={{ pagination_info.previous_page }}{% if cari_kod %}&cari_kod={{ cari_kod|urlencode }}{% endif %}{% if cari_unvan %}&cari_unvan={{ cari_unvan|urlencode }}{% endif %}{% if tarih_filtresi != 'all' %}&tarih_filtresi={{ tarih_filtresi }}{% endif %}"
+                                        aria-label="Önceki">
+                                        <i class="bi bi-chevron-left"></i>
+                                    </a>
+                                </li>
+                                {% endif %}
+
+                                <!-- Sayfa numaraları -->
+                                {% for page_num in pagination_info.page_range %}
+                                {% if page_num == pagination_info.current_page %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ page_num }}</span>
+                                </li>
+                                {% else %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                        href="?page={{ page_num }}{% if cari_kod %}&cari_kod={{ cari_kod|urlencode }}{% endif %}{% if cari_unvan %}&cari_unvan={{ cari_unvan|urlencode }}{% endif %}{% if tarih_filtresi != 'all' %}&tarih_filtresi={{ tarih_filtresi }}{% endif %}">{{
+                                        page_num }}</a>
+                                </li>
+                                {% endif %}
+                                {% endfor %}
+
+                                <!-- Sonraki sayfa -->
+                                {% if pagination_info.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                        href="?page={{ pagination_info.next_page }}{% if cari_kod %}&cari_kod={{ cari_kod|urlencode }}{% endif %}{% if cari_unvan %}&cari_unvan={{ cari_unvan|urlencode }}{% endif %}{% if tarih_filtresi != 'all' %}&tarih_filtresi={{ tarih_filtresi }}{% endif %}"
+                                        aria-label="Sonraki">
+                                        <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                </li>
+                                {% endif %}
+
+                                <!-- Son sayfa -->
+                                {% if pagination_info.current_page < pagination_info.total_pages %} <li
+                                    class="page-item">
+                                    <a class="page-link"
+                                        href="?page={{ pagination_info.total_pages }}{% if cari_kod %}&cari_kod={{ cari_kod|urlencode }}{% endif %}{% if cari_unvan %}&cari_unvan={{ cari_unvan|urlencode }}{% endif %}{% if tarih_filtresi != 'all' %}&tarih_filtresi={{ tarih_filtresi }}{% endif %}"
+                                        aria-label="Son">
+                                        <i class="bi bi-chevron-double-right"></i>
+                                    </a>
+                                    </li>
+                                    {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                    {% endif %}
+
+                    <!-- Özet İstatistikler -->
+                    <div class="card-footer bg-light">
+                        <div class="row text-center">
+                            <div class="col-md-3">
+                                <small class="text-muted d-block">Toplam Kayıt</small>
+                                <strong>{{ pagination_info.total_count|default:"0" }}</strong>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted d-block">Toplam Tutar</small>
+                                <strong class="text-success">{{ toplam_tutar|currency_display }}</strong>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted d-block">Plasiyer</small>
+                                <strong>{{ plasiyer }}</strong>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted d-block">Son Güncelleme</small>
+                                <strong>{{ "now"|date:"d.m.Y" }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-inbox fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Tahsilat kaydı bulunamadı</h5>
+                        <p class="text-muted">{% if is_genel_tahsilat_listesi %}Henüz tahsilat kaydı bulunmuyor.{% else %}{{ plasiyer }} plasiyerine ait henüz tahsilat kaydı bulunmuyor.{% endif %}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Filtreleme butonları
+        const filterButtons = document.querySelectorAll('.filter-btn');
+
+        // Buton click event'leri
+        filterButtons.forEach(button => {
+            button.addEventListener('click', function () {
+                // Aktif butonu değiştir
+                filterButtons.forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+
+                // Backend'e tarih filtresi parametresi ile yönlendir
+                const filterType = this.getAttribute('data-filter');
+                const currentUrl = new URL(window.location);
+
+                // Mevcut parametreleri koru (cari_kod, cari_unvan)
+                currentUrl.searchParams.set('tarih_filtresi', filterType);
+                currentUrl.searchParams.set('page', '1'); // İlk sayfaya dön
+
+                // Sayfayı yeniden yükle
+                window.location.href = currentUrl.toString();
+            });
+        });
+
+        // Sayfa yüklendiğinde aktif filtreyi kontrol et
+        const activeFilter = '{{ tarih_filtresi|default:"all" }}';
+        filterButtons.forEach(btn => {
+            if (btn.getAttribute('data-filter') === activeFilter) {
+                btn.classList.add('active');
+            }
+        });
+    });
+
+    // Evrak görüntüleme fonksiyonu
+    function evrakGoster(evrakUrl, tahsilatId) {
+        // Modal içeriğini güncelle
+        const modalImage = document.getElementById('evrakImage');
+        const modalTitle = document.getElementById('evrakModalTitle');
+
+        modalImage.src = evrakUrl;
+        modalTitle.textContent = `Tahsilat ID: ${tahsilatId} - Evrak Görüntüsü`;
+
+        // Modal'ı aç
+        const modal = new bootstrap.Modal(document.getElementById('evrakModal'));
+        modal.show();
+    }
+
+    // Tahsilat düzenleme işlevselliği kaldırılmıştır
+</script>
+
+<!-- Evrak Görüntüleme Modal -->
+<div class="modal fade" id="evrakModal" tabindex="-1" aria-labelledby="evrakModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="evrakModalTitle">Evrak Görüntüsü</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-3">
+                <img id="evrakImage" src="" alt="Evrak Görüntüsü" class="img-fluid rounded shadow-sm"
+                    style="max-height: 70vh; width: auto;">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary"
+                    onclick="window.open(document.getElementById('evrakImage').src, '_blank')">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Yeni Sekmede Aç
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i>Kapat
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tahsilat düzenleme özelliği kaldırılmıştır -->
+
+{% block extra_js %}
+<script>
+    // Evrak görüntüleme fonksiyonu
+    function evrakGoster(evrakUrl, tahsilatId) {
+        const modalImage = document.getElementById('evrakImage');
+        const modalTitle = document.getElementById('evrakModalTitle');
+
+        modalImage.src = evrakUrl;
+        modalTitle.textContent = `Tahsilat ID: ${tahsilatId} - Evrak Görüntüsü`;
+
+        // Modal'ı aç
+        const modal = new bootstrap.Modal(document.getElementById('evrakModal'));
+        modal.show();
+    }
+
+    // Tahsilat silme fonksiyonu
+    function tahsilatSil(tahsilatId, cariUnvan) {
+        // Onay mesajı
+        const onayMesaji = `Bu tahsilat kaydını silmek istediğinizden emin misiniz?\n\n` +
+            `Tahsilat ID: ${tahsilatId}\n` +
+            `Cari: ${cariUnvan}\n\n` +
+            `Bu işlem geri alınamaz!`;
+
+        if (!confirm(onayMesaji)) {
+            return;
+        }
+
+        // CSRF token al - meta tag veya form'dan
+        let csrfToken = null;
+
+        // Önce meta tag'den dene
+        const metaToken = document.querySelector('meta[name="csrf-token"]');
+        if (metaToken) {
+            csrfToken = metaToken.getAttribute('content');
+        } else {
+            // Meta tag yoksa form'dan al
+            const formToken = document.querySelector('#csrf-form [name="csrfmiddlewaretoken"]');
+            if (formToken) {
+                csrfToken = formToken.value;
+            }
+        }
+
+        if (!csrfToken) {
+            alert('CSRF token bulunamadı. Sayfayı yenileyin.');
+            return;
+        }
+
+        // FormData oluştur
+        const formData = new FormData();
+        formData.append('tahsilat_id', tahsilatId);
+
+        // AJAX ile silme isteği gönder
+        fetch('/sil/', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': csrfToken,
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Backend'den gelen mesajı göster (evrak bilgisi içerir)
+                    alert(data.message || 'Tahsilat başarıyla silindi!');
+                    // Sayfayı yenile
+                    location.reload();
+                } else {
+                    alert('Silme hatası: ' + (data.error || 'Bilinmeyen hata'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Sunucu hatası oluştu');
+            });
+    }
+</script>
+{% endblock %}
+
+{% endblock %}

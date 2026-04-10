@@ -1,0 +1,1490 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}Genel Tahsilat Listesi - MRK OTOMOTİV{% endblock %}
+
+{% block extra_head %}
+<!-- CSRF Token'ı meta tag olarak ekle -->
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Evrak butonu için özel stil */
+    .col-evrak {
+        width: 100px !important;
+        min-width: 100px;
+    }
+
+    /* İşlemler kolonu için özel stil */
+    .col-islemler {
+        width: 120px !important;
+        min-width: 120px;
+    }
+
+
+    /* Modal görüntü için stil */
+    #evrakImage {
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Responsive table için evrak kolonu */
+    @media (max-width: 768px) {
+        .col-evrak {
+            width: 80px !important;
+        }
+
+        .col-evrak .btn {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+
+
+    }
+    /* Mobil iyileştirmeleri: yatay kaydırma, küçük ekranlarda gereksiz sütunları gizleme,
+       buton ve badge boyutlarını küçültme */
+    @media (max-width: 992px) {
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        #tahsilat-table th, #tahsilat-table td {
+            white-space: nowrap;
+        }
+        .table-compact td, .table-compact th {
+            padding: 0.35rem 0.5rem;
+        }
+        .col-islemler .btn, .col-evrak .btn {
+            padding: 0.25rem 0.4rem;
+            font-size: 0.78rem;
+        }
+        .badge {
+            font-size: 0.72rem;
+            padding: 0.22rem 0.36rem;
+        }
+    }
+
+    /* Küçük ekranlarda daha agresif sütun gizleme (dashboard için daha temiz görünüm) */
+    @media (max-width: 768px) {
+        /* Sütun indeksleri: 1=checkbox,2=ID,3=Tarih,4=Cari Kod,5=Cari Ünvan,... */
+        #tahsilat-table th:nth-child(2), #tahsilat-table td:nth-child(2),
+        #tahsilat-table th:nth-child(7), #tahsilat-table td:nth-child(7),
+        #tahsilat-table th:nth-child(8), #tahsilat-table td:nth-child(8),
+        #tahsilat-table th:nth-child(10), #tahsilat-table td:nth-child(10),
+        #tahsilat-table th:nth-child(13), #tahsilat-table td:nth-child(13),
+        #tahsilat-table th:nth-child(15), #tahsilat-table td:nth-child(15),
+        #tahsilat-table th:nth-child(16), #tahsilat-table td:nth-child(16) {
+            display: none;
+        }
+
+        /* Uzun cari/unvan metinlerini sar ve satır kaydır (mobilde tam görünür olsun) */
+        #tahsilat-table th:nth-child(5), #tahsilat-table td:nth-child(5) {
+            max-width: none;
+            overflow: visible;
+            text-overflow: unset;
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+
+        /* Küçük ekranlarda yazı boyutunu küçült */
+        #tahsilat-table th, #tahsilat-table td {
+            font-size: 0.82rem;
+        }
+    }
+
+    /* Modern card-like görünüm (küçük ekran) */
+    @media (max-width: 768px) {
+        /* Gizle başlık */
+        #tahsilat-table thead { display: none; }
+
+        /* Her satırı bir kart gibi göster */
+        #tahsilat-table tbody tr {
+            display: block;
+            margin-bottom: 0.8rem;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 6px 18px rgba(16,24,40,0.06);
+            padding: 0.5rem;
+            border: 1px solid #f1f5f9;
+        }
+
+        #tahsilat-table tbody td {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.45rem 0.5rem;
+            border: none;
+        }
+
+        #tahsilat-table tbody td::before {
+            content: attr(data-label);
+            flex: 0 0 45%;
+            color: #6b7280;
+            font-weight: 600;
+            font-size: 0.72rem;
+            padding-right: 0.5rem;
+        }
+
+        /* İşlemler butonlarını satırın altında grupla */
+        td[data-label="İşlemler"] { display: block; }
+        td[data-label="İşlemler"] .btn { margin-right: 0.4rem; margin-bottom: 0.3rem; }
+    }
+
+    /* Satışlarım tarzı grid stilleri (Tahsilat Kayıtları için) */
+    .fatura-table {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        overflow: hidden;
+    }
+
+    .table-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+    }
+
+    .fatura-row {
+        padding: 0.85rem 1rem;
+        border-bottom: 1px solid #e9ecef;
+        cursor: pointer;
+        transition: background-color 0.25s ease;
+    }
+
+    .fatura-row:hover { background-color: #f8f9fa; }
+
+    .fatura-info {
+        display: grid;
+        grid-template-columns: 48px 80px 1fr 120px 120px 40px;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
+    .fatura-id { font-weight: 700; color: #667eea; font-size: 0.9rem; }
+    .fatura-cari { color: #212529; min-width: 0; }
+    .fatura-cari-name { font-weight: 600; margin-bottom: 0.15rem; line-height: 1.2; }
+    .fatura-cari-details { font-size: 0.8rem; color: #6c757d; }
+    .fatura-date { text-align: center; color: #495057; font-weight: 500; }
+    .fatura-amount { text-align: right; font-weight: 700; color: #28a745; font-family: 'Courier New', monospace; }
+    .expand-icon { text-align: center; color: #667eea; font-size: 1.1rem; transition: transform 0.25s ease; }
+    .expand-icon.rotated { transform: rotate(180deg); }
+
+    .detail-section { background: #f8f9fa; border-top: 1px solid #e9ecef; padding: 0; max-height: 0; overflow: hidden; transition: max-height 0.35s ease, padding 0.35s ease; }
+    .detail-section.show { max-height: 500px; padding: 1rem; }
+    .detail-table { background: white; border-radius: 0 0 8px 8px; overflow: auto; box-shadow: 0 1px 6px rgba(0,0,0,0.04); }
+
+    @media (max-width: 768px) {
+        .fatura-info { grid-template-columns: 1fr; gap: 0.5rem; text-align: left; }
+        .fatura-amount, .fatura-date { text-align: left; }
+        .expand-icon { display: none; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Gizli CSRF form -->
+<form id="csrf-form" style="display: none;">
+    {% csrf_token %}
+</form>
+
+<!-- CSRF ve Helper Fonksiyonları - Global Scope'ta -->
+<script>
+    // Django CSRF token'ını global olarak erişilebilir yap
+    window.csrfToken = '{{ csrf_token }}';
+    
+    // AJAX istekleri için CSRF token'ı otomatik ekle
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // CSRF token'ı cookie'den al
+    const csrftoken = getCookie('csrftoken');
+    if (csrftoken) {
+        window.csrfToken = csrftoken;
+    }
+    
+    // HTTP metod kontrolü - hangi metodlar CSRF token gerektirmez
+    function csrfSafeMethod(method) {
+        return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
+    }
+    
+    // jQuery AJAX setup (eğer jQuery kullanılıyorsa)
+    if (typeof $ !== 'undefined') {
+        $.ajaxSetup({
+            beforeSend: function(xhr, settings) {
+                if (!csrfSafeMethod(settings.type) && !this.crossDomain) {
+                    xhr.setRequestHeader("X-CSRFToken", window.csrfToken);
+                }
+            }
+        });
+    }
+    
+    // Fetch API için CSRF token wrapper - Global scope
+    window.csrfFetch = function(url, options = {}) {
+        const method = options.method || 'GET';
+        
+        if (!csrfSafeMethod(method)) {
+            options.headers = options.headers || {};
+            // Ensure token is defined via window.csrfToken or fallback to cookie
+            const token = window.csrfToken || getCookie('csrftoken');
+            if (token) {
+                options.headers['X-CSRFToken'] = token;
+            }
+        }
+        
+        return fetch(url, options);
+    };
+</script>
+
+<div class="container-fluid main-content">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="display-6 fw-bold"><i class="bi bi-receipt me-2"></i>Genel Tahsilat Listesi</h1>
+            <p class="text-muted">Modern, hızlı ve mobil uyumlu görünüm — liste, filtre ve dışa aktarma (PDF/Excel).</p>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="row mb-3">
+        <div class="col-lg-8 col-md-12">
+            <form method="GET" id="filterForm" class="row g-2 align-items-end">
+                <div class="col-sm-6 col-md-3">
+                    <label class="form-label small">Başlangıç</label>
+                    <input type="date" name="baslangic_tarihi" class="form-control" value="{{ baslangic_tarihi }}">
+                </div>
+                <div class="col-sm-6 col-md-3">
+                    <label class="form-label small">Bitiş</label>
+                    <input type="date" name="bitis_tarihi" class="form-control" value="{{ bitis_tarihi }}">
+                </div>
+                <div class="col-sm-6 col-md-3">
+                    <label class="form-label small">Plasiyer</label>
+                    <select name="plasiyer" class="form-select">
+                        <option value="">Tümü</option>
+                        {% for p in plasiyerler %}
+                        <option value="{{ p }}" {% if p == plasiyer_filter %}selected{% endif %}>{{ p }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-sm-6 col-md-3">
+                    <label class="form-label small">Teslim Durumu</label>
+                    <select name="teslim_durumu" class="form-select">
+                        <option value="">Tümü</option>
+                        <option value="TESLİM EDİLDİ" {% if teslim_durumu == 'TESLİM EDİLDİ' %}selected{% endif %}>Teslim Edildi</option>
+                        <option value="TESLİM EDİLMEDİ" {% if teslim_durumu == 'TESLİM EDİLMEDİ' %}selected{% endif %}>Teslim Edilmedi</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-12 text-end">
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-search me-1"></i>Filtrele</button>
+                    <a class="btn btn-outline-secondary" href="{% url 'tahsilat:muhasebe_tahsilat_listesi' %}"><i class="bi bi-x-circle me-1"></i>Temizle</a>
+                    {% if tahsilatlar %}
+                    <a class="btn btn-outline-danger" href="?{% if baslangic_tarihi %}baslangic_tarihi={{ baslangic_tarihi }}&{% endif %}{% if bitis_tarihi %}bitis_tarihi={{ bitis_tarihi }}&{% endif %}{% if plasiyer_filter %}plasiyer={{ plasiyer_filter }}&{% endif %}export=pdf" target="_blank"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+                    <a class="btn btn-success" href="?{% if baslangic_tarihi %}baslangic_tarihi={{ baslangic_tarihi }}&{% endif %}{% if bitis_tarihi %}bitis_tarihi={{ bitis_tarihi }}&{% endif %}{% if plasiyer_filter %}plasiyer={{ plasiyer_filter }}&{% endif %}export=excel" target="_blank"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+        <div class="col-lg-4 col-md-12 text-end d-none d-lg-block">
+            <div class="h-100 d-flex align-items-center justify-content-end gap-3">
+                <div>
+                    <small class="text-muted">Toplam Kayıt</small>
+                    <div class="fw-bold">{{ pagination_info.total_count|default:0 }}</div>
+                </div>
+                <div>
+                    <small class="text-muted">Toplam Tutar</small>
+                    <div class="fw-bold text-success">{{ toplam_tutar|currency_display }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body p-0">
+                    {% if tahsilatlar %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Tarih</th>
+                                    <th>Cari Kod</th>
+                                    <th>Cari Ünvan</th>
+                                    <th>Tür</th>
+                                    <th class="text-end">Tutar</th>
+                                    <th>Plasiyer</th>
+                                    <th>Durum</th>
+                                    <th>Evrak</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for t in tahsilatlar %}
+                                <tr>
+                                    <td>{{ t.ID }}</td>
+                                    <td>{{ t.Tarih|date:"d.m.Y" }}</td>
+                                    <td><code>{{ t.CariKod }}</code></td>
+                                    <td title="{{ t.CariUnvan }}">{{ t.CariUnvan|truncatechars:60 }}</td>
+                                    <td>{{ t.TahsilatTuru }}</td>
+                                    <td class="text-end">{{ t.Tutar|currency_display }}</td>
+                                    <td>{{ t.Plasiyer|default:"-" }}</td>
+                                    <td>
+                                        {% if t.TeslimDurumu == 'TESLİM EDİLDİ' %}
+                                            <span class="badge bg-success">Teslim Edildi</span>
+                                        {% elif t.TeslimDurumu == 'TESLİM EDİLMEDİ' %}
+                                            <span class="badge bg-danger">Teslim Edilmedi</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ t.TeslimDurumu|default:'-' }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if t.evrak_var %}
+                                        <button class="btn btn-sm btn-outline-primary" onclick="evrakGoster('{{ t.evrak_url }}', '{{ t.ID }}')"><i class="bi bi-eye"></i></button>
+                                        {% else %}
+                                        <span class="text-muted small">Yok</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="p-4 text-center text-muted">
+                        <i class="bi bi-inbox" style="font-size: 48px;"></i>
+                        <h5 class="mt-3">Tahsilat kaydı bulunamadı</h5>
+                        <p>Filtreleri değiştirerek tekrar deneyin.</p>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <small class="text-muted">Sayfa {{ pagination_info.current_page }} / {{ pagination_info.total_pages }}</small>
+                        </div>
+                        <div>
+                            <!-- Simple pagination controls -->
+                            <nav>
+                                <ul class="pagination pagination-sm mb-0">
+                                    {% if pagination_info.has_previous %}
+                                    <li class="page-item"><a class="page-link" href="?page={{ pagination_info.previous_page }}">Önceki</a></li>
+                                    {% endif %}
+                                    <li class="page-item active"><span class="page-link">{{ pagination_info.current_page }}</span></li>
+                                    {% if pagination_info.has_next %}
+                                    <li class="page-item"><a class="page-link" href="?page={{ pagination_info.next_page }}">Sonraki</a></li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Tahsilatlarım tablosu için dashboard ile aynı compact stil */
+    .table-compact {
+        table-layout: fixed !important;
+        /* Sabit layout ile kontrollü boyutlama */
+        width: 100% !important;
+        /* Pencereyi tamamen doldur */
+        border-collapse: collapse !important;
+    }
+
+    /* Tüm border'ları kaldır */
+    .table-compact,
+    .table-compact th,
+    .table-compact td,
+    .table-compact thead,
+    .table-compact tbody,
+    .table-compact tr {
+        border: none !important;
+    }
+
+    .table-compact th,
+    .table-compact td {
+        padding: 0.1rem 0.15rem !important;
+        /* Çok minimal padding */
+        vertical-align: top !important;
+        /* Üstten hizala */
+        border-right: none !important;
+        /* Border kaldırıldı */
+        border-left: none !important;
+    }
+
+    /* Cari Ünvan hariç diğer kolonlar için nowrap ve ellipsis */
+    .table-compact th:not(.col-cari-unvan),
+    .table-compact td:not([title]) {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .table-compact th {
+        font-weight: 600;
+        border-bottom: none !important;
+        /* Alt border kaldırıldı */
+        font-size: 0.9rem !important;
+        /* Font büyütüldü */
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        /* Template primary gradient */
+        color: white !important;
+        /* Beyaz yazı */
+    }
+
+    .table-compact td {
+        font-size: 1rem !important;
+        /* Font büyütüldü */
+    }
+
+    /* Even-Odd satır renklendirmesi - CSS specificity artırıldı */
+    .table-compact tbody tr:nth-child(even) td {
+        background-color: #e8edf7 !important;
+        /* Daha belirgin açık mor-mavi */
+    }
+
+    .table-compact tbody tr:nth-child(odd) td {
+        background-color: #ffffff !important;
+        /* Beyaz */
+    }
+
+    /* Hover efekti - turuncu renkler */
+    .table-compact tbody tr:hover td {
+        background: linear-gradient(135deg, #ffe4d1 0%, #ffd4b3 100%) !important;
+        /* Turuncu gradient hover */
+        transition: all 0.2s ease;
+    }
+
+    .table-compact tbody tr:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(255, 140, 0, 0.25);
+        /* Turuncu shadow */
+    }
+
+    /* Spesifik kolon optimizasyonları - 17 kolon için ayarlandı (v5.1) */
+    .table-compact .col-checkbox {
+        width: 3% !important;
+        text-align: center !important;
+    }
+
+    /* Seçili satırlar için tam turuncu arka plan */
+    .table-compact tbody tr.selected {
+        background-color: #ffc107 !important;
+        color: #000 !important;
+        border-left: 4px solid #ff8c00 !important;
+    }
+
+    /* Seçili satırların tüm hücreleri turuncu */
+    .table-compact tbody tr.selected td {
+        background-color: #ffc107 !important;
+        color: #000 !important;
+    }
+
+    /* Hover efekti - daha koyu turuncu */
+    .table-compact tbody tr.selected:hover {
+        background-color: #ff8c00 !important;
+    }
+
+    .table-compact tbody tr.selected:hover td {
+        background-color: #ff8c00 !important;
+    }
+
+    /* Teslim Durumu kolonundaki veri renkleri - Tüm durumlar için */
+    .table-compact tbody tr td.teslim-edildi-text,
+    .table tbody tr td.teslim-edildi-text,
+    td.teslim-edildi-text {
+        color: #198754 !important;  /* TESLİM EDİLDİ - Yeşil */
+        font-weight: normal !important;
+        background-color: transparent !important;
+    }
+
+    .table-compact tbody tr td.teslim-edilmedi-text,
+    .table tbody tr td.teslim-edilmedi-text,
+    td.teslim-edilmedi-text {
+        color: #dc3545 !important;  /* TESLİM EDİLMEDİ - Kırmızı */
+        font-weight: bold !important;
+        background-color: transparent !important;
+    }
+
+    .table-compact tbody tr td.hesap-goruldu-text,
+    .table tbody tr td.hesap-goruldu-text,
+    td.hesap-goruldu-text {
+        color: #0dcaf0 !important;  /* HESAP GÖRÜLDÜ - Mavi */
+        font-weight: normal !important;
+        background-color: transparent !important;
+    }
+
+    .table-compact tbody tr td.logo-islendi-text,
+    .table tbody tr td.logo-islendi-text,
+    td.logo-islendi-text {
+        color: #6f42c1 !important;  /* LOGO'DA İŞLENDİ - Mor */
+        font-weight: normal !important;
+        background-color: transparent !important;
+    }
+
+    .table-compact tbody tr td.beklemede-text,
+    .table tbody tr td.beklemede-text,
+    td.beklemede-text {
+        color: #fd7e14 !important;  /* BEKLEMEDE - Turuncu */
+        font-weight: normal !important;
+        background-color: transparent !important;
+    }
+
+    .table-compact tbody tr td.iptal-text,
+    .table tbody tr td.iptal-text,
+    td.iptal-text {
+        color: #dc3545 !important;  /* İPTAL - Kırmızı */
+        font-weight: bold !important;
+        background-color: transparent !important;
+    }
+
+    .table-compact .col-id {
+        width: 4% !important;
+        text-align: center !important;
+    }
+
+    .table-compact .col-tarih {
+        width: 7% !important;
+        font-size: 0.9rem !important;
+    }
+
+    .table-compact .col-cari-kod {
+        width: 7% !important;
+        font-family: monospace;
+        font-size: 0.9rem !important;
+    }
+
+    .table-compact .col-cari-unvan {
+        width: 20% !important;
+        /* Cari ünvan için yeterli alan */
+        overflow: visible !important;
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        text-overflow: unset !important;
+        max-width: none !important;
+    }
+
+    .table-compact .col-tahsilat-turu {
+        width: 9% !important;
+    }
+
+    .table-compact .col-banka {
+        width: 8% !important;
+    }
+
+    .table-compact .col-taksit {
+        width: 5% !important;
+        text-align: center !important; /* Başlık ortalı */
+        font-weight: bold;
+    }
+
+    .table-compact .col-tutar {
+        width: 8% !important;
+        text-align: center !important; /* Başlık ortalı */
+        font-weight: bold;
+    }
+
+    /* Taksit ve Tutar kolonları için sağa dayalı hizalama */
+    .table-compact tbody tr td:nth-child(8), /* Taksit kolonu */
+    .table-compact tbody tr td:nth-child(9) { /* Tutar kolonu */
+        text-align: right !important;
+    }
+
+    .table-compact .col-plasiyer {
+        width: 7% !important;
+        text-align: center !important;
+    }
+
+    .table-compact .col-durum {
+        width: 11% !important;
+        text-align: center !important;
+    }
+
+    .table-compact .col-kullanici {
+        width: 5% !important;
+        text-align: center !important;
+    }
+
+    .table-compact .col-ekleme-tarihi {
+        width: 7% !important;
+        text-align: center !important;
+        font-size: 0.9rem !important;
+    }
+
+    .table-compact .col-teslim-durumu {
+        width: 9% !important;
+        text-align: center !important;
+    }
+
+    .table-compact .col-evrak-no {
+        width: 6% !important;
+        font-family: monospace;
+        font-size: 0.9rem !important;
+    }
+
+    .table-compact .col-evrak {
+        width: 6% !important;
+        text-align: center !important;
+    }
+
+    .table-compact .col-islemler {
+        width: 6% !important;
+        text-align: center !important;
+    }
+
+    /* Badge'ler için minimal boyut */
+    .table-compact .badge {
+        font-size: 0.75rem !important;
+        /* Font büyütüldü */
+        padding: 0.15rem 0.3rem !important;
+        line-height: 1;
+    }
+
+    /* Sayıları daha compact yap */
+    .table-compact .col-taksit td,
+    .table-compact .col-tutar td {
+        font-size: 0.9rem !important;
+        /* Font büyütüldü */
+    }
+
+    /* Container'ı optimize et */
+    .table-responsive {
+        overflow-x: auto;
+    }
+
+    /* Currency font */
+    .currency {
+        font-family: 'Courier New', monospace;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+
+        .table-compact th,
+        .table-compact td {
+            padding: 0.05rem 0.1rem !important;
+            font-size: 0.8rem !important;
+            /* Font büyütüldü */
+        }
+
+        .table-compact .badge {
+            font-size: 0.7rem !important;
+            /* Font büyütüldü */
+            padding: 0.1rem 0.2rem !important;
+        }
+    }
+
+    /* Filter butonları için gelişmiş stil */
+    .filter-btn {
+        font-size: 1rem !important;
+        /* Daha büyük font */
+        padding: 0.75rem 1.5rem !important;
+        /* Daha büyük padding */
+        border-radius: 0;
+        font-weight: 600 !important;
+        /* Bold yazı */
+        transition: all 0.3s ease !important;
+        /* Smooth geçiş */
+        border-width: 2px !important;
+        /* Kalın border */
+        position: relative;
+        overflow: hidden;
+    }
+
+    .filter-btn:first-child {
+        border-top-left-radius: 0.5rem !important;
+        border-bottom-left-radius: 0.5rem !important;
+    }
+
+    .filter-btn:last-child {
+        border-top-right-radius: 0.5rem !important;
+        border-bottom-right-radius: 0.5rem !important;
+    }
+
+    /* Tümü butonu - Primary */
+    .filter-btn[data-filter="all"] {
+        border-color: #667eea !important;
+        color: #667eea !important;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%) !important;
+    }
+
+    .filter-btn[data-filter="all"].active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        border-color: #667eea !important;
+        color: white !important;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
+    }
+
+    /* Bugün butonu - Success */
+    .filter-btn[data-filter="today"] {
+        border-color: #28a745 !important;
+        color: #28a745 !important;
+        background: linear-gradient(135deg, rgba(40, 167, 69, 0.1) 0%, rgba(32, 201, 151, 0.1) 100%) !important;
+    }
+
+    .filter-btn[data-filter="today"].active {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+        border-color: #28a745 !important;
+        color: white !important;
+        box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4) !important;
+    }
+
+    /* Bu Hafta butonu - Info */
+    .filter-btn[data-filter="week"] {
+        border-color: #17a2b8 !important;
+        color: #17a2b8 !important;
+        background: linear-gradient(135deg, rgba(23, 162, 184, 0.1) 0%, rgba(102, 126, 234, 0.1) 100%) !important;
+    }
+
+    .filter-btn[data-filter="week"].active {
+        background: linear-gradient(135deg, #17a2b8 0%, #667eea 100%) !important;
+        border-color: #17a2b8 !important;
+        color: white !important;
+        box-shadow: 0 4px 15px rgba(23, 162, 184, 0.4) !important;
+    }
+
+    /* Bu Ay butonu - Warning */
+    .filter-btn[data-filter="month"] {
+        border-color: #ffc107 !important;
+        color: #856404 !important;
+        background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 107, 53, 0.1) 100%) !important;
+    }
+
+    .filter-btn[data-filter="month"].active {
+        background: linear-gradient(135deg, #ffc107 0%, #ff6b35 100%) !important;
+        border-color: #ffc107 !important;
+        color: white !important;
+        box-shadow: 0 4px 15px rgba(255, 193, 7, 0.4) !important;
+    }
+
+    /* Hover efektleri */
+    .filter-btn:hover:not(.active) {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15) !important;
+    }
+
+    .filter-btn.active {
+        transform: translateY(-1px) !important;
+    }
+
+    /* Button grup container */
+    .btn-group {
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        border-radius: 0.5rem;
+    }
+
+    /* Responsive için buton boyutları */
+    @media (max-width: 768px) {
+        .filter-btn {
+            font-size: 0.9rem !important;
+            padding: 0.6rem 1rem !important;
+        }
+    }
+
+    /* Gizli satırlar için stil */
+    .table-row-hidden {
+        display: none !important;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Filtreleme butonları
+        const filterButtons = document.querySelectorAll('.filter-btn');
+
+        // Buton click event'leri
+        filterButtons.forEach(button => {
+            button.addEventListener('click', function () {
+                // Aktif butonu değiştir
+                filterButtons.forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+
+                // Backend'e tarih aralığı parametreleri ile yönlendir
+                const filterType = this.getAttribute('data-filter');
+                const currentUrl = new URL(window.location);
+
+                // Quick ranges: set baslangic_tarihi and bitis_tarihi
+                const today = new Date();
+                function toISODate(d) { return d.toISOString().slice(0,10); }
+
+                if (filterType === 'all') {
+                    currentUrl.searchParams.delete('baslangic_tarihi');
+                    currentUrl.searchParams.delete('bitis_tarihi');
+                } else if (filterType === 'today') {
+                    const d = toISODate(today);
+                    currentUrl.searchParams.set('baslangic_tarihi', d);
+                    currentUrl.searchParams.set('bitis_tarihi', d);
+                } else if (filterType === 'week') {
+                    const first = new Date(today);
+                    // hafta başı = pazartesi
+                    const day = (today.getDay() + 6) % 7; // 0->6
+                    first.setDate(today.getDate() - day);
+                    const last = new Date(first);
+                    last.setDate(first.getDate() + 6);
+                    currentUrl.searchParams.set('baslangic_tarihi', toISODate(first));
+                    currentUrl.searchParams.set('bitis_tarihi', toISODate(last));
+                } else if (filterType === 'month') {
+                    const first = new Date(today.getFullYear(), today.getMonth(), 1);
+                    const last = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                    currentUrl.searchParams.set('baslangic_tarihi', toISODate(first));
+                    currentUrl.searchParams.set('bitis_tarihi', toISODate(last));
+                }
+
+                // Remove old single param if present
+                currentUrl.searchParams.delete('tarih_filtresi');
+                currentUrl.searchParams.set('page', '1'); // İlk sayfaya dön
+
+                // Sayfayı yeniden yükle
+                window.location.href = currentUrl.toString();
+            });
+        });
+
+        // Sayfa yüklendiğinde quick-range butonlarını URL paramlarına göre işaretle
+        (function markActiveFilterFromParams(){
+            try {
+                const params = new URL(window.location).searchParams;
+                const s = params.get('baslangic_tarihi');
+                const e = params.get('bitis_tarihi');
+                if (!s && !e) {
+                    // default -> all
+                    const btn = document.querySelector('.filter-btn[data-filter="all"]');
+                    if (btn) btn.classList.add('active');
+                    return;
+                }
+                const start = s ? new Date(s) : null;
+                const end = e ? new Date(e) : null;
+                const today = new Date();
+                const isToday = start && end && start.toISOString().slice(0,10) === today.toISOString().slice(0,10) && end.toISOString().slice(0,10) === today.toISOString().slice(0,10);
+                if (isToday) {
+                    const btn = document.querySelector('.filter-btn[data-filter="today"]'); if (btn) btn.classList.add('active'); return;
+                }
+                if (start && end) {
+                    // week
+                    const diff = (end - start) / (24*3600*1000);
+                    if (diff === 6 && start.getDate() === (new Date(start.getFullYear(), start.getMonth(), start.getDate())).getDate()) {
+                        const btn = document.querySelector('.filter-btn[data-filter="week"]'); if (btn) btn.classList.add('active'); return;
+                    }
+                    // month (rough) -> same month
+                    if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+                        const btn = document.querySelector('.filter-btn[data-filter="month"]'); if (btn) btn.classList.add('active'); return;
+                    }
+                }
+            } catch (e) { /* no-op */ }
+        })();
+    });
+
+    // Evrak görüntüleme fonksiyonu
+    function evrakGoster(evrakUrl, tahsilatId) {
+        // Modal içeriğini güncelle
+        const modalImage = document.getElementById('evrakImage');
+        const modalTitle = document.getElementById('evrakModalTitle');
+
+        modalImage.src = evrakUrl;
+        modalTitle.textContent = `Tahsilat ID: ${tahsilatId} - Evrak Görüntüsü`;
+
+        // Modal'ı aç
+        const modal = new bootstrap.Modal(document.getElementById('evrakModal'));
+        modal.show();
+    }
+
+    // Tahsilat düzenleme işlevselliği kaldırılmıştır
+</script>
+
+<!-- Evrak Görüntüleme Modal -->
+<div class="modal fade" id="evrakModal" tabindex="-1" aria-labelledby="evrakModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="evrakModalTitle">Evrak Görüntüsü</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-3">
+                <img id="evrakImage" src="" alt="Evrak Görüntüsü" class="img-fluid rounded shadow-sm"
+                    style="max-height: 70vh; width: auto;">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary"
+                    onclick="window.open(document.getElementById('evrakImage').src, '_blank')">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Yeni Sekmede Aç
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i>Kapat
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tahsilat düzenleme özelliği kaldırılmıştır -->
+
+{% block extra_js %}
+<script>
+    // CSRF test fonksiyonu
+    function testCSRF() {
+        console.log('CSRF Token:', window.csrfToken);
+        
+        // GET isteği ile token'ı kontrol et
+        csrfFetch('{% url "tahsilat:csrf_debug" %}', {
+            method: 'GET'
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('GET Response:', data);
+            alert(`CSRF Token: ${data.csrf_token}\nUser: ${data.user}\nMethod: ${data.method}`);
+        })
+        .catch(error => {
+            console.error('GET Error:', error);
+            alert('GET isteği başarısız: ' + error.message);
+        });
+        
+        // POST isteği ile token'ı test et
+        setTimeout(() => {
+            csrfFetch('{% url "tahsilat:csrf_debug" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({test: 'data'})
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('POST Response:', data);
+                alert(`POST Test: ${data.message}\nCSRF Token: ${data.csrf_token}\nUser: ${data.user}`);
+            })
+            .catch(error => {
+                console.error('POST Error:', error);
+                alert('POST isteği başarısız: ' + error.message);
+            });
+        }, 1000);
+    }
+
+    // Evrak görüntüleme fonksiyonu
+    function evrakGoster(evrakUrl, tahsilatId) {
+        const modalImage = document.getElementById('evrakImage');
+        const modalTitle = document.getElementById('evrakModalTitle');
+
+        modalImage.src = evrakUrl;
+        modalTitle.textContent = `Tahsilat ID: ${tahsilatId} - Evrak Görüntüsü`;
+
+        // Modal'ı aç
+        const modal = new bootstrap.Modal(document.getElementById('evrakModal'));
+        modal.show();
+    }
+
+    // Tahsilat silme fonksiyonu
+    function tahsilatSil(tahsilatId, cariUnvan) {
+        // Onay mesajı
+        const onayMesaji = `Bu tahsilat kaydını silmek istediğinizden emin misiniz?\n\n` +
+            `Tahsilat ID: ${tahsilatId}\n` +
+            `Cari: ${cariUnvan}\n\n` +
+            `Bu işlem geri alınamaz!`;
+
+        if (!confirm(onayMesaji)) {
+            return;
+        }
+
+        // FormData oluştur
+        const formData = new FormData();
+        formData.append('tahsilat_id', tahsilatId);
+
+        // AJAX ile silme isteği gönder
+        csrfFetch('/sil/', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Backend'den gelen mesajı göster (evrak bilgisi içerir)
+                    alert(data.message || 'Tahsilat başarıyla silindi!');
+                    // Sayfayı yenile
+                    location.reload();
+                } else {
+                    alert('Silme hatası: ' + (data.error || 'Bilinmeyen hata'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Sunucu hatası oluştu');
+            });
+    }
+
+    // Sağ tuş menüsü fonksiyonları
+    function showContextMenu(event, tahsilatId, teslimDurumu, row) {
+        event.preventDefault();
+        
+        // Mevcut menüyü kaldır
+        const existingMenu = document.getElementById('contextMenu');
+        if (existingMenu) {
+            existingMenu.remove();
+        }
+
+        // Yeni menü oluştur
+        const menu = document.createElement('div');
+        menu.id = 'contextMenu';
+        menu.className = 'context-menu';
+        menu.style.position = 'fixed';
+        menu.style.zIndex = '9999';
+        menu.style.backgroundColor = 'white';
+        menu.style.border = '1px solid #dee2e6';
+        menu.style.borderRadius = '8px';
+        menu.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        menu.style.padding = '8px 0';
+        menu.style.minWidth = '200px';
+        menu.style.visibility = 'hidden';
+
+        // Menü öğeleri
+        const menuItems = [];
+
+        // 1) Logo'da İşlendi Yap - sadece Durum "İŞLENMEDİ" ise göster
+        try {
+            const durumCell = row.querySelector('td:nth-child(11)'); // Durum kolonu
+            const logoDurum = (durumCell ? durumCell.textContent : '').trim().toUpperCase();
+            if (logoDurum === 'İŞLENMEDİ' || logoDurum === 'ISLENMEDI') { // Türkçe/ing klavye olası varyasyonları
+                menuItems.push({
+                    text: "Logo'da İşlendi Yap",
+                    icon: 'bi-check-circle',
+                    color: 'text-success',
+                    action: () => updateLogoDurumu(tahsilatId)
+                });
+            }
+        } catch (e) { /* no-op */ }
+
+        // 2) Teslim Edildi Yap - sadece TESLİM EDİLMEDİ durumunda ve kullanıcı yetkisi kontrolü
+        if (teslimDurumu === 'TESLİM EDİLMEDİ') {
+            // FIRAT kullanıcısı herkesin kayıtlarını teslim edildi yapabilir
+            // Diğer kullanıcılar sadece kendi kayıtlarını teslim edildi yapabilir
+            const currentUser = '{{ current_user|upper }}';
+            const tahsilatKullanici = row.querySelector('td:nth-child(12)').textContent.trim().toUpperCase(); // Kullanıcı kolonu
+            
+            if (currentUser === 'FIRAT' || currentUser === tahsilatKullanici) {
+                menuItems.push({
+                    text: 'Teslim Edildi Yap',
+                    icon: 'bi-check-circle',
+                    color: 'text-success',
+                    action: () => updateSingleTeslimDurumu(tahsilatId, 'TESLİM EDİLDİ')
+                });
+            }
+        }
+
+        // Hesap Görüldü Yap - sadece TESLİM EDİLDİ durumunda ve sadece MERT/FIRAT kullanıcıları
+        if (teslimDurumu === 'TESLİM EDİLDİ' && ('{{ user.username|upper }}' === 'MERT' || '{{ user.username|upper }}' === 'FIRAT')) {
+            menuItems.push({
+                text: 'Hesap Görüldü Yap',
+                icon: 'bi-eye',
+                color: 'text-info',
+                action: () => updateSelectedRecordsStatus('HESAP GÖRÜLDÜ')
+            });
+        }
+
+        // Menü öğelerini ekle
+        menuItems.forEach(item => {
+            const menuItem = document.createElement('div');
+            menuItem.className = 'context-menu-item';
+            menuItem.style.padding = '8px 16px';
+            menuItem.style.cursor = 'pointer';
+            menuItem.style.display = 'flex';
+            menuItem.style.alignItems = 'center';
+            menuItem.innerHTML = `
+                <i class="bi ${item.icon} me-2 ${item.color}"></i>
+                <span>${item.text}</span>
+            `;
+            
+            menuItem.addEventListener('mouseenter', () => {
+                menuItem.style.backgroundColor = '#f8f9fa';
+            });
+            
+            menuItem.addEventListener('mouseleave', () => {
+                menuItem.style.backgroundColor = 'transparent';
+            });
+            
+            menuItem.addEventListener('click', () => {
+                item.action();
+                menu.remove();
+            });
+            
+            menu.appendChild(menuItem);
+        });
+
+        // Eğer menü öğesi yoksa
+        if (menuItems.length === 0) {
+            const menuItem = document.createElement('div');
+            menuItem.style.padding = '8px 16px';
+            menuItem.style.color = '#6c757d';
+            menuItem.innerHTML = '<i class="bi bi-info-circle me-2"></i>Bu kayıt için işlem yapılamaz';
+            menu.appendChild(menuItem);
+        }
+
+        document.body.appendChild(menu);
+
+        // Menü boyutunu al ve pozisyonu ayarla
+        const menuRect = menu.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        let menuX = event.clientX;
+        let menuY = event.clientY;
+        
+        // Sağa taşma kontrolü
+        if (menuX + menuRect.width > viewportWidth) {
+            menuX = viewportWidth - menuRect.width - 10;
+        }
+        
+        // Alta taşma kontrolü
+        if (menuY + menuRect.height > viewportHeight) {
+            menuY = viewportHeight - menuRect.height - 10;
+        }
+        
+        // Sol ve üst sınır kontrolü
+        menuX = Math.max(10, menuX);
+        menuY = Math.max(10, menuY);
+        
+        // Pozisyonu ayarla ve görünür yap
+        menu.style.left = menuX + 'px';
+        menu.style.top = menuY + 'px';
+        menu.style.visibility = 'visible';
+
+        // Menü dışına tıklandığında kapat
+        const closeMenu = (e) => {
+            if (!menu.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+        
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+        }, 100);
+    }
+
+    // Tek bir kaydın teslim durumunu güncelle
+    function updateSingleTeslimDurumu(tahsilatId, newStatus) {
+        if (!confirm('Bu kaydın teslim durumunu "' + newStatus + '" yapmak istediğinizden emin misiniz?')) {
+            return;
+        }
+
+        csrfFetch('{% url "tahsilat:update_teslim_durumu" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tahsilat_ids: [tahsilatId], new_status: newStatus })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('Kayıt güncellendi.');
+                window.location.reload();
+            } else {
+                alert('Güncelleme hatası: ' + (data.message || 'Bilinmeyen hata'));
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Sunucu hatası oluştu');
+        });
+    }
+
+    // Seçili kayıtların durumunu güncelle
+    function updateSelectedRecordsStatus(newStatus) {
+        const selectedCheckboxes = document.querySelectorAll('.tahsilat-checkbox:checked');
+        
+        if (selectedCheckboxes.length === 0) {
+            alert('Lütfen güncellenecek kayıtları seçin.');
+            return;
+        }
+
+        const tahsilatIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+        const statusText = newStatus === 'TESLİM EDİLDİ' ? 'Teslim Edildi' : 'Hesap Görüldü';
+        
+        if (!confirm(`${selectedCheckboxes.length} kaydın durumunu "${statusText}" olarak güncellemek istediğinizden emin misiniz?`)) {
+            return;
+        }
+
+        // AJAX ile durum güncelleme isteği gönder
+        csrfFetch('{% url "tahsilat:update_teslim_durumu" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                tahsilat_ids: tahsilatIds,
+                new_status: newStatus
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`${data.updated_count} kayıt başarıyla güncellendi.`);
+                // Sayfayı yenile
+                window.location.reload();
+            } else {
+                alert('Güncelleme hatası: ' + (data.message || 'Bilinmeyen hata'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Sunucu hatası oluştu');
+        });
+    }
+
+    // Logo durumu sağ tık menüsü
+    function showLogoDurumMenu(event, tahsilatId, currentDurum) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // Eski menüleri temizle
+        const oldMenu = document.querySelector('.logo-durum-context-menu');
+        if (oldMenu) {
+            oldMenu.remove();
+        }
+        
+        // Context menü oluştur
+        const menu = document.createElement('div');
+        menu.className = 'logo-durum-context-menu';
+        
+        // Menüyü önce oluştur ki boyutunu ölçebilelim
+        menu.style.cssText = `
+            position: fixed;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 10000;
+            min-width: 200px;
+            padding: 8px 0;
+            visibility: hidden;
+        `;
+        
+        // Menü öğesi ekle - sadece "LOGO'DA İŞLENDİ" değilse göster
+        if (currentDurum !== "LOGO'DA İŞLENDİ") {
+            const menuItem = document.createElement('div');
+            menuItem.style.cssText = `
+                padding: 10px 16px;
+                cursor: pointer;
+                transition: background 0.2s;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            `;
+            menuItem.innerHTML = '<i class="bi bi-check-circle text-success"></i> Logo\'da İşlendi Yap';
+            
+            menuItem.onmouseover = () => menuItem.style.background = '#f8f9fa';
+            menuItem.onmouseout = () => menuItem.style.background = 'white';
+            
+            menuItem.onclick = () => {
+                updateLogoDurumu(tahsilatId);
+                menu.remove();
+            };
+            
+            menu.appendChild(menuItem);
+        } else {
+            // Zaten işlendi ise bilgilendirme mesajı
+            const infoItem = document.createElement('div');
+            infoItem.style.cssText = `
+                padding: 10px 16px;
+                color: #6c757d;
+                font-size: 14px;
+            `;
+            infoItem.innerHTML = '<i class="bi bi-info-circle me-2"></i>Bu kayıt zaten Logo\'da işlendi';
+            menu.appendChild(infoItem);
+        }
+        
+        document.body.appendChild(menu);
+        
+        // Menü boyutunu al ve pozisyonu ayarla
+        const menuRect = menu.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        let menuX = event.clientX;
+        let menuY = event.clientY;
+        
+        // Sağa taşma kontrolü
+        if (menuX + menuRect.width > viewportWidth) {
+            menuX = viewportWidth - menuRect.width - 10;
+        }
+        
+        // Alta taşma kontrolü
+        if (menuY + menuRect.height > viewportHeight) {
+            menuY = viewportHeight - menuRect.height - 10;
+        }
+        
+        // Sol ve üst sınır kontrolü
+        menuX = Math.max(10, menuX);
+        menuY = Math.max(10, menuY);
+        
+        // Pozisyonu ayarla ve görünür yap
+        menu.style.left = menuX + 'px';
+        menu.style.top = menuY + 'px';
+        menu.style.visibility = 'visible';
+        
+        // Menü dışına tıklandığında kapat
+        const closeMenu = (e) => {
+            if (!menu.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+        
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+        }, 100);
+    }
+    
+    // Logo durumu güncelleme fonksiyonu
+    function updateLogoDurumu(tahsilatId) {
+        if (!confirm('Bu kaydın durumunu "Logo\'da İşlendi" olarak güncellemek istediğinizden emin misiniz?')) {
+            return;
+        }
+        
+        // AJAX ile durum güncelleme isteği gönder
+        window.csrfFetch('{% url "tahsilat:update_logo_durumu" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                tahsilat_id: tahsilatId,
+                new_status: "LOGO'DA İŞLENDİ"
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                // Sayfayı yenile
+                window.location.reload();
+            } else {
+                alert('Güncelleme hatası: ' + (data.message || 'Bilinmeyen hata'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Sunucu hatası oluştu');
+        });
+    }
+
+    // Checkbox değişikliklerini dinle
+    function updateSelectAllState() {
+        const checkboxes = document.querySelectorAll('.tahsilat-checkbox');
+        const selectAllCheckbox = document.getElementById('selectAll');
+        const checkedCheckboxes = document.querySelectorAll('.tahsilat-checkbox:checked');
+        
+        // Tümünü seç durumunu güncelle
+        if (checkedCheckboxes.length === 0) {
+            selectAllCheckbox.indeterminate = false;
+            selectAllCheckbox.checked = false;
+        } else if (checkedCheckboxes.length === checkboxes.length) {
+            selectAllCheckbox.indeterminate = false;
+            selectAllCheckbox.checked = true;
+        } else {
+            selectAllCheckbox.indeterminate = true;
+        }
+
+        // Satır renklerini güncelle
+        checkboxes.forEach(checkbox => {
+            const row = checkbox.closest('tr');
+            if (checkbox.checked) {
+                row.classList.add('selected');
+            } else {
+                row.classList.remove('selected');
+            }
+        });
+    }
+
+    // Tümünü seç/seçme
+    function toggleSelectAll() {
+        const selectAllCheckbox = document.getElementById('selectAll');
+        const checkboxes = document.querySelectorAll('.tahsilat-checkbox');
+        
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = selectAllCheckbox.checked;
+            const row = checkbox.closest('tr');
+            if (selectAllCheckbox.checked) {
+                row.classList.add('selected');
+            } else {
+                row.classList.remove('selected');
+            }
+        });
+    }
+
+    // Sayfa yüklendiğinde event listener'ları ekle
+    document.addEventListener('DOMContentLoaded', function() {
+        // Tablo satırlarına sağ tuş event listener ekle ve durum class'larını ekle
+        const tableRows = document.querySelectorAll('#tahsilat-table tbody tr');
+        tableRows.forEach(row => {
+            // Teslim durumunu kontrol et ve uygun class ekle
+            const teslimDurumuCell = row.querySelector('td:nth-child(14)'); // Teslim Durumu kolonu
+            if (teslimDurumuCell) {
+                const teslimDurumu = teslimDurumuCell.textContent.trim().toUpperCase();
+                console.log('Teslim Durumu:', teslimDurumu); // Debug
+                
+                if (teslimDurumu === 'TESLİM EDİLDİ') {
+                    teslimDurumuCell.classList.add('teslim-edildi-text');
+                    teslimDurumuCell.style.color = '#198754'; // Yeşil
+                    teslimDurumuCell.style.fontWeight = 'normal';
+                    console.log('TESLİM EDİLDİ - Yeşil class eklendi');
+                } else if (teslimDurumu === 'TESLİM EDİLMEDİ') {
+                    teslimDurumuCell.classList.add('teslim-edilmedi-text');
+                    teslimDurumuCell.style.color = '#dc3545'; // Kırmızı
+                    teslimDurumuCell.style.fontWeight = 'bold';
+                    console.log('TESLİM EDİLMEDİ - Kırmızı class eklendi');
+                } else if (teslimDurumu === 'HESAP GÖRÜLDÜ') {
+                    teslimDurumuCell.classList.add('hesap-goruldu-text');
+                    teslimDurumuCell.style.color = '#0dcaf0'; // Mavi
+                    teslimDurumuCell.style.fontWeight = 'normal';
+                    console.log('HESAP GÖRÜLDÜ - Mavi class eklendi');
+                } else if (teslimDurumu === "LOGO'DA İŞLENDİ") {
+                    teslimDurumuCell.classList.add('logo-islendi-text');
+                    teslimDurumuCell.style.color = '#6f42c1'; // Mor
+                    teslimDurumuCell.style.fontWeight = 'normal';
+                    console.log('LOGO\'DA İŞLENDİ - Mor class eklendi');
+                } else if (teslimDurumu === 'BEKLEMEDE') {
+                    teslimDurumuCell.classList.add('beklemede-text');
+                    teslimDurumuCell.style.color = '#fd7e14'; // Turuncu
+                    teslimDurumuCell.style.fontWeight = 'normal';
+                    console.log('BEKLEMEDE - Turuncu class eklendi');
+                } else if (teslimDurumu === 'İPTAL') {
+                    teslimDurumuCell.classList.add('iptal-text');
+                    teslimDurumuCell.style.color = '#dc3545'; // Kırmızı
+                    teslimDurumuCell.style.fontWeight = 'bold';
+                    console.log('İPTAL - Kırmızı class eklendi');
+                } else {
+                    // Diğer durumlar için varsayılan siyah
+                    teslimDurumuCell.style.color = '#000000'; // Siyah
+                    teslimDurumuCell.style.fontWeight = 'normal';
+                    console.log('Diğer durum - Siyah:', teslimDurumu);
+                }
+            }
+
+            // Sağ tuş event listener ekle
+            row.addEventListener('contextmenu', function(e) {
+                const checkbox = row.querySelector('.tahsilat-checkbox');
+                if (checkbox) {
+                    const tahsilatId = checkbox.value;
+                    const teslimDurumu = teslimDurumuCell ? teslimDurumuCell.textContent.trim() : '';
+                    showContextMenu(e, tahsilatId, teslimDurumu, row);
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}
+
+{% endblock %}

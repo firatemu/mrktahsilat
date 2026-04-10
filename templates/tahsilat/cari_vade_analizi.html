@@ -1,0 +1,526 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}Cari Vade Analizi - MrkTahsilat{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+<style>
+    .vade-analiz-card {
+        border-left: 4px solid #007bff;
+        margin-bottom: 20px;
+    }
+    
+    .risk-badge {
+        font-size: 0.9em;
+        padding: 0.5rem 1rem;
+    }
+    
+    .risk-dusuk { background-color: #d4edda !important; color: #155724; }
+    .risk-orta { background-color: #fff3cd !important; color: #856404; }
+    .risk-yuksek { background-color: #f8d7da !important; color: #721c24; }
+    
+    .stat-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .stat-card.success {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    }
+    
+    .stat-card.warning {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    
+    .stat-card.danger {
+        background: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%);
+    }
+    
+    .chart-container {
+        position: relative;
+        height: 400px;
+        margin: 2rem 0;
+        background: white;
+        border-radius: 10px;
+        padding: 1rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .detay-tablo {
+        font-size: 0.9em;
+    }
+    
+    .gecikme-badge {
+        font-size: 0.8em;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+    }
+    
+    .filter-form {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">📊 Cari Ödeme Vade Analizi</h1>
+                    <p class="text-muted mb-0">45 günlük standart vade temel alınarak ödeme alışkanlığı analizi</p>
+                </div>
+                <div>
+                    <a href="{% if cari_kod %}{% url 'tahsilat:cari_analiz' %}?cari_kod={{ cari_kod }}{% else %}{% url 'tahsilat:cari_analiz' %}{% endif %}" class="btn btn-outline-primary">
+                        <i class="fas fa-chart-line"></i> Genel Cari Analiz{% if cari_kod %} ({{ cari_kod }}){% endif %}
+                    </a>
+                </div>
+            </div>
+
+            <!-- Filtre Formu -->
+            <div class="filter-form">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-4">
+                        <label for="cari_kod" class="form-label">📋 Cari Seçimi</label>
+                        <select name="cari_kod" id="cari_kod" class="form-select select2-search" onchange="this.form.submit()">
+                            <option value="">Cari Seçiniz (Yazarak Arayabilirsiniz)</option>
+                            {% for cari in cariler %}
+                            <option value="{{ cari.cari_kod }}" 
+                                {% if cari.cari_kod == cari_kod %}selected{% endif %}
+                                data-kod="{{ cari.cari_kod }}"
+                                data-unvan="{{ cari.cari_unvan }}">
+                                {{ cari.cari_kod }} - {{ cari.cari_unvan }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="start_date" class="form-label">📅 Başlangıç Tarihi</label>
+                        <input type="date" class="form-control" name="start_date" 
+                               value="{{ start_date }}" id="start_date">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="end_date" class="form-label">📅 Bitiş Tarihi</label>
+                        <input type="date" class="form-control" name="end_date" 
+                               value="{{ end_date }}" id="end_date">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary d-block w-100">
+                            <i class="fas fa-search"></i> Analiz Et
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            {% if vade_analizi %}
+                {% with ozet=vade_analizi.vade_ozeti %}
+                
+                <!-- Özet İstatistikler -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <h5><i class="fas fa-file-invoice"></i> Toplam Fatura</h5>
+                            <h2 class="mb-0">{{ ozet.toplam_fatura }}</h2>
+                            <small>{{ ozet.toplam_fatura_tutari|currency_format }}</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card success">
+                            <h5><i class="fas fa-check-circle"></i> Ödeme Oranı</h5>
+                            <h2 class="mb-0">%{{ ozet.odeme_orani }}</h2>
+                            <small>{{ ozet.odenen_fatura_sayisi }}/{{ ozet.toplam_fatura }} fatura</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card warning">
+                            <h5><i class="fas fa-clock"></i> Zamanında Ödeme</h5>
+                            <h2 class="mb-0">%{{ ozet.zamaninda_odeme_orani }}</h2>
+                            <small>Ortalama: {{ ozet.ortalama_odeme_suresi }} gün</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card {% if ozet.risk_renk == 'success' %}success{% elif ozet.risk_renk == 'warning' %}warning{% else %}danger{% endif %}">
+                            <h5><i class="fas fa-exclamation-triangle"></i> Risk Durumu</h5>
+                            <h2 class="mb-0">{{ ozet.risk_kategorisi }}</h2>
+                            <small>Analiz Sonucu</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Grafikler -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="chart-container">
+                            <h5 class="text-center mb-3">🥧 Gecikme Kategorileri Dağılımı</h5>
+                            <canvas id="gecikmeChart" width="400" height="300"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="chart-container">
+                            <h5 class="text-center mb-3">📈 Aylık Ödeme Trendi</h5>
+                            <canvas id="trendChart" width="400" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Kategori Detayları -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="fas fa-list"></i> Gecikme Kategori Detayları</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    {% for kategori, detay in ozet.gecikme_kategorileri.items %}
+                                    <div class="col-md-2 mb-3">
+                                        <div class="text-center p-3 border rounded">
+                                            <h6 class="mb-1">{{ kategori }}</h6>
+                                            <div class="h4 text-primary">{{ detay.adet }}</div>
+                                            <small class="text-muted">{{ detay.tutar|currency_format }}</small>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fatura Detayları -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5><i class="fas fa-table"></i> Fatura Vade Detayları</h5>
+                                <span class="badge bg-info">{{ vade_analizi.vade_detaylari|length }} kayıt</span>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-striped detay-tablo mb-0">
+                                        <thead class="table-dark">
+                                            <tr>
+                                                <th>Fatura No</th>
+                                                <th>Fatura Tarihi</th>
+                                                <th>Vade Tarihi</th>
+                                                <th>Fatura Tutarı</th>
+                                                <th>Ödenen Tutar</th>
+                                                <th>Kalan Tutar</th>
+                                                <th>Son Ödeme</th>
+                                                <th>Vade Farkı</th>
+                                                <th>Durum</th>
+                                                <th>Kategori</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for detay in vade_analizi.vade_detaylari %}
+                                            <tr>
+                                                <td>{{ detay.fatura_no }}</td>
+                                                <td>{{ detay.fatura_tarihi|date:"d.m.Y" }}</td>
+                                                <td>{{ detay.vade_tarihi|date:"d.m.Y" }}</td>
+                                                <td>{{ detay.fatura_tutari|currency_format }}</td>
+                                                <td>
+                                                    {% if detay.odenen_tutar > 0 %}
+                                                        <span class="text-success">{{ detay.odenen_tutar|currency_format }}</span>
+                                                    {% else %}
+                                                        <span class="text-muted">0 ₺</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if detay.kalan_tutar > 0 %}
+                                                        <span class="text-danger">{{ detay.kalan_tutar|currency_format }}</span>
+                                                    {% else %}
+                                                        <span class="text-success">0 ₺</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if detay.odeme_tarihi %}
+                                                        {{ detay.odeme_tarihi|date:"d.m.Y" }}
+                                                        {% if detay.odeme_sayisi > 1 %}
+                                                            <small class="text-muted">({{ detay.odeme_sayisi }} ödeme)</small>
+                                                        {% endif %}
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if detay.vade_farki_gun <= 0 %}
+                                                        <span class="text-success">{{ detay.vade_farki_gun }} gün</span>
+                                                    {% else %}
+                                                        <span class="text-danger">+{{ detay.vade_farki_gun }} gün</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if 'Ödendi' in detay.odeme_durumu %}
+                                                        {% if 'Kısmen' in detay.odeme_durumu %}
+                                                            <span class="badge bg-warning text-dark">{{ detay.odeme_durumu }}</span>
+                                                        {% else %}
+                                                            <span class="badge bg-success">Ödendi</span>
+                                                        {% endif %}
+                                                    {% else %}
+                                                        <span class="badge bg-danger">Ödenmedi</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if detay.gecikme_kategorisi == 'Zamanında' %}
+                                                        <span class="gecikme-badge bg-success text-white">{{ detay.gecikme_kategorisi }}</span>
+                                                    {% elif '1-15' in detay.gecikme_kategorisi %}
+                                                        <span class="gecikme-badge bg-warning text-dark">{{ detay.gecikme_kategorisi }}</span>
+                                                    {% elif '16-30' in detay.gecikme_kategorisi %}
+                                                        <span class="gecikme-badge bg-orange text-white" style="background-color: #fd7e14 !important;">{{ detay.gecikme_kategorisi }}</span>
+                                                    {% else %}
+                                                        <span class="gecikme-badge bg-danger text-white">{{ detay.gecikme_kategorisi }}</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% endwith %}
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                    <h4>Vade Analizi Yapılacak Cari Seçin</h4>
+                    <p class="text-muted">Yukarıdan bir cari hesap seçerek ödeme vade alışkanlığı analizini görüntüleyin.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+// Select2 Configuration - Client-side arama
+$(document).ready(function() {
+    $('#cari_kod').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Cari kod veya ünvan yazarak arayın...',
+        allowClear: true,
+        width: '100%',
+        language: {
+            searching: function() {
+                return 'Aranıyor...';
+            },
+            noResults: function() {
+                return 'Sonuç bulunamadı';
+            }
+        },
+        matcher: function(params, data) {
+            // Boş arama durumu
+            if ($.trim(params.term) === '') {
+                return data;
+            }
+            
+            // Büyük/küçük harf duyarsız arama
+            var term = params.term.toLowerCase();
+            var text = data.text ? data.text.toLowerCase() : '';
+            
+            // Text içinde arama (hem kod hem ünvan için)
+            if (text.includes(term)) {
+                return data;
+            }
+            
+            return null;
+        }
+    });
+});
+
+</script>
+<script>
+{% if vade_analizi and vade_analizi.grafik_verileri %}
+    // Gecikme kategorileri pie chart
+    {% if vade_analizi.grafik_verileri.gecikme_pie %}
+    const gecikmeCtx = document.getElementById('gecikmeChart').getContext('2d');
+    const gecikmeChart = new Chart(gecikmeCtx, {
+        type: 'pie',
+        data: {
+            labels: {{ vade_analizi.grafik_verileri.gecikme_pie.labels|safe }},
+            datasets: [{
+                data: {{ vade_analizi.grafik_verileri.gecikme_pie.values|safe }},
+                backgroundColor: {{ vade_analizi.grafik_verileri.gecikme_pie.colors|safe }},
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            return context.label + ': ' + context.parsed + ' (' + percentage + '%)';
+                        }
+                    }
+                }
+            }
+        }
+    });
+    {% endif %}
+
+    // Aylık trend line chart
+    {% if vade_analizi.grafik_verileri.aylik_trend %}
+    const trendCtx = document.getElementById('trendChart').getContext('2d');
+    const trendChart = new Chart(trendCtx, {
+        type: 'line',
+        data: {
+            labels: {{ vade_analizi.grafik_verileri.aylik_trend.labels|safe }},
+            datasets: [{
+                label: 'Zamanında Ödenen',
+                data: {{ vade_analizi.grafik_verileri.aylik_trend.zamaninda_values|safe }},
+                borderColor: '#28a745',
+                backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                fill: true,
+                tension: 0.4
+            }, {
+                label: 'Geciken Ödemeler',
+                data: {{ vade_analizi.grafik_verileri.aylik_trend.geciken_values|safe }},
+                borderColor: '#dc3545',
+                backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 20
+                    }
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
+    {% endif %}
+{% endif %}
+
+// Sayfa yüklendiğinde seçili cari varsa otomatik analiz (sadece bir kere)
+$(document).ready(function() {
+    var selectedCari = $('#cari_kod').val();
+    var urlParams = new URLSearchParams(window.location.search);
+    var hasAnalysisData = $('.card-body').find('.stat-card').length > 0;
+    
+    // Sadece cari seçili, analiz sonucu yok ve URL'de sadece cari_kod varsa otomatik başlat
+    if (selectedCari && !hasAnalysisData && urlParams.get('cari_kod') && !urlParams.get('start_date')) {
+        console.log('İlk kez otomatik analiz başlatılıyor: ' + selectedCari);
+        // Tarih parametrelerini ekleyerek submit et
+        var form = $('form');
+        form.find('[name="start_date"]').val('2025-01-01');
+        form.find('[name="end_date"]').val(new Date().toISOString().split('T')[0]);
+        
+        setTimeout(function() {
+            form.submit();
+        }, 1000);
+    }
+});
+
+// Form otomatik submit ve manual submit
+document.getElementById('start_date').addEventListener('change', function() {
+    if (document.getElementById('cari_kod').value) {
+        this.form.submit();
+    }
+});
+
+document.getElementById('end_date').addEventListener('change', function() {
+    if (document.getElementById('cari_kod').value) {
+        this.form.submit();
+    }
+});
+
+// Analiz Et butonu için manual submit
+const analyzeBtn = document.querySelector('button[type="submit"]');
+if (analyzeBtn) {
+    analyzeBtn.addEventListener('click', function(e) {
+        const form = this.closest('form');
+        const cariKod = form.querySelector('[name="cari_kod"]').value;
+        
+        if (!cariKod) {
+            e.preventDefault();
+            alert('Lütfen bir cari hesap seçiniz!');
+            return false;
+        }
+        
+        // Form submit edilsin
+        form.submit();
+    });
+}
+
+// Genel Analiz butonunu dinamik olarak güncelle
+function updateGenelAnalizButton() {
+    const cariSelect = document.getElementById('cari_kod');
+    const genelAnalizBtn = document.querySelector('a[href*="cari_analiz"]');
+    
+    if (cariSelect && genelAnalizBtn) {
+        const selectedCari = cariSelect.value;
+        const baseUrl = "{% url 'tahsilat:cari_analiz' %}";
+        
+        if (selectedCari) {
+            // Seçili cari varsa URL'ye ekle
+            genelAnalizBtn.href = baseUrl + "?cari_kod=" + encodeURIComponent(selectedCari);
+            genelAnalizBtn.innerHTML = '<i class="fas fa-chart-line"></i> Genel Cari Analiz (' + selectedCari + ')';
+            genelAnalizBtn.title = selectedCari + ' carinin genel analizini görüntüle';
+        } else {
+            // Seçili cari yoksa normal hali
+            genelAnalizBtn.href = baseUrl;
+            genelAnalizBtn.innerHTML = '<i class="fas fa-chart-line"></i> Genel Cari Analiz';
+            genelAnalizBtn.title = 'Genel cari analiz sayfasına git';
+        }
+    }
+}
+
+// Cari seçimi değiştiğinde butonu güncelle
+document.getElementById('cari_kod').addEventListener('change', function() {
+    updateGenelAnalizButton();
+});
+
+// Sayfa yüklendiğinde de butonu güncelle
+document.addEventListener('DOMContentLoaded', function() {
+    updateGenelAnalizButton();
+});
+</script>
+{% endblock %}

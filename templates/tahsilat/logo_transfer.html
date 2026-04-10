@@ -1,0 +1,239 @@
+{% extends 'base.html' %}
+{% load tahsilat_extras %}
+
+{% block title %}LOGOYA AKTAR{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-database"></i> LOGOYA AKTAR
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <!-- Yeni Aktarım Formu -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title">
+                                        <i class="fas fa-plus"></i> Yeni LOGO Aktarımı
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <form method="post" id="logoTransferForm">
+                                        {% csrf_token %}
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <div class="form-group">
+                                                    <label for="ficheno">Fiş Numarası <span class="text-danger">*</span></label>
+                                                    <input type="text" class="form-control" id="ficheno" name="ficheno" 
+                                                           placeholder="Örn: KK-00001" maxlength="17" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="form-group">
+                                                    <label for="trcode">İşlem Kodu <span class="text-danger">*</span></label>
+                                                    <input type="number" class="form-control" id="trcode" name="trcode" 
+                                                           value="70" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="form-group">
+                                                    <label for="credit">Kredi Tutarı <span class="text-danger">*</span></label>
+                                                    <input type="number" class="form-control" id="credit" name="credit" 
+                                                           step="0.01" placeholder="0.00" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="form-group">
+                                                    <label for="repcredit">Rapor Kredi Tutarı <span class="text-danger">*</span></label>
+                                                    <input type="number" class="form-control" id="repcredit" name="repcredit" 
+                                                           step="0.01" placeholder="0.00" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="form-group">
+                                                    <label for="tarih">Tarih <span class="text-danger">*</span></label>
+                                                    <input type="datetime-local" class="form-control" id="tarih" name="tarih" 
+                                                           required>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-12">
+                                                <button type="submit" class="btn btn-primary">
+                                                    <i class="fas fa-upload"></i> LOGOYA AKTAR
+                                                </button>
+                                                <button type="button" class="btn btn-secondary" onclick="clearForm()">
+                                                    <i class="fas fa-eraser"></i> Temizle
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Aktarım Geçmişi -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title">
+                                        <i class="fas fa-history"></i> Aktarım Geçmişi
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    {% if aktarimlar %}
+                                        <div class="table-responsive">
+                                            <table class="table table-striped table-hover">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Fiş No</th>
+                                                        <th>İşlem Kodu</th>
+                                                        <th>Kredi Tutarı</th>
+                                                        <th>Tarih</th>
+                                                        <th>Durum</th>
+                                                        <th>Oluşturma Tarihi</th>
+                                                        <th>İşlemler</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for aktarim in aktarimlar %}
+                                                    <tr>
+                                                        <td>{{ aktarim.ficheno }}</td>
+                                                        <td>{{ aktarim.trcode }}</td>
+                                                        <td>{{ aktarim.credit|floatformat:2 }} ₺</td>
+                                                        <td>{{ aktarim.tarih|date:"d.m.Y H:i" }}</td>
+                                                        <td>
+                                                            {% if aktarim.durum == 'beklemede' %}
+                                                                <span class="badge badge-warning">{{ aktarim.get_durum_display }}</span>
+                                                            {% elif aktarim.durum == 'isleniyor' %}
+                                                                <span class="badge badge-info">{{ aktarim.get_durum_display }}</span>
+                                                            {% elif aktarim.durum == 'basarili' %}
+                                                                <span class="badge badge-success">{{ aktarim.get_durum_display }}</span>
+                                                            {% elif aktarim.durum == 'hata' %}
+                                                                <span class="badge badge-danger">{{ aktarim.get_durum_display }}</span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>{{ aktarim.olusturma_tarihi|date:"d.m.Y H:i" }}</td>
+                                                        <td>
+                                                            {% if aktarim.durum == 'hata' %}
+                                                                <button class="btn btn-sm btn-warning" onclick="retryTransfer({{ aktarim.id }})">
+                                                                    <i class="fas fa-redo"></i> Tekrar Dene
+                                                                </button>
+                                                            {% endif %}
+                                                            {% if aktarim.hata_mesaji %}
+                                                                <button class="btn btn-sm btn-info" onclick="showError('{{ aktarim.hata_mesaji|escapejs }}')">
+                                                                    <i class="fas fa-info-circle"></i> Hata Detayı
+                                                                </button>
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    {% else %}
+                                        <div class="alert alert-info">
+                                            <i class="fas fa-info-circle"></i> Henüz LOGO aktarımı yapılmamış.
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hata Detayı Modal -->
+<div class="modal fade" id="errorModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Hata Detayı</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p id="errorMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Kapat</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Form gönderiminde loading göster
+    document.getElementById('logoTransferForm').addEventListener('submit', function() {
+        const submitBtn = this.querySelector('button[type="submit"]');
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Aktarılıyor...';
+        submitBtn.disabled = true;
+    });
+    
+    // Kredi tutarı değiştiğinde rapor kredi tutarını otomatik doldur
+    document.getElementById('credit').addEventListener('input', function() {
+        document.getElementById('repcredit').value = this.value;
+    });
+    
+    // Bugünün tarihini varsayılan olarak ayarla
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    
+    document.getElementById('tarih').value = `${year}-${month}-${day}T${hours}:${minutes}`;
+});
+
+function clearForm() {
+    document.getElementById('logoTransferForm').reset();
+    document.getElementById('tarih').value = new Date().toISOString().slice(0, 16);
+}
+
+function showError(message) {
+    document.getElementById('errorMessage').textContent = message;
+    $('#errorModal').modal('show');
+}
+
+function retryTransfer(aktarimId) {
+    if (!confirm('Bu aktarımı tekrar denemek istediğinizden emin misiniz?')) {
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('aktarim_id', aktarimId);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch('{% url "tahsilat:logo_transfer_ajax" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Aktarım başarılı: ' + data.message);
+            location.reload();
+        } else {
+            alert('Aktarım başarısız: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Hata: ' + error.message);
+    });
+}
+</script>
+{% endblock %}

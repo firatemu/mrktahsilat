@@ -1,0 +1,1416 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}Yeni Tahsilat - MRK OTOMOTİV{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Number input artırma/azaltma oklarını gizle */
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    /* Firefox için */
+    input[type="number"] {
+        -moz-appearance: textfield;
+        appearance: textfield;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 991.98px) {
+
+        /* Tablet ve küçük ekranlar */
+        .col-lg-9,
+        .col-xl-9 {
+            width: 100%;
+            margin-bottom: 1.5rem;
+        }
+
+        .col-lg-3,
+        .col-xl-3 {
+            width: 100%;
+        }
+
+        .card-body {
+            padding: 1rem !important;
+        }
+
+        .main-content {
+            padding: 1rem 0.5rem;
+        }
+    }
+
+    @media (max-width: 768px) {
+
+        /* Mobil cihazlar */
+        .main-content {
+            padding: 0.75rem 0.25rem;
+        }
+
+        .row {
+            margin-left: 0;
+            margin-right: 0;
+        }
+
+        .card-custom {
+            margin-bottom: 1rem;
+            border-radius: 10px;
+        }
+
+        .card-header {
+            padding: 0.75rem 1rem;
+        }
+
+        .card-header h6 {
+            font-size: 0.95rem;
+        }
+
+        .card-body {
+            padding: 0.75rem !important;
+        }
+
+        /* Form elemanları */
+        .form-label {
+            font-size: 0.9rem;
+            margin-bottom: 0.4rem;
+        }
+
+        .form-control,
+        .form-select {
+            font-size: 0.9rem;
+            padding: 0.5rem 0.75rem;
+        }
+
+        .form-control-sm,
+        .form-select-sm {
+            font-size: 0.85rem;
+            padding: 0.4rem 0.65rem;
+        }
+
+        /* Input group */
+        .input-group-sm>.form-control,
+        .input-group-sm>.input-group-text {
+            padding: 0.4rem 0.65rem;
+            font-size: 0.85rem;
+        }
+
+        /* Butonlar */
+        .btn {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+
+        .btn-sm {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.85rem;
+        }
+
+        .d-flex.gap-2 {
+            flex-direction: column;
+            gap: 0.5rem !important;
+        }
+
+        .d-flex.gap-2 .btn {
+            width: 100%;
+        }
+
+        /* Evrak yükleme butonları */
+        .row.g-2 {
+            gap: 0.5rem !important;
+        }
+
+        .col-6 {
+            width: 100%;
+            padding: 0;
+        }
+
+        /* Cari arama */
+        #cari_search {
+            font-size: 0.9rem;
+        }
+
+        #cari_dropdown {
+            max-height: 250px;
+        }
+
+        /* Textarea */
+        textarea.form-control {
+            font-size: 0.9rem;
+            resize: vertical;
+        }
+
+        /* Başlık */
+        h3 {
+            font-size: 1.4rem;
+        }
+
+        .text-muted {
+            font-size: 0.85rem;
+        }
+
+        /* Yardım paneli */
+        .alert {
+            padding: 0.6rem 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .alert h6 {
+            font-size: 0.9rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .alert small {
+            font-size: 0.8rem;
+        }
+
+        /* Kamera modal mobil */
+        #cameraModal>div {
+            width: 95% !important;
+            max-width: 95% !important;
+            padding: 15px !important;
+            margin: 0 !important;
+        }
+
+        #webrtcVideo {
+            max-height: 300px !important;
+        }
+
+        #cameraModal h5 {
+            font-size: 1.1rem;
+        }
+
+        #cameraModal .btn {
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+
+        #cameraModal .btn:last-child {
+            margin-bottom: 0;
+        }
+    }
+
+    @media (max-width: 576px) {
+
+        /* Küçük mobil cihazlar */
+        .main-content {
+            padding: 0.5rem 0.15rem;
+        }
+
+        h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .card-header {
+            padding: 0.6rem 0.75rem;
+        }
+
+        .card-body {
+            padding: 0.6rem !important;
+        }
+
+        .form-label {
+            font-size: 0.85rem;
+        }
+
+        .form-control,
+        .form-select {
+            font-size: 0.85rem;
+            padding: 0.45rem 0.65rem;
+        }
+
+        .form-control-sm,
+        .form-select-sm {
+            font-size: 0.8rem;
+            padding: 0.35rem 0.55rem;
+        }
+
+        .btn {
+            padding: 0.45rem 0.9rem;
+            font-size: 0.85rem;
+        }
+
+        .btn-sm {
+            padding: 0.35rem 0.7rem;
+            font-size: 0.8rem;
+        }
+
+        /* Cari dropdown daha küçük */
+        #cari_dropdown {
+            max-height: 200px;
+            font-size: 0.85rem;
+        }
+
+        /* Kamera modal daha küçük */
+        #cameraModal>div {
+            width: 98% !important;
+            padding: 12px !important;
+        }
+
+        #webrtcVideo {
+            max-height: 250px !important;
+        }
+
+        #cameraModal h5 {
+            font-size: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        /* Alert küçült */
+        .alert {
+            padding: 0.5rem 0.65rem;
+            font-size: 0.8rem;
+        }
+
+        .alert h6 {
+            font-size: 0.85rem;
+        }
+
+        .alert small {
+            font-size: 0.75rem;
+        }
+    }
+
+    @media (max-width: 480px) {
+
+        /* Çok küçük ekranlar */
+        .main-content {
+            padding: 0.4rem 0.1rem;
+        }
+
+        h3 {
+            font-size: 1.15rem;
+        }
+
+        .card-body {
+            padding: 0.5rem !important;
+        }
+
+        .form-control,
+        .form-select {
+            font-size: 0.8rem;
+        }
+
+        .btn {
+            font-size: 0.8rem;
+            padding: 0.4rem 0.8rem;
+        }
+    }
+
+    /* Touch-friendly elements */
+    @media (hover: none) and (pointer: coarse) {
+
+        .btn,
+        .form-control,
+        .form-select {
+            min-height: 44px;
+            /* iOS touch target minimum */
+        }
+
+        .btn-sm {
+            min-height: 38px;
+        }
+
+        input[type="date"],
+        input[type="file"],
+        select {
+            min-height: 44px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<script id="edit-data" type="application/json">{{ edit_data_json|safe }}</script>
+<div class="container-fluid main-content">
+    <!-- Başlık -->
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-{% if request.user.username|upper == 'FIRAT' %}8{% else %}12{% endif %}">
+            <h3 class="fw-bold mb-1">
+                <i class="bi bi-plus-circle me-2"></i>
+                {% if edit_mode %}
+                Tahsilat Düzenle
+                {% else %}
+                Yeni Tahsilat Girişi
+                {% endif %}
+            </h3>
+            <p class="text-muted">
+                {{ plasiyer }} plasiyeri için
+                {% if edit_mode %}
+                tahsilat kaydını güncelleyin
+                {% else %}
+                yeni tahsilat kaydı oluşturun
+                {% endif %}
+            </p>
+        </div>
+        {% if request.user.username|upper == 'FIRAT' %}
+        <div class="col-md-4 text-md-end mt-2 mt-md-0">
+            <div class="form-check form-switch d-inline-block border rounded p-2 bg-light pe-3">
+                <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" id="logoIntegrationToggle" {{ logo_checked_str }} style="transform: scale(1.3); margin-top: 6px;">
+                <label class="form-check-label fw-bold" for="logoIntegrationToggle"
+                    style="margin-left: 0.5rem; white-space: nowrap;">
+                    Logo <span id="logoStatusText" class="{{ logo_status_class }}">
+                        {{ logo_status_text }}
+                    </span>
+                </label>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Form -->
+    <div class="row">
+        <div class="col-lg-9 col-xl-9">
+            <div class="card card-custom shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-form me-2"></i>
+                        Tahsilat Bilgileri
+                    </h6>
+                </div>
+                <div class="card-body p-3">
+                    <!-- AJAX Mesaj Alanı -->
+                    <div id="ajax-message-area" style="display: none;"></div>
+
+                    <form method="post" enctype="multipart/form-data" id="tahsilatForm" class="ajax-form"
+                        data-ajax="true">
+                        {% csrf_token %}
+                        {% if edit_mode %}
+                        <input type="hidden" name="tahsilat_id" value="{{ tahsilat.Id }}">
+                        {% endif %}
+
+                        <!-- Cari Hesap Seçimi -->
+                        <div class="mb-2">
+                            <label for="cari_hesap" class="form-label fw-bold">
+                                <i class="bi bi-person-lines-fill me-1"></i>Cari Hesap *
+                            </label>
+                            <div class="position-relative">
+                                <input type="text" class="form-control form-control-sm" id="cari_search"
+                                    autocomplete="off" {% if edit_mode and tahsilat %}
+                                    value="{{ tahsilat.CariKod }} - {{ tahsilat.CariUnvan }}" {% endif %}>
+                                <select class="form-select form-select-sm" id="cari_hesap" name="cari_hesap" required
+                                    style="position: absolute; left: -9999px; opacity: 0;">
+                                    <option value="">Cari hesap seçiniz...</option>
+                                </select>
+                                <div id="cari_dropdown" class="dropdown-menu w-100"
+                                    style="max-height: 300px; overflow-y: auto; display: none;">
+                                    <!-- Dinamik olarak doldurulacak -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Evrak Numarası -->
+                        <div class="mb-2">
+                            <label for="evrak_no" class="form-label fw-bold">
+                                <i class="bi bi-file-earmark-text me-1"></i>Evrak Numarası
+                            </label>
+                            <input type="text" class="form-control form-control-sm" id="evrak_no" name="evrak_no" {% if edit_mode and tahsilat %} value="{{ tahsilat.EvrakNo }}" {% endif %}>
+                        </div>
+
+                        <!-- Fiş Numarası -->
+                        <div class="mb-2" id="fis_no_container">
+                            <label for="fis_no" class="form-label fw-bold">
+                                <i class="bi bi-hash me-1"></i>Fiş Numarası
+                            </label>
+                            {% if request.user.username|upper != 'FIRAT' %}
+                            <input type="text" class="form-control form-control-sm" id="fis_no" name="fis_no" readonly
+                                {% if edit_mode and tahsilat %} value="{{ tahsilat.FisNo|default:'' }}" {% endif %}>
+                            {% else %}
+                            <input type="text" class="form-control form-control-sm" id="fis_no" name="fis_no" {% if edit_mode and tahsilat %} value="{{ tahsilat.FisNo|default:'' }}" {% endif %}>
+                            {% endif %}
+                        </div>
+
+                        <!-- Evrak Görüntüsü -->
+                        <div class="mb-2">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-camera me-1"></i>Evrak Görüntüsü
+                            </label>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <button type="button" class="btn btn-outline-primary btn-sm w-100" id="kameraBtn">
+                                        <i class="bi bi-camera me-1"></i>📷 Kamera
+                                    </button>
+                                    <input type="file" class="d-none" id="evrak_goruntu" name="evrak_goruntu"
+                                        accept="image/*" capture="camera" autocomplete="off">
+                                </div>
+                                <div class="col-6">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm w-100" id="dosyaBtn">
+                                        <i class="bi bi-folder me-1"></i>📁 Dosya
+                                    </button>
+                                    <input type="file" class="d-none" id="evrak_dosya" name="evrak_dosya"
+                                        accept="image/*">
+                                </div>
+                            </div>
+                            <div class="mt-2" id="seciliDosya" style="display: none;">
+                                <small class="text-success">
+                                    <i class="bi bi-check-circle me-1"></i>
+                                    <span id="dosyaAdi"></span> seçildi
+                                </small>
+                            </div>
+                            {% if edit_mode and tahsilat and tahsilat.evrak_var and tahsilat.evrak_url %}
+                            <div class="mt-2">
+                                <div class="alert alert-info d-flex align-items-center" role="alert">
+                                    <i class="bi bi-file-earmark-image me-2"></i>
+                                    <div>
+                                        <strong>Mevcut Evrak:</strong>
+                                        <a href="{{ tahsilat.evrak_url }}" target="_blank" class="ms-2">
+                                            <i class="bi bi-eye me-1"></i>Görüntüle
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Tahsilat Türü -->
+                        <div class="mb-2">
+                            <label for="tahsilat_turu" class="form-label fw-bold">
+                                <i class="bi bi-credit-card me-1"></i>Tahsilat Türü *
+                            </label>
+                            <select class="form-select form-select-sm" id="tahsilat_turu" name="tahsilat_turu" required>
+                                <option value="">Tahsilat türü seçiniz...</option>
+                                {% for tur in tahsilat_turleri %}
+                                {% if edit_mode and tahsilat and tahsilat.TahsilatTuru == tur %}
+                                <option value="{{ tur }}" selected>{{ tur }}</option>
+                                {% else %}
+                                <option value="{{ tur }}">{{ tur }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Banka Seçimi (Gizli, tahsilat türüne göre gösterilecek) -->
+                        <div class="mb-2" id="banka_secimi" style="display: none;">
+                            <label for="banka" class="form-label fw-bold">
+                                <i class="bi bi-bank me-1"></i>Banka <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select form-select-sm" id="banka" name="banka"
+                                data-required-for="Kredi Kartı,Banka Havalesi">
+                                <option value="">Banka seçiniz...</option>
+                                <!-- Banka listesi AJAX ile dinamik olarak yüklenecek -->
+                            </select>
+                            <div class="invalid-feedback">
+                                Lütfen bir banka seçiniz.
+                            </div>
+                        </div>
+
+                        <!-- Taksit (Sadece Kredi Kartı için) -->
+                        <div class="mb-3" id="taksit_secimi" style="display: none;">
+                            <label for="taksit" class="form-label fw-bold">
+                                <i class="bi bi-list-ol me-1"></i>Taksit
+                            </label>
+                            <select class="form-select form-select-sm" id="taksit" name="taksit">
+                                {% for t in taksit_list %}
+                                <option value="{{ t.val }}" {{ t.selected_str }}>
+                                    {{ t.val }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Tutar -->
+                        <div class="mb-2">
+                            <label for="tutar" class="form-label fw-bold">
+                                <i class="bi bi-currency-exchange me-1"></i>Tutar *
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">₺</span>
+                                <input type="number" class="form-control" id="tutar" name="tutar" step="0.01" min="0"
+                                    placeholder="0.00" required {% if edit_mode and tahsilat %}
+                                    value="{{ tahsilat.Tutar|floatformat:2 }}" {% endif %}>
+                            </div>
+                        </div>
+
+                        <!-- Tarih -->
+                        <div class="mb-2">
+                            <label for="tarih" class="form-label fw-bold">
+                                <i class="bi bi-calendar3 me-1"></i>Tarih
+                            </label>
+                            <input type="date" class="form-control form-control-sm" id="tarih" name="tarih" required
+                                value="{% if edit_mode and tahsilat and tahsilat.Tarih %}{{ tahsilat.Tarih|date:'Y-m-d' }}{% else %}{{ bugun }}{% endif %}">
+                        </div>
+
+                        <!-- Açıklama -->
+                        <div class="mb-3">
+                            <label for="aciklama" class="form-label fw-bold">
+                                <i class="bi bi-chat-text me-1"></i>Açıklama
+                            </label>
+                            <textarea class="form-control form-control-sm" id="aciklama" name="aciklama" rows="2"
+                                placeholder="İsteğe bağlı açıklama girebilirsiniz...">{% if edit_mode and tahsilat %}{{ tahsilat.Aciklama }}{% endif %}</textarea>
+                        </div>
+
+                        <!-- Butonlar -->
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success flex-fill">
+                                <i class="bi bi-check-circle me-2"></i>
+                                {% if edit_mode %}
+                                Tahsilatı Güncelle
+                                {% else %}
+                                Tahsilatı Kaydet
+                                {% endif %}
+                            </button>
+                            <a href="{% url 'tahsilat:dashboard' %}" class="btn btn-secondary">
+                                <i class="bi bi-x-circle me-2"></i>İptal
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Yardım Paneli -->
+        <div class="col-lg-3 col-xl-3">
+            <div class="card card-custom">
+                <div class="card-header bg-transparent">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Yardım
+                    </h6>
+                </div>
+                <div class="card-body p-3">
+                    <div class="alert alert-info alert-sm mb-2">
+                        <h6 class="mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Zorunlu</h6>
+                        <small>
+                            • Cari Hesap<br>
+                            • Tahsilat Türü<br>
+                            • Tutar
+                        </small>
+                    </div>
+
+                    <div class="alert alert-warning alert-sm mb-2">
+                        <h6 class="mb-1"><i class="bi bi-camera me-1"></i>Evrak</h6>
+                        <small>Kamera veya dosya seçimi</small>
+                    </div>
+
+                    <div class="alert alert-success alert-sm mb-0">
+                        <h6 class="mb-1"><i class="bi bi-bank me-1"></i>Banka</h6>
+                        <small>Kredi/Havale seçiminde görünür</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Kamera Modal (WebRTC) -->
+<div id="cameraModal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; overflow-y: auto;">
+    <div
+        style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 10px; padding: 20px; max-width: 90%; max-height: 90vh; overflow-y: auto; width: 90%;">
+        <div class="text-center">
+            <h5 class="mb-3">
+                <i class="bi bi-camera me-2"></i>Kamera
+            </h5>
+
+            <video id="webrtcVideo" autoplay playsinline
+                style="max-width: 100%; max-height: 400px; border-radius: 8px; background: #000; width: 100%;"></video>
+
+            <div class="mt-3 d-flex flex-column gap-2">
+                <p id="cameraStatus" class="mb-2">
+                    <i class="bi bi-camera me-1"></i>Kamera açılıyor...
+                </p>
+
+                <button type="button" id="captureBtn" class="btn btn-success w-100" style="display: none;">
+                    <i class="bi bi-camera me-1"></i>Fotoğraf Çek
+                </button>
+
+                <button type="button" id="cameraCloseBtn" class="btn btn-secondary w-100">
+                    <i class="bi bi-x-circle me-1"></i>İptal
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Kamera fonksiyonlarını global scope'a taşı
+    function showCameraModal() {
+        document.getElementById('cameraModal').style.display = 'block';
+        document.getElementById('cameraStatus').innerHTML = '<i class="bi bi-camera me-1"></i>Kamera açılıyor...';
+        document.getElementById('captureBtn').style.display = 'none';
+    }
+
+    function hideCameraModal() {
+        const cameraModal = document.getElementById('cameraModal');
+        const video = document.getElementById('webrtcVideo');
+
+        // Video stream'i durdur
+        if (video && video.srcObject) {
+            const tracks = video.srcObject.getTracks();
+            tracks.forEach(track => {
+                track.stop();
+            });
+            video.srcObject = null;
+        }
+
+        // Modal'ı gizle
+        if (cameraModal) {
+            cameraModal.style.display = 'none';
+        }
+    }
+
+    // Gelişmiş kamera erişimi (WebRTC)
+    async function openAdvancedCamera() {
+        try {
+            // Kamera modal açılsın
+            showCameraModal();
+
+            const constraints = {
+                video: {
+                    width: { ideal: 1280, max: 1920 },
+                    height: { ideal: 720, max: 1080 },
+                    facingMode: 'environment' // Arka kamera tercih
+                }
+            };
+
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            const video = document.getElementById('webrtcVideo');
+            video.srcObject = stream;
+
+            document.getElementById('cameraStatus').innerHTML = '<i class="bi bi-check-circle text-success me-1"></i>Kamera hazır - Fotoğraf çekmek için butona basın';
+            document.getElementById('captureBtn').style.display = 'inline-block';
+
+            // Fotoğraf çekme
+            document.getElementById('captureBtn').onclick = function () {
+                capturePhoto(video, stream);
+            };
+
+        } catch (error) {
+            console.error('Kamera erişim hatası:', error);
+            document.getElementById('cameraStatus').innerHTML = '<i class="bi bi-exclamation-triangle text-warning me-1"></i>Kamera açılamadı, dosya seçimine geçiliyor...';
+            setTimeout(() => {
+                hideCameraModal();
+                openSimpleCamera();
+            }, 2000);
+        }
+    }
+
+    // Basit kamera erişimi (File Input)
+    function openSimpleCamera() {
+        const tempInput = document.createElement('input');
+        tempInput.type = 'file';
+        tempInput.accept = 'image/*';
+
+        // Platform özel ayarlar
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isAndroid = /Android/.test(navigator.userAgent);
+
+        if (isIOS) {
+            tempInput.setAttribute('capture', 'environment');
+        } else if (isAndroid) {
+            tempInput.setAttribute('capture', 'camera');
+        } else {
+            tempInput.setAttribute('capture', '');
+        }
+
+        tempInput.addEventListener('change', function () {
+            if (this.files && this.files.length > 0) {
+                handleCameraFile(this.files[0]);
+            }
+        });
+
+        // Cancel event'ini dinle
+        tempInput.addEventListener('cancel', function () {
+            hideCameraModal();
+        });
+
+        tempInput.click();
+    }
+
+    // Fotoğraf çekme
+    function capturePhoto(video, stream) {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0);
+
+        canvas.toBlob(function (blob) {
+            const file = new File([blob], 'kamera_fotografi_' + Date.now() + '.jpg', { type: 'image/jpeg' });
+            handleCameraFile(file);
+
+            // Kamerayı kapat
+            stream.getTracks().forEach(track => track.stop());
+            hideCameraModal();
+        }, 'image/jpeg', 0.85);
+    }
+
+    // Kamera dosyası işleme
+    function handleCameraFile(file) {
+        const evrakGoruntu = document.getElementById('evrak_goruntu');
+        const evrakDosya = document.getElementById('evrak_dosya');
+        const seciliDosya = document.getElementById('seciliDosya');
+        const dosyaAdi = document.getElementById('dosyaAdi');
+        const kameraBtn = document.getElementById('kameraBtn');
+        const dosyaBtn = document.getElementById('dosyaBtn');
+
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        evrakGoruntu.files = dataTransfer.files;
+
+        // Evrak dosyasını temizle
+        evrakDosya.value = '';
+
+        // UI güncelleme
+        seciliDosya.style.display = 'block';
+        dosyaAdi.textContent = file.name;
+        kameraBtn.classList.remove('btn-outline-primary');
+        kameraBtn.classList.add('btn-success');
+        dosyaBtn.classList.remove('btn-success');
+        dosyaBtn.classList.add('btn-outline-secondary');
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const CARI_SEARCH_URL = "{% url 'tahsilat:ajax_search_cari_yeni_tahsilat' %}";
+        const CARI_SEARCH_SCOPE = "{{ cari_search_scope|default:'plasiyer' }}";
+
+        const tahsilatTuru = document.getElementById('tahsilat_turu');
+        const bankaSecimi = document.getElementById('banka_secimi');
+        const bankaSelect = document.getElementById('banka');
+        const taksitSecimi = document.getElementById('taksit_secimi');
+        const cariHesapSelect = document.getElementById('cari_hesap');
+        const evrakGoruntu = document.getElementById('evrak_goruntu');
+        const evrakDosya = document.getElementById('evrak_dosya');
+        const kameraBtn = document.getElementById('kameraBtn');
+        const dosyaBtn = document.getElementById('dosyaBtn');
+        const seciliDosya = document.getElementById('seciliDosya');
+        const dosyaAdi = document.getElementById('dosyaAdi');
+        const cameraCloseBtn = document.getElementById('cameraCloseBtn');
+        const fisNoField = document.getElementById('fis_no');
+
+        // Logo Integration Toggle (only for FIRAT)
+        const logoToggle = document.getElementById('logoIntegrationToggle');
+        if (logoToggle) {
+            logoToggle.addEventListener('change', function () {
+                const isChecked = this.checked;
+                const statusText = document.getElementById('logoStatusText');
+
+                // Update UI optimistically
+                statusText.textContent = isChecked ? 'Açık' : 'Kapalı';
+                statusText.className = isChecked ? 'text-success' : 'text-danger';
+
+                // Send AJAX request
+                const formData = new FormData();
+                formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+                fetch("{% url 'tahsilat:toggle_logo_integration_ajax' %}", {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.success) {
+                            alert(data.message || 'Bir hata oluştu');
+                            // Revert on failure
+                            logoToggle.checked = !isChecked;
+                            statusText.textContent = !isChecked ? 'Açık' : 'Kapalı';
+                            statusText.className = !isChecked ? 'text-success' : 'text-danger';
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Toggle error:", err);
+                        alert("Ayar kaydedilirken bir bağlantı hatası oluştu.");
+                        // Revert on failure
+                        logoToggle.checked = !isChecked;
+                        statusText.textContent = !isChecked ? 'Açık' : 'Kapalı';
+                        statusText.className = !isChecked ? 'text-success' : 'text-danger';
+                    });
+            });
+        }
+
+        // İptal butonuna event listener ekle
+        if (cameraCloseBtn) {
+            cameraCloseBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                hideCameraModal();
+            });
+        }
+
+        // Edit modunda cari ve alanları otomatik seç
+        const editDataElem = document.getElementById('edit-data');
+        const editData = editDataElem ? JSON.parse(editDataElem.textContent) : null;
+
+        if (editData) {
+            try {
+                // Cari select değerini kayıttaki koda göre seç
+                if (cariHesapSelect) {
+                    const targetCode = editData.cariKod;
+                    let matched = false;
+                    for (let i = 0; i < cariHesapSelect.options.length; i++) {
+                        if (cariHesapSelect.options[i].value === targetCode) {
+                            cariHesapSelect.selectedIndex = i;
+                            matched = true;
+                            break;
+                        }
+                    }
+                    if (!matched && targetCode) {
+                        const opt = document.createElement('option');
+                        opt.value = targetCode;
+                        opt.textContent = `${targetCode} - ${editData.cariUnvan}`;
+                        cariHesapSelect.appendChild(opt);
+                        cariHesapSelect.value = targetCode;
+                    }
+                    cariHesapSelect.dispatchEvent(new Event('change'));
+                }
+
+                // Diğer değerleri ayarla
+                if (editData.tutar && document.getElementById('tutar')) {
+                    document.getElementById('tutar').value = editData.tutar;
+                }
+
+                if (editData.tahsilatTuru && (editData.tahsilatTuru === 'Kredi Kartı' || editData.tahsilatTuru === 'Banka Havalesi')) {
+                    tahsilatTuru.value = editData.tahsilatTuru;
+                    tahsilatTuru.dispatchEvent(new Event('change'));
+                }
+
+                if (editData.taksit && document.getElementById('taksit')) {
+                    document.getElementById('taksit').value = editData.taksit;
+                }
+            } catch (e) {
+                console.warn('Edit prefill error:', e);
+            }
+        }
+
+        // Kamera butonu click - Çoklu platform desteği
+        kameraBtn.addEventListener('click', function () {
+            // Platform algılama
+            const isDesktop = !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const isMobile = !isDesktop;
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const isAndroid = /Android/.test(navigator.userAgent);
+            const isChrome = /Chrome/.test(navigator.userAgent);
+            const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+
+            // WebRTC kamera desteği kontrolü
+            const hasWebRTC = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+            if (hasWebRTC && (isDesktop || (isMobile && (isChrome || isSafari)))) {
+                // WebRTC ile gelişmiş kamera erişimi
+                openAdvancedCamera();
+            } else {
+                // Fallback: Basit file input
+                openSimpleCamera();
+            }
+        });
+
+        // Dosya seç butonu click
+        dosyaBtn.addEventListener('click', function () {
+            evrakDosya.click();
+        });
+
+        // Evrak görüntü yönetimi
+        evrakGoruntu.addEventListener('change', function () {
+            if (this.files.length > 0) {
+                evrakDosya.value = '';
+                seciliDosya.style.display = 'block';
+                dosyaAdi.textContent = this.files[0].name;
+                kameraBtn.classList.remove('btn-outline-primary');
+                kameraBtn.classList.add('btn-success');
+                dosyaBtn.classList.remove('btn-success');
+                dosyaBtn.classList.add('btn-outline-secondary');
+            }
+        });
+
+        evrakDosya.addEventListener('change', function () {
+            if (this.files.length > 0) {
+                evrakGoruntu.value = '';
+                seciliDosya.style.display = 'block';
+                dosyaAdi.textContent = this.files[0].name;
+                dosyaBtn.classList.remove('btn-outline-secondary');
+                dosyaBtn.classList.add('btn-success');
+                kameraBtn.classList.remove('btn-success');
+                kameraBtn.classList.add('btn-outline-primary');
+            }
+        });
+
+        // Tarayıcı ve platform desteği kontrolü
+        function setupCameraSupport() {
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const isAndroid = /Android/.test(navigator.userAgent);
+            const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+            const isChrome = /Chrome/.test(navigator.userAgent);
+
+            if (isIOS && isSafari) {
+                // iOS Safari için özel ayarlar
+                evrakGoruntu.setAttribute('capture', 'environment');
+                evrakGoruntu.setAttribute('accept', 'image/*');
+            } else if (isAndroid && isChrome) {
+                // Android Chrome için özel ayarlar
+                evrakGoruntu.setAttribute('capture', 'camera');
+                evrakGoruntu.setAttribute('accept', 'image/*');
+            } else {
+                // Diğer tarayıcılar için genel ayar
+                evrakGoruntu.setAttribute('capture', 'camera');
+            }
+        }
+
+        setupCameraSupport();
+
+        // Tahsilat türü değiştiğinde banka ve taksit seçimini göster/gizle
+        tahsilatTuru.addEventListener('change', function () {
+            const secilenTur = this.value;
+
+            if (secilenTur === 'Kredi Kartı' || secilenTur === 'Banka Havalesi') {
+                // Banka seçimini göster
+                bankaSecimi.style.display = 'block';
+                bankaSelect.required = true;
+
+                // Loading göster
+                bankaSelect.innerHTML = '<option value="">Yükleniyor...</option>';
+
+                // AJAX ile banka listesi yükle
+                fetch(`/get-banka-listesi/?tahsilat_turu=${encodeURIComponent(secilenTur)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            bankaSelect.innerHTML = '<option value="">Banka seçiniz...</option>';
+                            data.bankalar.forEach(function (banka) {
+                                // BANKATB tablosundan gelen ID'yi kullan
+                                // Value olarak ID'yi kullan, görünen metin olarak BANKAADI'yi göster
+                                const optionValue = banka.ID || '';
+                                // BANKAADI alanını öncelikli olarak kullan (BANKATB tablosundan gelen)
+                                const bankaAdi = (banka.BANKAADI && banka.BANKAADI.trim()) || (banka.DEFINITION_ && banka.DEFINITION_.trim()) || '';
+                                if (bankaAdi && optionValue) {
+                                    bankaSelect.innerHTML += `<option value="${optionValue}" data-id="${banka.ID || ''}" data-bankaadi="${bankaAdi}">${bankaAdi}</option>`;
+                                }
+                            });
+
+                            // Edit modunda banka seçimini ayarla (banka listesi yüklendikten sonra)
+                            if (editData && (editData.bankaId || editData.banka)) {
+                                const targetId = editData.bankaId;
+                                const targetName = editData.banka;
+
+                                if (targetId) {
+                                    for (let i = 0; i < bankaSelect.options.length; i++) {
+                                        const opt = bankaSelect.options[i];
+                                        if (opt.value === targetId || opt.getAttribute('data-id') === targetId) {
+                                            bankaSelect.selectedIndex = i;
+                                            return;
+                                        }
+                                    }
+                                }
+
+                                if (bankaSelect.value === '' && targetName) {
+                                    for (let i = 0; i < bankaSelect.options.length; i++) {
+                                        const opt = bankaSelect.options[i];
+                                        if (opt.value === targetName || opt.getAttribute('data-bankaadi') === targetName) {
+                                            bankaSelect.selectedIndex = i;
+                                            return;
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            bankaSelect.innerHTML = '<option value="">Hata: Banka listesi yüklenemedi</option>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Banka listesi yükleme hatası:', error);
+                        bankaSelect.innerHTML = '<option value="">Hata: Banka listesi yüklenemedi</option>';
+                    });
+
+                // Taksit seçimini göster/gizle
+                if (secilenTur === 'Kredi Kartı') {
+                    taksitSecimi.style.display = 'block';
+                } else {
+                    taksitSecimi.style.display = 'none';
+                }
+
+            } else {
+                // Diğer ödeme türleri (Nakit, Çek, Senet)
+                bankaSecimi.style.display = 'none';
+                bankaSelect.required = false;
+                bankaSelect.value = '';
+
+                // Taksit seçimini gizle
+                taksitSecimi.style.display = 'none';
+            }
+
+            // Fiş numarası otomatik atama
+            if (secilenTur === 'Nakit' || secilenTur === 'Kredi Kartı' || secilenTur === 'Banka Havalesi') {
+                fetch(`/get-next-fis-no/?tahsilat_turu=${encodeURIComponent(secilenTur)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && fisNoField) {
+                            fisNoField.value = data.fis_no;
+                        }
+                    })
+                    .catch(error => console.error('Fiş no yükleme hatası:', error));
+            } else {
+                if (fisNoField) fisNoField.value = '';
+            }
+        });
+
+        // Cari hesap — sunucu tarafı arama (AJAX)
+        const cariSearchInput = document.getElementById('cari_search');
+        const cariDropdown = document.getElementById('cari_dropdown');
+
+        if (cariSearchInput && cariDropdown && cariHesapSelect) {
+            let cariSearchTimer = null;
+            let cariSearchAbort = null;
+
+            function formatBakiye(n) {
+                if (n == null || n === '') return '';
+                try {
+                    return new Intl.NumberFormat('tr-TR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    }).format(Number(n));
+                } catch (e) {
+                    return String(n);
+                }
+            }
+
+            function cariSonucEtiket(row) {
+                const bak = row.BAKIYE != null && row.BAKIYE !== ''
+                    ? ` (Bakiye: ${formatBakiye(row.BAKIYE)})`
+                    : '';
+                const sp = row.SPECODE ? ` (Plasiyer: ${row.SPECODE})` : '';
+                return `${row.CODE} - ${row.DEFINITION_}${sp}${bak}`;
+            }
+
+            function applyCariSecim(row) {
+                cariHesapSelect.innerHTML = '<option value="">Cari hesap seçiniz...</option>';
+                const opt = document.createElement('option');
+                opt.value = row.CODE;
+                opt.textContent = cariSonucEtiket(row);
+                opt.setAttribute('data-definition', row.DEFINITION_ || '');
+                opt.setAttribute('data-bakiye', row.BAKIYE != null ? row.BAKIYE : '');
+                opt.setAttribute('data-bolge', row.BOLGE || '');
+                opt.setAttribute('data-logicalref', row.LOGICALREF != null ? row.LOGICALREF : '');
+                opt.setAttribute('data-specode', row.SPECODE || '');
+                cariHesapSelect.appendChild(opt);
+                cariHesapSelect.value = row.CODE;
+                cariSearchInput.value = cariSonucEtiket(row);
+                cariDropdown.style.display = 'none';
+                cariHesapSelect.dispatchEvent(new Event('change'));
+            }
+
+            function runCariSearch(term) {
+                if (term.length < 2) {
+                    cariDropdown.innerHTML = '';
+                    cariDropdown.style.display = 'none';
+                    return;
+                }
+                if (cariSearchAbort)
+                    cariSearchAbort.abort();
+                cariSearchAbort = new AbortController();
+                cariDropdown.innerHTML = '<div class="dropdown-item text-muted py-2">Aranıyor...</div>';
+                cariDropdown.style.display = 'block';
+
+                const url = `${CARI_SEARCH_URL}?q=${encodeURIComponent(term)}&scope=${encodeURIComponent(CARI_SEARCH_SCOPE)}`;
+                fetch(url, {
+                    signal: cariSearchAbort.signal,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        cariDropdown.innerHTML = '';
+                        if (!data.success || !data.results || data.results.length === 0) {
+                            cariDropdown.innerHTML = '<div class="dropdown-item text-muted">Sonuç bulunamadı</div>';
+                            cariDropdown.style.display = 'block';
+                            return;
+                        }
+                        data.results.forEach(function (row) {
+                            const item = document.createElement('div');
+                            item.className = 'dropdown-item';
+                            item.style.cursor = 'pointer';
+                            item.textContent = cariSonucEtiket(row);
+                            item.addEventListener('mousedown', function (e) {
+                                e.preventDefault();
+                                applyCariSecim(row);
+                            });
+                            cariDropdown.appendChild(item);
+                        });
+                        cariDropdown.style.display = 'block';
+                    })
+                    .catch(function (err) {
+                        if (err.name === 'AbortError')
+                            return;
+                        cariDropdown.innerHTML = '<div class="dropdown-item text-danger">Arama başarısız</div>';
+                        cariDropdown.style.display = 'block';
+                    });
+            }
+
+            cariSearchInput.addEventListener('input', function () {
+                const term = this.value.trim();
+                clearTimeout(cariSearchTimer);
+                if (term.length < 2) {
+                    cariDropdown.innerHTML = '';
+                    cariDropdown.style.display = 'none';
+                    return;
+                }
+                cariSearchTimer = setTimeout(function () {
+                    runCariSearch(term);
+                }, 320);
+            });
+
+            cariSearchInput.addEventListener('focus', function () {
+                if (this.value.trim().length >= 2 && cariDropdown.childElementCount > 0)
+                    cariDropdown.style.display = 'block';
+            });
+
+            cariSearchInput.addEventListener('blur', function () {
+                setTimeout(function () {
+                    cariDropdown.style.display = 'none';
+                }, 200);
+            });
+
+            document.addEventListener('click', function (e) {
+                if (!cariSearchInput.contains(e.target) && !cariDropdown.contains(e.target))
+                    cariDropdown.style.display = 'none';
+            });
+        }
+
+        // Banka seçimi real-time validation
+        bankaSelect.addEventListener('change', function () {
+            const secilenTahsilatTuru = tahsilatTuru.value;
+            if ((secilenTahsilatTuru === 'Kredi Kartı' || secilenTahsilatTuru === 'Banka Havalesi') && this.value) {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            } else if ((secilenTahsilatTuru === 'Kredi Kartı' || secilenTahsilatTuru === 'Banka Havalesi') && !this.value) {
+                this.classList.remove('is-valid');
+                this.classList.add('is-invalid');
+            }
+        });
+
+        // AJAX mesaj gösterim fonksiyonu
+        function showAjaxMessage(message, type) {
+            const messageArea = document.getElementById('ajax-message-area');
+            const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+            const iconClass = type === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle-fill';
+
+            messageArea.innerHTML = `
+            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                <i class="bi ${iconClass} me-2"></i>${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+            messageArea.style.display = 'block';
+
+            // 5 saniye sonra otomatik kapat
+            setTimeout(function () {
+                const alert = messageArea.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 5000);
+        }
+
+        // Form temizleme fonksiyonu
+        function resetForm() {
+            const form = document.getElementById('tahsilatForm');
+
+            // Formu sıfırla
+            form.reset();
+
+            // Tarih alanını bugünün tarihine ayarla
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('tarih').value = today;
+
+            // Cari arama alanını temizle
+            document.getElementById('cari_search').value = '';
+            document.getElementById('cari_hesap').value = '';
+
+            // Evrak önizlemesini kaldır
+            const evrakGoruntu = document.getElementById('evrak_goruntu');
+            const evrakDosya = document.getElementById('evrak_dosya');
+            if (evrakGoruntu) evrakGoruntu.value = '';
+            if (evrakDosya) evrakDosya.value = '';
+            const evrakPreview = document.getElementById('evrak_preview');
+            if (evrakPreview) evrakPreview.style.display = 'none';
+
+            // Validation state'lerini sıfırla
+            const inputs = form.querySelectorAll('.is-valid, .is-invalid');
+            inputs.forEach(input => {
+                input.classList.remove('is-valid', 'is-invalid');
+            });
+
+            // Tahsilat türü değişikliğini tetikle (bankaları vs. gizlemek için)
+            const tahsilatTuruSelect = document.getElementById('tahsilat_turu');
+            if (tahsilatTuruSelect) {
+                tahsilatTuruSelect.value = '';
+                tahsilatTuruSelect.dispatchEvent(new Event('change'));
+            }
+
+            // Banka ve taksit alanlarını gizle
+            const bankaSecimi = document.getElementById('banka_secimi');
+            const taksitSecimi = document.getElementById('taksit_secimi');
+            if (bankaSecimi) bankaSecimi.style.display = 'none';
+            if (taksitSecimi) taksitSecimi.style.display = 'none';
+        }
+
+        // Form submit validasyonu ve AJAX gönderimi
+        document.getElementById('tahsilatForm').addEventListener('submit', function (e) {
+            e.preventDefault(); // Her zaman prevent default (AJAX kullanacağız)
+
+            const cariHesap = document.getElementById('cari_hesap').value;
+            const cariSearch = document.getElementById('cari_search').value;
+            const tutar = document.getElementById('tutar').value;
+            const tahsilatTuru = document.getElementById('tahsilat_turu').value;
+            const banka = document.getElementById('banka').value;
+            const submitButton = this.querySelector('button[type="submit"]');
+            const originalButtonText = submitButton.innerHTML;
+
+            // Client-side validasyon
+            if (!cariHesap || !cariSearch) {
+                showAjaxMessage('Lütfen cari hesap seçiniz!', 'danger');
+                return false;
+            }
+
+            if (!tutar || parseFloat(tutar.replace(',', '.')) <= 0) {
+                showAjaxMessage('Lütfen geçerli bir tutar giriniz!', 'danger');
+                return false;
+            }
+
+            // Banka Havalesi veya Kredi Kartı seçilmişse banka zorunlu
+            if ((tahsilatTuru === 'Banka Havalesi' || tahsilatTuru === 'Kredi Kartı') && !banka) {
+                showAjaxMessage('Lütfen banka seçiniz! ' + tahsilatTuru + ' için banka seçimi zorunludur.', 'danger');
+                return false;
+            }
+
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="bi bi-check-circle me-2"></i>Kaydediliyor...';
+
+            // FormData oluştur
+            const formData = new FormData(this);
+
+            // Banka seçilmişse BANKAID'yi ekle
+            const bankaSelect = document.getElementById('banka');
+            if (bankaSelect && bankaSelect.value) {
+                const selectedOption = bankaSelect.options[bankaSelect.selectedIndex];
+                const bankaId = selectedOption.getAttribute('data-id') || bankaSelect.value;
+                // Eğer value ID ise direkt kullan, değilse data-id'yi kullan
+                if (bankaId) {
+                    formData.append('banka_id', bankaId);
+                }
+            }
+
+            // AJAX isteği gönder
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+                .then(async response => {
+                    // Content-Type kontrolü - JSON olmayan response'ları handle et
+                    const contentType = response.headers.get('content-type') || '';
+
+                    if (!contentType.includes('application/json')) {
+                        // HTML response geldi (muhtemelen redirect, login sayfası veya hata sayfası)
+                        const text = await response.text();
+                        let errorMessage = 'Sunucudan beklenmeyen yanıt alındı.';
+
+                        // 403 veya 401 hatası (yetkisiz erişim veya login gerekli)
+                        if (response.status === 403 || response.status === 401) {
+                            errorMessage = 'Oturum süreniz dolmuş olabilir. Lütfen sayfayı yenileyip tekrar giriş yapın.';
+                        } else if (response.status >= 500) {
+                            errorMessage = 'Sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.';
+                        } else if (response.status >= 400) {
+                            errorMessage = `İstek hatası (${response.status}). Lütfen tekrar deneyin.`;
+                        }
+
+                        throw new Error(errorMessage);
+                    }
+
+                    // JSON response
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.message || `Server error: ${response.status}`);
+                    }
+
+                    return data;
+                })
+                .then(data => {
+                    // Loading state'i kaldır
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = originalButtonText;
+
+                    if (data.success) {
+                        // Başarı mesajı göster
+                        showAjaxMessage(data.message || 'Tahsilat başarıyla kaydedildi!', 'success');
+
+                        // Formu temizle
+                        resetForm();
+
+                        // Cari hesap dropdown'unu da temizle
+                        const cariDropdown = document.getElementById('cari_dropdown');
+                        if (cariDropdown) {
+                            cariDropdown.style.display = 'none';
+                        }
+                    } else {
+                        // Hata mesajı göster
+                        let errorMessage = data.message || 'Bir hata oluştu';
+                        if (data.errors && Array.isArray(data.errors)) {
+                            errorMessage += ': ' + data.errors.join(', ');
+                        }
+                        showAjaxMessage(errorMessage, 'danger');
+                    }
+                })
+                .finally(() => {
+                    // Loading state'i kaldır
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = originalButtonText;
+
+                    // Global spinner'ı zorla kapat
+                    try {
+                        if (window.hideGlobalLoading) window.hideGlobalLoading();
+                    } catch (e) { }
+                });
+
+            return false;
+        });
+    });
+</script>
+
+<style>
+    .card-custom {
+        border: none;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        border-radius: 0.5rem;
+    }
+
+    .form-label.fw-bold {
+        color: #495057;
+    }
+
+    .btn-lg {
+        padding: 0.75rem 1.5rem;
+        font-size: 1.1rem;
+    }
+
+    .alert {
+        border-radius: 0.5rem;
+    }
+
+    .alert-sm {
+        padding: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .alert-sm h6 {
+        font-size: 0.8rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .input-group-text {
+        background-color: #e9ecef;
+        border-color: #ced4da;
+    }
+
+    #cari_hesap {
+        max-height: 200px;
+    }
+</style>
+{% endblock %}

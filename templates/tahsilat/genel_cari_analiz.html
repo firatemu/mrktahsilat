@@ -1,0 +1,280 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}{{ sayfa_baslik }} - Genel Görünüm - MRK OTOMOTİV{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stats-card {
+        border-left: 4px solid #007bff;
+        transition: all 0.3s ease;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    }
+
+    .stats-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .admin-badge {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: bold;
+    }
+
+    .table-wrapper {
+        max-height: 70vh;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+    }
+
+    .table-wrapper table {
+        margin-bottom: 0;
+    }
+
+    .table-wrapper thead th {
+        position: sticky;
+        top: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+        border-bottom: 2px solid #dee2e6;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .cari-row:hover {
+        background-color: #f8f9fa;
+    }
+
+    .amount-positive {
+        color: #28a745;
+        font-weight: 600;
+    }
+
+    .amount-negative {
+        color: #dc3545;
+        font-weight: 600;
+    }
+
+    .filter-section {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 0.375rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .export-buttons {
+        display: flex;
+        gap: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="main-content">
+    <div class="container-fluid mt-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h2>
+                        <i class="{{ sayfa_ikon }} me-2"></i>
+                        Genel Görünüm - {{ sayfa_baslik }}
+                        <span class="admin-badge ms-2">ADMIN</span>
+                    </h2>
+                    <div class="text-muted">
+                        <i class="bi bi-calendar3 me-1"></i>
+                        {{ "now"|date:"d.m.Y" }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Breadcrumb -->
+        <div class="row mb-3">
+            <div class="col-12">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{% url 'tahsilat:dashboard' %}">Dashboard</a></li>
+                        <li class="breadcrumb-item">Genel Görünüm</li>
+                        <li class="breadcrumb-item active">{{ sayfa_baslik }}</li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Filtreler -->
+        <div class="filter-section">
+            <form method="get" id="filterForm" class="row g-3">
+                {% csrf_token %}
+                <div class="col-md-3">
+                    <label class="form-label">Başlangıç Tarihi</label>
+                    <input type="date" class="form-control" name="baslangic_tarihi" value="{{ baslangic_tarihi }}" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Bitiş Tarihi</label>
+                    <input type="date" class="form-control" name="bitis_tarihi" value="{{ bitis_tarihi }}" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Plasiyer</label>
+                    <select class="form-select" name="plasiyer">
+                        <option value="">Tümü</option>
+                        {% for p in plasiyer_list %}
+                        <option value="{{ p }}" {% if plasiyer == p %}selected{% endif %}>{{ p }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Bölge</label>
+                    <select class="form-select" name="bolge">
+                        <option value="">Tümü</option>
+                        {% for b in bolge_list %}
+                        <option value="{{ b }}" {% if bolge == b %}selected{% endif %}>{{ b }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-12 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search me-1"></i>Filtrele
+                    </button>
+                    <a href="?" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle me-1"></i>Temizle
+                    </a>
+                    <div class="export-buttons ms-auto">
+                        <button type="button" class="btn btn-success" onclick="exportData('excel')">
+                            <i class="bi bi-file-earmark-excel me-1"></i>Excel
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="exportData('pdf')">
+                            <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Sonuçlar -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-table me-2"></i>
+                            Cari Analiz Sonuçları
+                            <span class="badge bg-primary ms-2">{{ cari_analiz_data|length }} Kayıt</span>
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-wrapper">
+                            <table class="table table-hover table-striped mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 100px;">Cari Kod</th>
+                                        <th>Cari Ünvan</th>
+                                        <th style="width: 120px;">Plasiyer</th>
+                                        <th style="width: 120px;">Bölge</th>
+                                        <th style="width: 120px; text-align: right;">Fatura Sayısı</th>
+                                        <th style="width: 150px; text-align: right;">Toplam Satış</th>
+                                        <th style="width: 120px; text-align: right;">Tahsilat Sayısı</th>
+                                        <th style="width: 150px; text-align: right;">Toplam Tahsilat</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if cari_analiz_data %}
+                                        {% for item in cari_analiz_data %}
+                                        <tr class="cari-row">
+                                            <td><strong>{{ item.cari_kod }}</strong></td>
+                                            <td>{{ item.cari_unvan }}</td>
+                                            <td>{{ item.plasiyer|default:"-" }}</td>
+                                            <td>{{ item.bolge|default:"-" }}</td>
+                                            <td style="text-align: right;">{{ item.fatura_sayisi|default:0|number_format }}</td>
+                                            <td style="text-align: right;" class="amount-positive">
+                                                {{ item.toplam_satis|default:0|currency_format_decimal:2 }}
+                                            </td>
+                                            <td style="text-align: right;">{{ item.tahsilat_sayisi|default:0|number_format }}</td>
+                                            <td style="text-align: right;" class="amount-positive">
+                                                {{ item.toplam_tahsilat|default:0|currency_format_decimal:2 }}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="8" class="text-center py-4">
+                                                <i class="bi bi-inbox me-2"></i>
+                                                Filtreleme kriterlerine uygun kayıt bulunamadı.
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                                {% if cari_analiz_data %}
+                                <tfoot class="table-light">
+                                    <tr>
+                                        <th colspan="4" style="text-align: right;">TOPLAM:</th>
+                                        <th style="text-align: right;">{{ toplam_fatura_sayisi|default:0|number_format }}</th>
+                                        <th style="text-align: right;" class="amount-positive">
+                                            {{ toplam_satis|default:0|currency_format_decimal:2 }}
+                                        </th>
+                                        <th style="text-align: right;">{{ toplam_tahsilat_sayisi|default:0|number_format }}</th>
+                                        <th style="text-align: right;" class="amount-positive">
+                                            {{ toplam_tahsilat|default:0|currency_format_decimal:2 }}
+                                        </th>
+                                    </tr>
+                                </tfoot>
+                                {% endif %}
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function exportData(format) {
+    const form = document.getElementById('filterForm');
+    const formData = new FormData(form);
+    formData.append('action', 'export_' + format);
+    
+    // CSRF token ekle
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    formData.append('csrfmiddlewaretoken', csrftoken);
+    
+    // Form submit et
+    fetch('{% url "tahsilat:genel_cari_analiz" %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': csrftoken
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json()
+                .then(data => { throw new Error(data.message || 'Export işlemi başarısız'); })
+                .catch(err => { if (err instanceof Error && err.message) throw err; throw new Error('Export işlemi başarısız'); });
+        }
+        return response.blob();
+    })
+    .then(blob => {
+        const ext = (format === 'excel') ? 'xlsx' : 'pdf';
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'cari_genel_analiz.' + ext;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    })
+    .catch(error => {
+        console.error('Export hatası:', error);
+        alert('Export işlemi sırasında bir hata oluştu: ' + error.message);
+    });
+}
+</script>
+{% endblock %}
+
