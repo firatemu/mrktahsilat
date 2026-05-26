@@ -2286,6 +2286,15 @@
 
             <!-- Tablo Kartı -->
             <div class="table-card">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 pt-3 pb-2 border-bottom border-light">
+                    <div class="small text-muted">
+                        <strong class="text-dark">Liste</strong>
+                        <span class="ms-1">· {{ kayit_sayisi }} kayıt (mevcut filtrelerle)</span>
+                    </div>
+                    <a href="{{ cek_liste_excel_url }}" class="btn btn-success btn-sm">
+                        <i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Excel ile dışa aktar
+                    </a>
+                </div>
                 <div class="table-responsive" style="overflow: visible;">
                     <table class="table table-hover" id="cekDataTable">
                         <thead>

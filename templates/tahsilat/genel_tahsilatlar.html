@@ -326,82 +326,57 @@
                                 <table class="table table-hover mb-0">
                                     <thead class="table-light">
                                         <tr>
-                                            <th style="width: 110px;">Tarih</th>
-                                            <th style="width: 100px;" class="text-center">Plasiyer</th>
-                                            <th style="width: 120px;" class="text-center">Cari Kod</th>
-                                            <th>Cari Ünvan</th>
-                                            <th style="width: 130px;">Tahsilat Türü</th>
-                                            <th style="width: 130px;">Banka</th>
-                                            <th style="width: 80px;" class="text-center">Taksit</th>
-                                            <th style="width: 130px;" class="text-end">Tutar</th>
-                                            <th style="width: 100px;" class="text-center">Durum</th>
-                                            <th style="width: 120px;">Evrak No</th>
+                                            <th style="width: 90px;">LOGICALREF</th>
+                                            <th style="width: 100px;">TARİH</th>
+                                            <th style="width: 120px;">TAHSİLAT TÜRÜ</th>
+                                            <th style="width: 110px;" class="text-center">CARİ KOD</th>
+                                            <th>CARİ ÜNVAN</th>
+                                            <th style="width: 100px;" class="text-center">PLASİYER</th>
+                                            <th style="min-width: 140px;">AÇIKLAMA</th>
+                                            <th style="width: 120px;" class="text-end">TUTAR</th>
+                                            <th style="width: 120px;">BANKA</th>
+                                            <th style="width: 90px;">BÖLGE</th>
+                                            <th style="width: 90px;" class="text-center">PLASİYER KOD</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {% for kayit in tahsilat_listesi %}
                                         <tr>
+                                            <td class="text-muted small">{{ kayit.LOGICALREF|default:"-" }}</td>
                                             <td>
                                                 <span class="fw-medium">{{ kayit.FormattedDate|default:"-" }}</span>
                                             </td>
-                                            <td class="text-center">
-                                                {% if kayit.Plasiyer %}
-                                                <span class="badge bg-warning text-dark">{{ kayit.Plasiyer }}</span>
+                                            <td>
+                                                {% if kayit.TAHSILAT_TURU %}
+                                                <span class="badge bg-primary">{{ kayit.TAHSILAT_TURU }}</span>
                                                 {% else %}
                                                 <span class="text-muted">-</span>
                                                 {% endif %}
                                             </td>
                                             <td class="text-center">
-                                                <span class="badge bg-secondary">{{ kayit.CariKod|default:"-" }}</span>
+                                                <span class="badge bg-secondary">{{ kayit.CARI_KOD|default:"-" }}</span>
                                             </td>
                                             <td>
-                                                <div class="fw-medium">{{ kayit.CariUnvan|default:"Bilinmeyen Cari" }}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                {% if kayit.TahsilatTuru %}
-                                                <span class="badge bg-primary">{{ kayit.TahsilatTuru }}</span>
-                                                {% else %}
-                                                <span class="text-muted">-</span>
-                                                {% endif %}
-                                            </td>
-                                            <td>
-                                                {% if kayit.BANKAADI %}
-                                                <span class="fw-medium">{{ kayit.BANKAADI }}</span>
-                                                {% else %}
-                                                <span class="text-muted">-</span>
-                                                {% endif %}
+                                                <div class="fw-medium">{{ kayit.CARI_UNVAN|default:"-" }}</div>
                                             </td>
                                             <td class="text-center">
-                                                {% if kayit.Taksit %}
-                                                <span class="badge bg-info">{{ kayit.Taksit }}</span>
+                                                {% if kayit.PLASIYER %}
+                                                <span class="badge bg-warning text-dark">{{ kayit.PLASIYER }}</span>
                                                 {% else %}
-                                                <span class="badge bg-secondary">-</span>
+                                                <span class="text-muted">-</span>
                                                 {% endif %}
                                             </td>
+                                            <td class="small">{{ kayit.ACIKLAMA|default:"-" }}</td>
                                             <td class="text-end">
-                                                <span class="fw-bold text-success">{{ kayit.Tutar|currency_display }}</span>
+                                                <span class="fw-bold text-success">{{ kayit.TUTAR|currency_display }}</span>
                                             </td>
-                                            <td class="text-center">
-                                                {% if kayit.Durum|default:"" == "Onaylandı" %}
-                                                <span class="badge bg-success">{{ kayit.Durum }}</span>
-                                                {% elif kayit.Durum|default:"" == "İŞLENMEDİ" %}
-                                                <span class="badge bg-warning">{{ kayit.Durum }}</span>
-                                                {% else %}
-                                                <span class="badge bg-info">{{ kayit.Durum }}</span>
-                                                {% endif %}
-                                            </td>
-                                            <td>
-                                                {% if kayit.EvrakNo %}
-                                                <span class="fw-medium">{{ kayit.EvrakNo }}</span>
-                                                {% else %}
-                                                <span class="text-muted">Evrak Yok</span>
-                                                {% endif %}
-                                            </td>
+                                            <td>{{ kayit.BANKA|default:"-" }}</td>
+                                            <td>{{ kayit.BOLGE|default:"-" }}</td>
+                                            <td class="text-center"><span class="badge bg-light text-dark">{{ kayit.PLASIYER_KOD|default:"-" }}</span></td>
                                         </tr>
                                         {% empty %}
                                         <tr>
-                                            <td colspan="10" class="text-center py-5">
+                                            <td colspan="11" class="text-center py-5">
                                                 <div class="text-muted">
                                                     <i class="bi bi-inbox"
                                                         style="font-size: 2rem; margin-bottom: 1rem; display: block;"></i>
@@ -419,7 +394,7 @@
                                             <td class="text-end fw-bold text-success">
                                                 <span id="totalAmount">{{ total_tutar|currency_display }}</span>
                                             </td>
-                                            <td colspan="2"></td>
+                                            <td colspan="3"></td>
                                         </tr>
                                     </tfoot>
                                 </table>
@@ -968,6 +943,7 @@
             document.querySelector('input[name="baslangic_tarihi"]').value = today;
             document.querySelector('input[name="bitis_tarihi"]').value = today;
             document.querySelector('select[name="plasiyer"]').value = '';
+            document.querySelector('select[name="banka"]').value = '';
             document.querySelector('input[name="cari_kod"]').value = '';
             document.querySelector('input[name="cari_unvan"]').value = '';
 

@@ -2497,12 +2497,18 @@ def fatura_detay_ajax(request, fatura_id):
 
     try:
         detaylar = mssql_service.get_fatura_detaylari(fatura_id)
+        toplam_adet = sum(
+            float(
+                d.get('MİKTAR', d.get('MIKTAR', d.get('ADET', 0))) or 0
+            )
+            for d in detaylar
+        )
 
         return JsonResponse({
             'success': True,
             'detaylar': detaylar,
             'toplam_kalem': len(detaylar),
-            'toplam_adet': sum(float(d.get('ADET', 0) or 0) for d in detaylar),
+            'toplam_adet': toplam_adet,
             'toplam_tutar': sum(float(d.get('NET TOPLAM', 0) or 0) for d in detaylar)
         })
 
@@ -2627,18 +2633,16 @@ def genel_dashboard(request):
     logger.info(f'Filtreleme parametreleri - Seçili aylar: {selected_months}')
 
     try:
-        logger.info('Starting MSSQL data fetch')
+        logger.info('Starting MSSQL data fetch (bundled dashboard query)')
         mssql = MSSQLService()
 
-        # Ay filtreleme parametrelerini service fonksiyonuna gönder (hem satış hem tahsilat için aynı)
-        plasiyer_data = mssql.get_all_plasiyerler_stats(
+        bundle = mssql.get_genel_dashboard_bundle(
             selected_months=selected_months if selected_months else None
         )
+        plasiyer_data = bundle['plasiyer_data']
+        monthly_stats = bundle['monthly_stats']
         logger.info(
             f'Data fetched successfully: {len(plasiyer_data["plasiyerler"])} plasiyerler')
-
-        # Aylık satış ve tahsilat istatistiklerini al
-        monthly_stats = mssql.get_monthly_satis_tahsilat_stats()
         
         # JSON formatına çevir (template'de JavaScript'te kullanmak için)
         import json
@@ -2663,19 +2667,26 @@ def genel_dashboard(request):
     except Exception as e:
         logger.error(f"Genel dashboard error: {e}")
         import traceback
+        import json
         logger.error(f"Traceback: {traceback.format_exc()}")
         messages.error(request, f'Dashboard yüklenirken hata oluştu: {e}')
-        # Hata durumunda boş context ile sayfayı render et
+        empty_totals = {
+            'gunluk_adet': 0, 'gunluk_tutar': 0.0,
+            'haftalik_adet': 0, 'haftalik_tutar': 0.0,
+            'aylik_adet': 0, 'aylik_tutar': 0.0,
+        }
+        sel = selected_months if 'selected_months' in locals() else []
         context = {
-            'sayfa_baslik': 'Plasiyer Dashboard',
+            'sayfa_baslik': 'Genel Dashboard',
             'sayfa_ikon': 'bi-speedometer2',
             'plasiyer_data': [],
-            'toplam_satis': 0,
-            'toplam_tahsilat': 0,
-            'plasiyerler': [],
+            'toplam_satis': dict(empty_totals),
+            'toplam_tahsilat': dict(empty_totals),
             'user_data': user_data,
-            'selected_months': selected_months if 'selected_months' in locals() else [],
-            'view_mode': view_mode if 'view_mode' in locals() else 'card',
+            'selected_months': sel,
+            'monthly_stats_json': json.dumps(
+                {str(m): {'satis': 0.0, 'tahsilat': 0.0}
+                 for m in range(1, 13)}),
         }
         return render(request, 'tahsilat/genel_dashboard.html', context)
 
@@ -2771,15 +2782,6 @@ def genel_tahsilatlar(request):
                     }
                 })
 
-        # Ödeme türü bazında toplamlar (şimdilik dummy data)
-        toplam_stats.update({
-            'nakit_tutar': 99925.00,
-            'havale_tutar': 859907.00,
-            'kredi_karti_tutar': 3090035.00,
-            'cek_tutar': 0.00,
-            'senet_tutar': 520000.00,
-        })
-
     except Exception as e:
         logger.error(f"Tahsilat özet verileri alınırken hata: {e}")
         import traceback
@@ -2788,21 +2790,13 @@ def genel_tahsilatlar(request):
             'gunluk_tutar': 0, 'gunluk_adet': 0,
             'haftalik_tutar': 0, 'haftalik_adet': 0,
             'aylik_tutar': 0, 'aylik_adet': 0,
-            'nakit_tutar': 0, 'havale_tutar': 0,
-            'kredi_karti_tutar': 0, 'cek_tutar': 0, 'senet_tutar': 0,
         }
         plasiyer_verileri = []
 
-    # Her plasiyer için ödeme türü bazında dummy veriler ekle
-    # Decimal import removed (unused)
-    for pv in plasiyer_verileri:
-        # Decimal'ı float'a çevir
-        aylik_tutar = float(pv['tahsilat']['aylik_tutar'])
-        pv['tahsilat']['nakit_tutar'] = aylik_tutar * 0.1  # %10 nakit
-        pv['tahsilat']['havale_tutar'] = aylik_tutar * 0.3  # %30 havale
-        pv['tahsilat']['kredi_karti_tutar'] = aylik_tutar * 0.5  # %50 kredi kartı
-        pv['tahsilat']['cek_tutar'] = 0.0
-        pv['tahsilat']['senet_tutar'] = aylik_tutar * 0.1  # %10 senet
+    plasiyer_verileri.sort(
+        key=lambda p: float(p.get('tahsilat', {}).get('aylik_tutar', 0)),
+        reverse=True,
+    )
 
     # Detaylı tahsilat listesini sayfalama ile al
     page = request.GET.get('page', 1)
@@ -2871,17 +2865,17 @@ def genel_tahsilatlar(request):
                 export_rows = []
                 for row in export_list:
                     export_rows.append({
-                        'Tarih': row.get('FormattedDate') or '',
-                        'Plasiyer': row.get('Plasiyer') or '',
-                        'Cari Kod': row.get('CariKod') or '',
-                        'Cari Ünvan': row.get('CariUnvan') or '',
-                        'Tahsilat Türü': row.get('TahsilatTuru') or '',
-                        'Banka': row.get('BANKAADI') or '',
-                        'Taksit': row.get('Taksit'),
-                        'Tutar': row.get('Tutar'),
-                        'Durum': row.get('Durum') or '',
-                        'Evrak No': row.get('EvrakNo') or '',
-                        'Açıklama': row.get('Aciklama') or '',
+                        'LOGICALREF': row.get('LOGICALREF'),
+                        'TARİH': row.get('FormattedDate') or '',
+                        'TAHSİLAT TÜRÜ': row.get('TAHSILAT_TURU') or row.get('TahsilatTuru') or '',
+                        'CARİ KOD': row.get('CARI_KOD') or row.get('CariKod') or '',
+                        'CARİ ÜNVAN': row.get('CARI_UNVAN') or row.get('CariUnvan') or '',
+                        'PLASİYER': row.get('PLASIYER') or row.get('Plasiyer') or '',
+                        'AÇIKLAMA': row.get('ACIKLAMA') or row.get('Aciklama') or '',
+                        'TUTAR': row.get('TUTAR', row.get('Tutar')),
+                        'BANKA': row.get('BANKA') or row.get('BANKAADI') or '',
+                        'BÖLGE': row.get('BOLGE') or '',
+                        'PLASİYER KOD': row.get('PLASIYER_KOD') or '',
                     })
 
                 import pandas as pd
@@ -7577,6 +7571,72 @@ def cek_senetler(request):
     
     # Sıralama: vade tarihi (en yakın vade önce), eşitlikte oluşturma
     queryset = queryset.order_by('vade_tarihi', '-olusturma_tarihi')
+
+    if str(request.GET.get('export', '')).strip().lower() == 'excel':
+        from django.http import HttpResponse
+        from django.utils import timezone as dj_timezone
+        try:
+            import pandas as pd
+            from io import BytesIO
+
+            def _naive_dt_for_excel(dt):
+                if dt is None:
+                    return None
+                if dj_timezone.is_aware(dt):
+                    return dj_timezone.make_naive(dt, dj_timezone.get_current_timezone())
+                return dt
+
+            max_rows = 50000
+            rows_out = []
+            for k in queryset[:max_rows]:
+                kg = k.kalan_gun
+                if k.vade_durumu == 'vadesi_gecti':
+                    vade_ozet = f'{abs(kg)} gün geçti'
+                elif k.vade_durumu == 'vade_bugun':
+                    vade_ozet = 'Bugün'
+                elif k.vade_durumu == 'vade_yarin':
+                    vade_ozet = 'Yarın'
+                else:
+                    vade_ozet = f'{kg} gün'
+                rows_out.append({
+                    'Ödeme Türü': k.get_odeme_turu_display(),
+                    'Tip': k.get_tip_display(),
+                    'Cari Kod': k.cari_kod,
+                    'Cari Ünvan': k.cari_unvan,
+                    'Tutar': float(k.tutar) if k.tutar is not None else None,
+                    'Para Birimi': k.para_birimi or 'TRY',
+                    'İşlem Tarihi': k.islem_tarihi,
+                    'Vade Tarihi': k.vade_tarihi,
+                    'Ödeme Tarihi': k.odeme_tarihi,
+                    'Durum': k.get_durum_display(),
+                    'Kalan Gün': kg,
+                    'Vade Özeti': vade_ozet,
+                    'Banka': (k.banka_adi or '').strip(),
+                    'Çek/Senet No': (k.cek_senet_no or '').strip(),
+                    'Açıklama': (k.aciklama or '').strip(),
+                    'Kredi Türü': (k.kredi_turu or '').strip(),
+                    'Faiz Oranı (%)': float(k.faiz_orani) if k.faiz_orani is not None else None,
+                    'Taksit': k.taksit_sayisi,
+                    'Oluşturma': _naive_dt_for_excel(k.olusturma_tarihi),
+                })
+            df = pd.DataFrame(rows_out)
+            buf = BytesIO()
+            with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name='Çek Senetler', index=False)
+            buf.seek(0)
+            fn = 'cek_senetler_%s.xlsx' % dj_timezone.now().strftime('%Y%m%d_%H%M')
+            resp = HttpResponse(
+                buf.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            )
+            resp['Content-Disposition'] = f'attachment; filename="{fn}"'
+            return resp
+        except Exception as ex:
+            logger.error('cek_senetler Excel export: %s', ex)
+            from django.contrib import messages
+            messages.error(request, 'Excel oluşturulurken hata oluştu.')
+            from django.shortcuts import redirect
+            return redirect('tahsilat:cek_senetler')
     
     # Tüm kayıtları göster (sayfalama kaldırıldı)
     page_obj = queryset
@@ -7827,6 +7887,10 @@ def cek_senetler(request):
 
     active_main_tab = _cek_senetler_resolve_main_tab(request)
 
+    _excel_q = request.GET.copy()
+    _excel_q['export'] = 'excel'
+    cek_liste_excel_url = reverse('tahsilat:cek_senetler') + '?' + _excel_q.urlencode()
+
     context = {
         'sayfa_baslik': 'Çek ve Senetler',
         'sayfa_ikon': 'bi-receipt',
@@ -7879,6 +7943,7 @@ def cek_senetler(request):
         'yillik_toplam_giden': yillik_toplam_giden,
         'yillik_toplam_net': yillik_toplam_net,
         'active_main_tab': active_main_tab,
+        'cek_liste_excel_url': cek_liste_excel_url,
     }
     
     return render(request, 'tahsilat/cek_senetler.html', context)

@@ -795,7 +795,27 @@ class CekSenet(models.Model):
         verbose_name = 'Çek ve Senet'
         verbose_name_plural = 'Çek ve Senetler'
         ordering = ['-olusturma_tarihi']
-    
+
+    @property
+    def vade_durumu(self):
+        """Şablon / Excel ile uyumlu vade etiketi kodu."""
+        from datetime import date, timedelta
+
+        today = date.today()
+        if self.vade_tarihi < today and self.durum not in ('odendi', 'iptal'):
+            return 'vadesi_gecti'
+        if self.vade_tarihi == today:
+            return 'vade_bugun'
+        if self.vade_tarihi == today + timedelta(days=1):
+            return 'vade_yarin'
+        return 'normal'
+
+    @property
+    def kalan_gun(self):
+        from datetime import date
+
+        return (self.vade_tarihi - date.today()).days
+
     def __str__(self):
         return f"{self.get_odeme_turu_display()} - {self.cari_unvan} - {self.tutar} {self.para_birimi}"
 
@@ -813,27 +833,6 @@ class SystemSettings(models.Model):
     def __str__(self):
         return f"{self.key}: {'Açık' if self.value else 'Kapalı'}"
 
-    
-    @property
-    def vade_durumu(self):
-        """Vade durumunu kontrol eder"""
-        from datetime import date
-        today = date.today()
-        if self.vade_tarihi < today and self.durum not in ['odendi', 'iptal']:
-            return 'vadesi_gecti'
-        elif self.vade_tarihi == today:
-            return 'vade_bugun'
-        elif (self.vade_tarihi - today).days <= 7:
-            return 'vade_yakin'
-        else:
-            return 'normal'
-    
-    @property
-    def kalan_gun(self):
-        """Vadeye kalan gün sayısı"""
-        from datetime import date
-        today = date.today()
-        return (self.vade_tarihi - today).days
 
 class PlasiyerPrim(models.Model):
     """Plasiyer prim takibi modeli"""

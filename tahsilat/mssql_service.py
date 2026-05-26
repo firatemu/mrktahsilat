@@ -10,6 +10,28 @@ import traceback
 logger = logging.getLogger(__name__)
 
 
+def _odbc_keys_lower(rows, colnames):
+    """pyodbc + SQL Server sütun adlarını bazen UPPERCASE döndürür; .get('ay') hep None kalabiliyor."""
+    out = []
+    for tup in rows:
+        out.append({
+            str(c).strip().lower() if c is not None else '': val
+            for c, val in zip(colnames, tup)
+        })
+    return out
+
+
+# FATURA: Logo'da [PLASİYER] metni sık sık boş kalır; [PLASİYER KOD] dolu olur. Yalnızca [PLASİYER]'a
+# bakınca satış satırları tamamen düşer, dashboard "Toplam Satışlar" 0 kalır.
+_FATURA_PLASIYER_CANON = """CASE 
+  WHEN NULLIF(LTRIM(RTRIM(ISNULL(CAST([PLASİYER] AS NVARCHAR(120)), N''))), N'') IS NOT NULL 
+    THEN NULLIF(LTRIM(RTRIM(ISNULL(CAST([PLASİYER] AS NVARCHAR(120)), N''))), N'') 
+  WHEN NULLIF(LTRIM(RTRIM(ISNULL(CAST([PLASİYER KOD] AS NVARCHAR(80)), N''))), N'') IS NOT NULL 
+    THEN NULLIF(LTRIM(RTRIM(ISNULL(CAST([PLASİYER KOD] AS NVARCHAR(80)), N''))), N'') 
+  ELSE N'(Belirtilmemiş)' 
+END"""
+
+
 class MSSQLService:
     def get_stok_detayli_analiz(self, malzeme_kodu='', aciklamasi='', marka='', malzeme_turu='', mevcut_stok='', page=1, page_size=50):
         """MALZEME_STOK_PERFORMANS tablosundan filtreli detaylı stok verisi getirir - Sayfalama destekli"""
@@ -839,13 +861,13 @@ class MSSQLService:
             return []
 
     def get_tahsilat_listesi_paginated(self, page=1, page_size=100, baslangic_tarihi='', bitis_tarihi='', plasiyer_filter='', cari_kod_filter='', cari_unvan_filter='', banka_filter=''):
-        """Sayfalama destekli tahsilat listesi - TAHSILAT_LOGO tablosu"""
+        """Sayfalama destekli tahsilat listesi — [GO3].[dbo].[TAHSILAT_LOGO] (tüm kayıtlar)."""
         try:
             connection = self.get_connection()
             cursor = connection.cursor()
 
             # WHERE koşullarını oluştur
-            where_conditions = ["[PLASİYER KOD] = 'PLS'"]
+            where_conditions = ["1 = 1"]
             params = []
 
             # Tarih filtresi
@@ -859,7 +881,9 @@ class MSSQLService:
 
             # Plasiyer filtresi
             if plasiyer_filter:
-                where_conditions.append("[PLASİYER] = ?")
+                where_conditions.append(
+                    "UPPER(RTRIM(LTRIM([PLASİYER]))) = UPPER(RTRIM(LTRIM(?)))"
+                )
                 params.append(plasiyer_filter)
 
             # Cari Kod filtresi
@@ -938,23 +962,41 @@ class MSSQLService:
                 else:
                     formatted_date = ''
 
+                tutar = float(row.get('TUTAR') or 0)
+                logical_ref = row.get('LOGICALREF')
+                pls = self.safe_decode_string(row.get('PLASİYER'))
+                ck = self.safe_decode_string(row.get('CARİ KOD'))
+                cu = self.safe_decode_string(row.get('CARİ ÜNVAN'))
+                tt = self.safe_decode_string(row.get('TAHSİLAT TÜRÜ'))
+                ac = self.safe_decode_string(row.get('AÇIKLAMA'))
+                bn = self.safe_decode_string(row.get('BANKA'))
+                bl = self.safe_decode_string(row.get('BÖLGE'))
+                pk = self.safe_decode_string(row.get('PLASİYER KOD'))
+
                 tahsilat_listesi.append({
-                    'ID': row.get('LOGICALREF'),
-                    'Tarih': tarih_obj,  # Original datetime object
-                    'FormattedDate': formatted_date,  # Formatted string
-                    'CariKod': self.safe_decode_string(row.get('CARİ KOD')),
-                    'CariUnvan': self.safe_decode_string(row.get('CARİ ÜNVAN')),
-                    'TahsilatTuru': self.safe_decode_string(row.get('TAHSİLAT TÜRÜ')),
-                    'Tutar': float(row.get('TUTAR', 0)),
-                    'Kullanici': self.safe_decode_string(row.get('PLASİYER')),
-                    'EklemeTarihi': row.get('TARİH'),
-                    'Durum': 'Aktif',
-                    'Aciklama': self.safe_decode_string(row.get('AÇIKLAMA')),
-                    'Plasiyer': self.safe_decode_string(row.get('PLASİYER')),
-                    'TeslimDurumu': 'Teslim Edildi',
-                    'BANKAADI': self.safe_decode_string(row.get('BANKA')),
-                    'Taksit': 1,
-                    'EvrakNo': self.safe_decode_string(row.get('LOGICALREF')),
+                    # Veritabanı sütunları ile uyumlu anahtarlar
+                    'LOGICALREF': logical_ref,
+                    'TARIH': tarih_obj,
+                    'FormattedDate': formatted_date,
+                    'TAHSILAT_TURU': tt,
+                    'CARI_KOD': ck,
+                    'CARI_UNVAN': cu,
+                    'PLASIYER': pls,
+                    'ACIKLAMA': ac,
+                    'TUTAR': tutar,
+                    'BANKA': bn,
+                    'BOLGE': bl,
+                    'PLASIYER_KOD': pk,
+                    # Şablon geriye dönük uyumluluk
+                    'ID': logical_ref,
+                    'Tarih': tarih_obj,
+                    'CariKod': ck,
+                    'CariUnvan': cu,
+                    'TahsilatTuru': tt,
+                    'Tutar': tutar,
+                    'Aciklama': ac,
+                    'Plasiyer': pls,
+                    'BANKAADI': bn,
                 })
 
             # Sayfalama bilgilerini hesapla
@@ -2011,29 +2053,27 @@ class MSSQLService:
             }
 
     def get_tahsilat_stats_with_month_filter(self, plasiyer=None, selected_months=None):
-        """Ay filtreli tahsilat istatistikleri - GunlukTahsilat_V kullanır (tahsilat listesi ile aynı kaynak, günlük doğru)."""
+        """Ay filtreli tahsilat istatistikleri — Genel Dashboard: [GO3].[dbo].[TAHSILAT_LOGO]."""
         # Ay filtresini hazırla (aylik için)
         if selected_months:
             month_list = ','.join([str(m) for m in selected_months])
-            month_condition = f"AND MONTH([Tarih]) IN ({month_list})"
+            month_condition = f"AND MONTH([TARİH]) IN ({month_list})"
         else:
             # Bu fonksiyon ay filtreli kullanılıyor; boş gelirse mevcut ayı baz al.
-            month_condition = "AND MONTH([Tarih]) = MONTH(GETDATE())"
+            month_condition = "AND MONTH([TARİH]) = MONTH(GETDATE())"
 
-        # GunlukTahsilat_V: [Tarih], [Plasiyer], [Tutar] - parametreli plasiyer filtresi
         query = f"""
         DECLARE @today DATE = CAST(GETDATE() AS DATE);
         DECLARE @week_start DATE = DATEADD(day, -((DATEPART(WEEKDAY, @today) + @@DATEFIRST - 2) % 7), @today);
         SELECT
-            COUNT(CASE WHEN CAST([Tarih] AS DATE) = @today THEN 1 END) as gunluk_adet,
-            ISNULL(SUM(CASE WHEN CAST([Tarih] AS DATE) = @today THEN CAST([Tutar] AS DECIMAL(15,2)) END), 0) as gunluk_tutar,
-            -- Haftalık: seçili ay(lar) içinde bu hafta
-            COUNT(CASE WHEN CAST([Tarih] AS DATE) >= @week_start AND YEAR([Tarih]) = YEAR(GETDATE()) {month_condition} THEN 1 END) as haftalik_adet,
-            ISNULL(SUM(CASE WHEN CAST([Tarih] AS DATE) >= @week_start AND YEAR([Tarih]) = YEAR(GETDATE()) {month_condition} THEN CAST([Tutar] AS DECIMAL(15,2)) END), 0) as haftalik_tutar,
-            COUNT(CASE WHEN YEAR([Tarih]) = YEAR(GETDATE()) {month_condition} THEN 1 END) as aylik_adet,
-            ISNULL(SUM(CASE WHEN YEAR([Tarih]) = YEAR(GETDATE()) {month_condition} THEN CAST([Tutar] AS DECIMAL(15,2)) END), 0) as aylik_tutar
-        FROM [GO3].[dbo].[GunlukTahsilat_V]
-        WHERE UPPER(RTRIM(LTRIM([Plasiyer]))) = UPPER(RTRIM(LTRIM(?)))
+            COUNT(CASE WHEN CAST([TARİH] AS DATE) = @today THEN 1 END) as gunluk_adet,
+            ISNULL(SUM(CASE WHEN CAST([TARİH] AS DATE) = @today THEN CAST([TUTAR] AS DECIMAL(15,2)) END), 0) as gunluk_tutar,
+            COUNT(CASE WHEN CAST([TARİH] AS DATE) >= @week_start AND YEAR([TARİH]) = YEAR(GETDATE()) {month_condition} THEN 1 END) as haftalik_adet,
+            ISNULL(SUM(CASE WHEN CAST([TARİH] AS DATE) >= @week_start AND YEAR([TARİH]) = YEAR(GETDATE()) {month_condition} THEN CAST([TUTAR] AS DECIMAL(15,2)) END), 0) as haftalik_tutar,
+            COUNT(CASE WHEN YEAR([TARİH]) = YEAR(GETDATE()) {month_condition} THEN 1 END) as aylik_adet,
+            ISNULL(SUM(CASE WHEN YEAR([TARİH]) = YEAR(GETDATE()) {month_condition} THEN CAST([TUTAR] AS DECIMAL(15,2)) END), 0) as aylik_tutar
+        FROM [GO3].[dbo].[TAHSILAT_LOGO]
+        WHERE UPPER(RTRIM(LTRIM([PLASİYER]))) = UPPER(RTRIM(LTRIM(?)))
         """
         if not plasiyer:
             return {
@@ -2583,11 +2623,11 @@ class MSSQLService:
                 COUNT(CASE WHEN CAST([TARİH] AS DATE) >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) THEN 1 END) as aylik_adet,
                 ISNULL(SUM(CASE WHEN CAST([TARİH] AS DATE) >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) THEN CAST([TUTAR] as DECIMAL(15,2)) END), 0) as aylik_tutar
             FROM [GO3].[dbo].[FATURA]
-            WHERE [PLASİYER KOD] = 'PLS' AND (TRCODE=8 OR TRCODE=7)
+            WHERE (TRCODE=8 OR TRCODE=7)
             """
 
             if plasiyer:
-                query += " AND UPPER([PLASİYER]) = UPPER(?)"
+                query += f" AND UPPER(RTRIM(LTRIM({_FATURA_PLASIYER_CANON}))) = UPPER(RTRIM(LTRIM(?)))"
                 params = (plasiyer,)
             else:
                 params = ()
@@ -2720,7 +2760,7 @@ class MSSQLService:
             connection = self.get_connection()
             cursor = connection.cursor()
 
-            stats_query = """
+            stats_query = f"""
             DECLARE @today DATE = CAST(GETDATE() AS DATE);
             DECLARE @week_start DATE = DATEADD(day, -((DATEPART(WEEKDAY, @today) + @@DATEFIRST - 2) % 7), @today);
             DECLARE @month_start DATE = DATEFROMPARTS(YEAR(@today), MONTH(@today), 1);
@@ -2729,44 +2769,32 @@ class MSSQLService:
                 (SELECT ISNULL(SUM([TUTAR]), 0)
                  FROM [GO3].[dbo].[FATURA]
                  WHERE (TRCODE=8 OR TRCODE=7)
-                 AND [CARİ KOD] LIKE '120.%'
-                 AND [PLASİYER KOD]='PLS'
-                 AND UPPER(RTRIM(LTRIM([PLASİYER]))) = UPPER(RTRIM(LTRIM(?)))
+                 AND UPPER(RTRIM(LTRIM({_FATURA_PLASIYER_CANON}))) = UPPER(RTRIM(LTRIM(?)))
                  AND CAST([TARİH] AS DATE) = @today) AS gunluk_tutar,
                 (SELECT COUNT(*)
                  FROM [GO3].[dbo].[FATURA]
                  WHERE (TRCODE=8 OR TRCODE=7)
-                 AND [CARİ KOD] LIKE '120.%'
-                 AND [PLASİYER KOD]='PLS'
-                 AND UPPER(RTRIM(LTRIM([PLASİYER]))) = UPPER(RTRIM(LTRIM(?)))
+                 AND UPPER(RTRIM(LTRIM({_FATURA_PLASIYER_CANON}))) = UPPER(RTRIM(LTRIM(?)))
                  AND CAST([TARİH] AS DATE) = @today) AS gunluk_adet,
                 (SELECT ISNULL(SUM([TUTAR]), 0)
                  FROM [GO3].[dbo].[FATURA]
                  WHERE (TRCODE=8 OR TRCODE=7)
-                 AND [CARİ KOD] LIKE '120.%'
-                 AND [PLASİYER KOD]='PLS'
-                 AND UPPER(RTRIM(LTRIM([PLASİYER]))) = UPPER(RTRIM(LTRIM(?)))
+                 AND UPPER(RTRIM(LTRIM({_FATURA_PLASIYER_CANON}))) = UPPER(RTRIM(LTRIM(?)))
                  AND CAST([TARİH] AS DATE) >= @week_start) AS haftalik_tutar,
                 (SELECT COUNT(*)
                  FROM [GO3].[dbo].[FATURA]
                  WHERE (TRCODE=8 OR TRCODE=7)
-                 AND [CARİ KOD] LIKE '120.%'
-                 AND [PLASİYER KOD]='PLS'
-                 AND UPPER(RTRIM(LTRIM([PLASİYER]))) = UPPER(RTRIM(LTRIM(?)))
+                 AND UPPER(RTRIM(LTRIM({_FATURA_PLASIYER_CANON}))) = UPPER(RTRIM(LTRIM(?)))
                  AND CAST([TARİH] AS DATE) >= @week_start) AS haftalik_adet,
                 (SELECT ISNULL(SUM([TUTAR]), 0)
                  FROM [GO3].[dbo].[FATURA]
                  WHERE (TRCODE=8 OR TRCODE=7)
-                 AND [CARİ KOD] LIKE '120.%'
-                 AND [PLASİYER KOD]='PLS'
-                 AND UPPER(RTRIM(LTRIM([PLASİYER]))) = UPPER(RTRIM(LTRIM(?)))
+                 AND UPPER(RTRIM(LTRIM({_FATURA_PLASIYER_CANON}))) = UPPER(RTRIM(LTRIM(?)))
                  AND CAST([TARİH] AS DATE) >= @month_start) AS aylik_tutar,
                 (SELECT COUNT(*)
                  FROM [GO3].[dbo].[FATURA]
                  WHERE (TRCODE=8 OR TRCODE=7)
-                 AND [CARİ KOD] LIKE '120.%'
-                 AND [PLASİYER KOD]='PLS'
-                 AND UPPER(RTRIM(LTRIM([PLASİYER]))) = UPPER(RTRIM(LTRIM(?)))
+                 AND UPPER(RTRIM(LTRIM({_FATURA_PLASIYER_CANON}))) = UPPER(RTRIM(LTRIM(?)))
                  AND CAST([TARİH] AS DATE) >= @month_start) AS aylik_adet
             """
             params = [plasiyer] * 6
@@ -2816,46 +2844,34 @@ class MSSQLService:
             (SELECT ISNULL(SUM([TUTAR]), 0)
              FROM [GO3].[dbo].[FATURA]
              WHERE (TRCODE=8 OR TRCODE=7)
-             AND [CARİ KOD] LIKE '120.%'
-             AND [PLASİYER KOD]='PLS'
-             AND UPPER(RTRIM(LTRIM([PLASİYER]))) = UPPER(RTRIM(LTRIM(?)))
+             AND UPPER(RTRIM(LTRIM({_FATURA_PLASIYER_CANON}))) = UPPER(RTRIM(LTRIM(?)))
              AND CAST([TARİH] AS DATE) = CAST(GETDATE() AS DATE)) AS gunluk_tutar,
             (SELECT COUNT(*)
              FROM [GO3].[dbo].[FATURA]
              WHERE (TRCODE=8 OR TRCODE=7)
-             AND [CARİ KOD] LIKE '120.%'
-             AND [PLASİYER KOD]='PLS'
-             AND UPPER(RTRIM(LTRIM([PLASİYER]))) = UPPER(RTRIM(LTRIM(?)))
+             AND UPPER(RTRIM(LTRIM({_FATURA_PLASIYER_CANON}))) = UPPER(RTRIM(LTRIM(?)))
              AND CAST([TARİH] AS DATE) = CAST(GETDATE() AS DATE)) AS gunluk_adet,
             (SELECT ISNULL(SUM([TUTAR]), 0)
              FROM [GO3].[dbo].[FATURA]
              WHERE (TRCODE=8 OR TRCODE=7)
-             AND [CARİ KOD] LIKE '120.%'
-             AND [PLASİYER KOD]='PLS'
-             AND UPPER(RTRIM(LTRIM([PLASİYER]))) = UPPER(RTRIM(LTRIM(?)))
+             AND UPPER(RTRIM(LTRIM({_FATURA_PLASIYER_CANON}))) = UPPER(RTRIM(LTRIM(?)))
              AND CAST([TARİH] AS DATE) >= DATEADD(day, -((DATEPART(WEEKDAY, CAST(GETDATE() AS DATE)) + @@DATEFIRST - 2) % 7), CAST(GETDATE() AS DATE))
              AND YEAR([TARİH]) = YEAR(GETDATE()) {month_filter}) AS haftalik_tutar,
             (SELECT COUNT(*)
              FROM [GO3].[dbo].[FATURA]
              WHERE (TRCODE=8 OR TRCODE=7)
-             AND [CARİ KOD] LIKE '120.%'
-             AND [PLASİYER KOD]='PLS'
-             AND UPPER(RTRIM(LTRIM([PLASİYER]))) = UPPER(RTRIM(LTRIM(?)))
+             AND UPPER(RTRIM(LTRIM({_FATURA_PLASIYER_CANON}))) = UPPER(RTRIM(LTRIM(?)))
              AND CAST([TARİH] AS DATE) >= DATEADD(day, -((DATEPART(WEEKDAY, CAST(GETDATE() AS DATE)) + @@DATEFIRST - 2) % 7), CAST(GETDATE() AS DATE))
              AND YEAR([TARİH]) = YEAR(GETDATE()) {month_filter}) AS haftalik_adet,
             (SELECT ISNULL(SUM([TUTAR]), 0)
              FROM [GO3].[dbo].[FATURA]
              WHERE (TRCODE=8 OR TRCODE=7)
-             AND [CARİ KOD] LIKE '120.%'
-             AND [PLASİYER KOD]='PLS'
-             AND UPPER(RTRIM(LTRIM([PLASİYER]))) = UPPER(RTRIM(LTRIM(?)))
+             AND UPPER(RTRIM(LTRIM({_FATURA_PLASIYER_CANON}))) = UPPER(RTRIM(LTRIM(?)))
              AND YEAR([TARİH]) = YEAR(GETDATE()) {month_filter}) AS aylik_tutar,
             (SELECT COUNT(*)
              FROM [GO3].[dbo].[FATURA]
              WHERE (TRCODE=8 OR TRCODE=7)
-             AND [CARİ KOD] LIKE '120.%'
-             AND [PLASİYER KOD]='PLS'
-             AND UPPER(RTRIM(LTRIM([PLASİYER]))) = UPPER(RTRIM(LTRIM(?)))
+             AND UPPER(RTRIM(LTRIM({_FATURA_PLASIYER_CANON}))) = UPPER(RTRIM(LTRIM(?)))
              AND YEAR([TARİH]) = YEAR(GETDATE()) {month_filter}) AS aylik_adet
         """
         params = [plasiyer] * 6
@@ -3503,15 +3519,13 @@ class MSSQLService:
                 ",".join([f"'{p}'" for p in plasiyer_list]) + ")"
 
             # Toplam satış istatistikleri - günlük, haftalık, aylık (aynı mantıkla)
-            stats_query = f"""
+            stats_query = """
             SELECT 
                 'gunluk' as donem,
                 COUNT(CASE WHEN CAST([TARİH] AS DATE) = CAST(GETDATE() AS DATE) THEN 1 END) as adet,
                 SUM(CASE WHEN CAST([TARİH] AS DATE) = CAST(GETDATE() AS DATE) THEN [TUTAR] ELSE 0 END) as toplam_tutar
             FROM [GO3].[dbo].[FATURA] 
-            WHERE [PLASİYER KOD] = 'PLS'
-            AND (TRCODE=8 OR TRCODE=7)
-            AND [CARİ KOD] LIKE '120.%'
+            WHERE (TRCODE=8 OR TRCODE=7)
             AND [TARİH] >= DATEADD(month, -1, GETDATE())
             
             UNION ALL
@@ -3521,9 +3535,7 @@ class MSSQLService:
                 COUNT(CASE WHEN CAST([TARİH] AS DATE) >= DATEADD(day, -(DATEPART(WEEKDAY, GETDATE()) - 2), CAST(GETDATE() AS DATE)) THEN 1 END) as adet,
                 SUM(CASE WHEN CAST([TARİH] AS DATE) >= DATEADD(day, -(DATEPART(WEEKDAY, GETDATE()) - 2), CAST(GETDATE() AS DATE)) THEN [TUTAR] ELSE 0 END) as toplam_tutar
             FROM [GO3].[dbo].[FATURA] 
-            WHERE [PLASİYER KOD] = 'PLS'
-            AND (TRCODE=8 OR TRCODE=7)
-            AND [CARİ KOD] LIKE '120.%'
+            WHERE (TRCODE=8 OR TRCODE=7)
             
             UNION ALL
             
@@ -3532,9 +3544,7 @@ class MSSQLService:
                 COUNT(CASE WHEN CAST([TARİH] AS DATE) >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) THEN 1 END) as adet,
                 SUM(CASE WHEN CAST([TARİH] AS DATE) >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) THEN [TUTAR] ELSE 0 END) as toplam_tutar
             FROM [GO3].[dbo].[FATURA] 
-            WHERE [PLASİYER KOD] = 'PLS'
-            AND (TRCODE=8 OR TRCODE=7)
-            AND [CARİ KOD] LIKE '120.%'
+            WHERE (TRCODE=8 OR TRCODE=7)
             """
 
             cursor.execute(stats_query)
@@ -3568,7 +3578,7 @@ class MSSQLService:
             # Plasiyer bazlı detaylı istatistikler
             plasiyer_query = f"""
             SELECT 
-                [PLASİYER] as plasiyer,
+                {_FATURA_PLASIYER_CANON} as plasiyer,
                 COUNT(CASE WHEN CAST([TARİH] AS DATE) = CAST(GETDATE() AS DATE) THEN 1 END) as gunluk_adet,
                 SUM(CASE WHEN CAST([TARİH] AS DATE) = CAST(GETDATE() AS DATE) THEN [TUTAR] ELSE 0 END) as gunluk_tutar,
                 COUNT(CASE WHEN CAST([TARİH] AS DATE) >= DATEADD(day, -(DATEPART(WEEKDAY, GETDATE()) - 2), CAST(GETDATE() AS DATE)) THEN 1 END) as haftalik_adet,
@@ -3576,10 +3586,8 @@ class MSSQLService:
                 COUNT(CASE WHEN CAST([TARİH] AS DATE) >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) THEN 1 END) as aylik_adet,
                 SUM(CASE WHEN CAST([TARİH] AS DATE) >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) THEN [TUTAR] ELSE 0 END) as aylik_tutar
             FROM [GO3].[dbo].[FATURA] 
-            WHERE [PLASİYER KOD] = 'PLS'
-            AND (TRCODE=8 OR TRCODE=7)
-            AND [CARİ KOD] LIKE '120.%'
-            GROUP BY [PLASİYER]
+            WHERE (TRCODE=8 OR TRCODE=7)
+            GROUP BY {_FATURA_PLASIYER_CANON}
             ORDER BY aylik_tutar DESC
             """
 
@@ -3620,70 +3628,54 @@ class MSSQLService:
             }
 
     def get_tahsilat_ozet_stats(self, selected_months=None):
-        """Tahsilat özet istatistiklerini TAHSILAT_LOGO tablosundan döndürür"""
+        """Tahsilat özet istatistikleri — [GO3].[dbo].[TAHSILAT_LOGO] tüm kayıtlar."""
         try:
             connection = self.get_connection()
             cursor = connection.cursor()
 
-            # Ay filtresi için WHERE koşulu
-            month_filter = ""
-            if selected_months and len(selected_months) > 0:
-                # Seçilen ayları SQL formatına çevir
-                month_conditions = []
+            month_nums = []
+            if selected_months:
                 for month in selected_months:
                     try:
-                        month_int = int(month)
-                        month_conditions.append(f"MONTH([TARİH]) = {month_int}")
-                    except ValueError:
+                        month_nums.append(int(month))
+                    except (TypeError, ValueError):
                         continue
-                
-                if month_conditions:
-                    # Geçerli yıl ile sınırla (filtre yokkenki "aylık" mantığı: bu ay + bu yıl)
-                    month_filter = (
-                        f"WHERE [PLASİYER KOD] = 'PLS' AND YEAR([TARİH]) = YEAR(GETDATE()) "
-                        f"AND ({' OR '.join(month_conditions)})"
-                    )
-                    logger.info(f"Ay filtresi uygulanıyor: {month_filter}")
 
-            # Eğer ay filtresi varsa, sadece seçilen ayların toplamını göster
-            if month_filter:
-                # Seçilen ayların toplamı
+            use_month_filter = len(month_nums) > 0
+
+            if use_month_filter:
+                month_in = ','.join(str(m) for m in month_nums)
                 stats_query = f"""
-                SELECT 
-                    'secilen_aylar' as donem,
-                    COUNT(*) as adet,
-                    SUM([TUTAR]) as toplam_tutar
+                SELECT
+                    'secilen_aylar' AS donem,
+                    COUNT(*) AS adet,
+                    ISNULL(SUM(CAST([TUTAR] AS DECIMAL(18,2))), 0) AS toplam_tutar
                 FROM [GO3].[dbo].[TAHSILAT_LOGO]
-                {month_filter}
-                AND [PLASİYER KOD] = 'PLS'
+                WHERE YEAR([TARİH]) = YEAR(GETDATE())
+                  AND MONTH([TARİH]) IN ({month_in})
                 """
+                logger.info(
+                    'Tahsilat özet ay filtresi: YEAR=GETDATE, MONTH IN (%s)', month_in)
             else:
-                # Normal günlük, haftalık, aylık hesaplamalar
-                stats_query = f"""
-                SELECT 
-                    'gunluk' as donem,
-                    COUNT(CASE WHEN CAST([TARİH] AS DATE) = CAST(GETDATE() AS DATE) THEN 1 END) as adet,
-                    SUM(CASE WHEN CAST([TARİH] AS DATE) = CAST(GETDATE() AS DATE) THEN [TUTAR] ELSE 0 END) as toplam_tutar
+                # Hafta başlangıcı — genel dashboard ile aynı @@DATEFIRST mantığı
+                stats_query = """
+                DECLARE @today DATE = CAST(GETDATE() AS DATE);
+                DECLARE @week_start DATE = DATEADD(day, -((DATEPART(WEEKDAY, @today) + @@DATEFIRST - 2) % 7), @today);
+
+                SELECT 'gunluk' AS donem,
+                    SUM(CASE WHEN CAST([TARİH] AS DATE) = @today THEN 1 ELSE 0 END) AS adet,
+                    ISNULL(SUM(CASE WHEN CAST([TARİH] AS DATE) = @today THEN CAST([TUTAR] AS DECIMAL(18,2)) ELSE 0 END), 0) AS toplam_tutar
                 FROM [GO3].[dbo].[TAHSILAT_LOGO]
-                WHERE [PLASİYER KOD] = 'PLS'
-                
                 UNION ALL
-                
-                SELECT 
-                    'haftalik' as donem,
-                    COUNT(CASE WHEN CAST([TARİH] AS DATE) >= DATEADD(day, -(DATEPART(WEEKDAY, GETDATE()) - 2), CAST(GETDATE() AS DATE)) THEN 1 END) as adet,
-                    SUM(CASE WHEN CAST([TARİH] AS DATE) >= DATEADD(day, -(DATEPART(WEEKDAY, GETDATE()) - 2), CAST(GETDATE() AS DATE)) THEN [TUTAR] ELSE 0 END) as toplam_tutar
+                SELECT 'haftalik',
+                    SUM(CASE WHEN CAST([TARİH] AS DATE) >= @week_start AND YEAR([TARİH]) = YEAR(@today) THEN 1 ELSE 0 END),
+                    ISNULL(SUM(CASE WHEN CAST([TARİH] AS DATE) >= @week_start AND YEAR([TARİH]) = YEAR(@today) THEN CAST([TUTAR] AS DECIMAL(18,2)) ELSE 0 END), 0)
                 FROM [GO3].[dbo].[TAHSILAT_LOGO]
-                WHERE [PLASİYER KOD] = 'PLS'
-                
                 UNION ALL
-                
-                SELECT 
-                    'aylik' as donem,
-                    COUNT(CASE WHEN MONTH([TARİH]) = MONTH(GETDATE()) AND YEAR([TARİH]) = YEAR(GETDATE()) THEN 1 END) as adet,
-                    SUM(CASE WHEN MONTH([TARİH]) = MONTH(GETDATE()) AND YEAR([TARİH]) = YEAR(GETDATE()) THEN [TUTAR] ELSE 0 END) as toplam_tutar
+                SELECT 'aylik',
+                    SUM(CASE WHEN MONTH([TARİH]) = MONTH(@today) AND YEAR([TARİH]) = YEAR(@today) THEN 1 ELSE 0 END),
+                    ISNULL(SUM(CASE WHEN MONTH([TARİH]) = MONTH(@today) AND YEAR([TARİH]) = YEAR(@today) THEN CAST([TUTAR] AS DECIMAL(18,2)) ELSE 0 END), 0)
                 FROM [GO3].[dbo].[TAHSILAT_LOGO]
-                WHERE [PLASİYER KOD] = 'PLS'
                 """
 
             cursor.execute(stats_query)
@@ -3701,7 +3693,7 @@ class MSSQLService:
 
             for row in stats_rows:
                 donem = row[0]
-                adet = row[1] or 0
+                adet = int(row[1] or 0)
                 tutar = float(row[2] or 0)
 
                 if donem == 'gunluk':
@@ -3714,47 +3706,52 @@ class MSSQLService:
                     toplam_stats['aylik_tutar'] = tutar
                     toplam_stats['aylik_adet'] = adet
                 elif donem == 'secilen_aylar':
-                    # Seçilen ayların toplamını aylık olarak göster
                     toplam_stats['aylik_tutar'] = tutar
                     toplam_stats['aylik_adet'] = adet
-                    # Günlük ve haftalık için 0 göster
                     toplam_stats['gunluk_tutar'] = 0
                     toplam_stats['gunluk_adet'] = 0
                     toplam_stats['haftalik_tutar'] = 0
                     toplam_stats['haftalik_adet'] = 0
 
-            # Plasiyer bazlı detaylı istatistikler
-            if month_filter:
-                # Ay filtresi varsa, sadece seçilen ayların toplamını göster
+            pla_key = """
+                CASE
+                    WHEN [PLASİYER] IS NULL OR LTRIM(RTRIM([PLASİYER])) = N'' THEN N'(Belirtilmemiş)'
+                    ELSE LTRIM(RTRIM([PLASİYER]))
+                END
+            """
+
+            if use_month_filter:
+                month_in = ','.join(str(m) for m in month_nums)
                 plasiyer_query = f"""
-                SELECT 
-                    [PLASİYER] as plasiyer,
-                    0 as gunluk_adet,
-                    0 as gunluk_tutar,
-                    0 as haftalik_adet,
-                    0 as haftalik_tutar,
-                    COUNT(*) as aylik_adet,
-                    SUM([TUTAR]) as aylik_tutar
-                FROM [GO3].[dbo].[TAHSILAT_LOGO] 
-                {month_filter}
-                AND [PLASİYER KOD] = 'PLS'
-                GROUP BY [PLASİYER]
+                SELECT
+                    {pla_key.strip()} AS plasiyer_key,
+                    0 AS gunluk_adet,
+                    CAST(0 AS DECIMAL(18,2)) AS gunluk_tutar,
+                    0 AS haftalik_adet,
+                    CAST(0 AS DECIMAL(18,2)) AS haftalik_tutar,
+                    COUNT(*) AS aylik_adet,
+                    ISNULL(SUM(CAST([TUTAR] AS DECIMAL(18,2))), 0) AS aylik_tutar
+                FROM [GO3].[dbo].[TAHSILAT_LOGO]
+                WHERE YEAR([TARİH]) = YEAR(GETDATE())
+                  AND MONTH([TARİH]) IN ({month_in})
+                GROUP BY {pla_key.strip()}
                 ORDER BY aylik_tutar DESC
                 """
             else:
-                # Normal plasiyer sorgusu
                 plasiyer_query = f"""
-                SELECT 
-                    [PLASİYER] as plasiyer,
-                    COUNT(CASE WHEN CAST([TARİH] AS DATE) = CAST(GETDATE() AS DATE) THEN 1 END) as gunluk_adet,
-                    SUM(CASE WHEN CAST([TARİH] AS DATE) = CAST(GETDATE() AS DATE) THEN [TUTAR] ELSE 0 END) as gunluk_tutar,
-                    COUNT(CASE WHEN CAST([TARİH] AS DATE) >= DATEADD(day, -(DATEPART(WEEKDAY, GETDATE()) - 2), CAST(GETDATE() AS DATE)) THEN 1 END) as haftalik_adet,
-                    SUM(CASE WHEN CAST([TARİH] AS DATE) >= DATEADD(day, -(DATEPART(WEEKDAY, GETDATE()) - 2), CAST(GETDATE() AS DATE)) THEN [TUTAR] ELSE 0 END) as haftalik_tutar,
-                    COUNT(CASE WHEN MONTH([TARİH]) = MONTH(GETDATE()) AND YEAR([TARİH]) = YEAR(GETDATE()) THEN 1 END) as aylik_adet,
-                    SUM(CASE WHEN MONTH([TARİH]) = MONTH(GETDATE()) AND YEAR([TARİH]) = YEAR(GETDATE()) THEN [TUTAR] ELSE 0 END) as aylik_tutar
-                FROM [GO3].[dbo].[TAHSILAT_LOGO] 
-                WHERE [PLASİYER KOD] = 'PLS'
-                GROUP BY [PLASİYER]
+                DECLARE @today DATE = CAST(GETDATE() AS DATE);
+                DECLARE @week_start DATE = DATEADD(day, -((DATEPART(WEEKDAY, @today) + @@DATEFIRST - 2) % 7), @today);
+
+                SELECT
+                    {pla_key.strip()} AS plasiyer_key,
+                    SUM(CASE WHEN CAST([TARİH] AS DATE) = @today THEN 1 ELSE 0 END) AS gunluk_adet,
+                    ISNULL(SUM(CASE WHEN CAST([TARİH] AS DATE) = @today THEN CAST([TUTAR] AS DECIMAL(18,2)) ELSE 0 END), 0) AS gunluk_tutar,
+                    SUM(CASE WHEN CAST([TARİH] AS DATE) >= @week_start AND YEAR([TARİH]) = YEAR(@today) THEN 1 ELSE 0 END) AS haftalik_adet,
+                    ISNULL(SUM(CASE WHEN CAST([TARİH] AS DATE) >= @week_start AND YEAR([TARİH]) = YEAR(@today) THEN CAST([TUTAR] AS DECIMAL(18,2)) ELSE 0 END), 0) AS haftalik_tutar,
+                    SUM(CASE WHEN MONTH([TARİH]) = MONTH(@today) AND YEAR([TARİH]) = YEAR(@today) THEN 1 ELSE 0 END) AS aylik_adet,
+                    ISNULL(SUM(CASE WHEN MONTH([TARİH]) = MONTH(@today) AND YEAR([TARİH]) = YEAR(@today) THEN CAST([TUTAR] AS DECIMAL(18,2)) ELSE 0 END), 0) AS aylik_tutar
+                FROM [GO3].[dbo].[TAHSILAT_LOGO]
+                GROUP BY {pla_key.strip()}
                 ORDER BY aylik_tutar DESC
                 """
 
@@ -3827,14 +3824,12 @@ class MSSQLService:
             return []
 
     def get_plasiyer_list_from_fatura(self):
-        """FATURA tablosundan PLASİYER KOD='PLS' olan kayıtlardaki tüm farklı PLASİYER değerlerini getirir"""
-        query = """
-        SELECT DISTINCT [PLASİYER]
+        """FATURA satış evraklarında (TRCODE 7/8) plasiyer: isim, yoksa kod, yoksa (Belirtilmemiş)."""
+        query = f"""
+        SELECT DISTINCT {_FATURA_PLASIYER_CANON} AS plv
         FROM [GO3].[dbo].[FATURA]
-        WHERE [PLASİYER] IS NOT NULL 
-            AND [PLASİYER] != ''
-            AND (TRCODE=8 OR TRCODE=7)
-        ORDER BY [PLASİYER]
+        WHERE (TRCODE=8 OR TRCODE=7)
+        ORDER BY plv
         """
 
         try:
@@ -4637,22 +4632,68 @@ class MSSQLService:
                 'tahsilat': {'gunluk_adet': 0, 'gunluk_tutar': 0.0, 'haftalik_adet': 0, 'haftalik_tutar': 0.0, 'aylik_adet': 0, 'aylik_tutar': 0.0}
             }
 
-    def get_all_plasiyerler_stats(self, selected_months=None):
-        """Tüm plasiyerlerin istatistiklerini getirir - PLASİYER kolonuna göre grupla"""
-        # FATURA tablosundan aktif plasiyerleri dinamik olarak al
-        try:
-            plasiyerler = self.get_plasiyer_list_from_fatura()
-            # Eğer veritabanından plasiyer bulunamazsa varsayılan listeyi kullan
-            if not plasiyerler:
-                plasiyerler = ['EYÜP', 'ALİ', 'MERT', 'ATAKAN', 'AZİZ',
-                              'YİĞİT', 'SÜLEYMAN', 'GÖRKEM', 'CAN', 'HASAN', 'NECATİ']
-                logger.warning("FATURA tablosundan plasiyer bulunamadı, varsayılan liste kullanılıyor")
-            else:
-                logger.info(f"FATURA tablosundan {len(plasiyerler)} plasiyer bulundu: {plasiyerler}")
-        except Exception as e:
-            logger.error(f"Plasiyer listesi alınırken hata: {e}, varsayılan liste kullanılıyor")
-            plasiyerler = ['EYÜP', 'ALİ', 'MERT', 'ATAKAN', 'AZİZ',
-                          'YİĞİT', 'SÜLEYMAN', 'GÖRKEM', 'CAN', 'HASAN', 'NECATİ']
+    @staticmethod
+    def _genel_dashboard_month_sql_filter(selected_months):
+        """Dashboard satış/tahsilat toplu sorguları için MONTH(...) ifadesi."""
+        if selected_months:
+            month_ints = []
+            for m in selected_months:
+                try:
+                    month_ints.append(int(m))
+                except (TypeError, ValueError):
+                    continue
+            if month_ints:
+                return (
+                    'MONTH([TARİH]) IN ('
+                    + ','.join(str(x) for x in month_ints)
+                    + ')'
+                )
+        return 'MONTH([TARİH]) = MONTH(GETDATE())'
+
+    @staticmethod
+    def _dashboard_plasiyer_batch_row_maps(rows, cols, safe_decode):
+        """GROUP BY plasiyer satırlarını isim -> istatistik sözlüğüne çevirir."""
+        by_label = {}
+        for r in _odbc_keys_lower(rows, cols):
+            lbl = safe_decode(r.get('plasiyer_label') or '')
+            lbl = lbl.strip()
+            pk = safe_decode(r.get('plasiyer_key') or '')
+            pk = pk.strip()
+            stats = {
+                'gunluk_tutar': float(r.get('gunluk_tutar') or 0),
+                'gunluk_adet': int(r.get('gunluk_adet') or 0),
+                'haftalik_tutar': float(r.get('haftalik_tutar') or 0),
+                'haftalik_adet': int(r.get('haftalik_adet') or 0),
+                'aylik_tutar': float(r.get('aylik_tutar') or 0),
+                'aylik_adet': int(r.get('aylik_adet') or 0),
+            }
+            if lbl:
+                by_label[lbl] = stats
+                by_label[lbl.upper()] = stats
+            if pk:
+                by_label[pk] = stats
+        return by_label
+
+    def _assemble_plasiyer_dashboard_from_lookups(
+            self, plasiyerler, satis_lookup, tahsilat_lookup):
+        """Plasiyer listesi + iki lookup sözlüğünden get_all_plasiyerler_stats çıktısı üretir."""
+        zeros_satis = {
+            'gunluk_adet': 0, 'gunluk_tutar': 0.0,
+            'haftalik_adet': 0, 'haftalik_tutar': 0.0,
+            'aylik_adet': 0, 'aylik_tutar': 0.0,
+        }
+        zeros_tah = {
+            'gunluk_adet': 0, 'gunluk_tutar': 0.0,
+            'haftalik_adet': 0, 'haftalik_tutar': 0.0,
+            'aylik_adet': 0, 'aylik_tutar': 0.0,
+        }
+
+        def _pick(by_map, name, z):
+            n = self.safe_decode_string(name).strip()
+            if not n:
+                return {**z}
+            found = by_map.get(n) or by_map.get(n.upper())
+            return {**found} if found else {**z}
 
         plasiyer_data = []
         toplam_satis = {'gunluk_adet': 0, 'gunluk_tutar': 0.0, 'haftalik_adet': 0,
@@ -4661,24 +4702,252 @@ class MSSQLService:
                            'haftalik_tutar': 0.0, 'aylik_adet': 0, 'aylik_tutar': 0.0}
 
         for plasiyer in plasiyerler:
-            stats = self.get_plasiyer_stats_with_month_filter(
-                plasiyer, selected_months)
-            plasiyer_data.append(stats)
-
-            # Toplam hesaplama
+            satis_stats = _pick(satis_lookup, plasiyer, zeros_satis)
+            tahsilat_stats = _pick(tahsilat_lookup, plasiyer, zeros_tah)
+            plasiyer_data.append({
+                'plasiyer': plasiyer,
+                'satis': dict(satis_stats),
+                'tahsilat': dict(tahsilat_stats),
+            })
             for period in ['gunluk', 'haftalik', 'aylik']:
-                toplam_satis[f'{period}_adet'] += stats['satis'][f'{period}_adet']
-                toplam_satis[f'{period}_tutar'] += float(
-                    stats['satis'][f'{period}_tutar'])
-                toplam_tahsilat[f'{period}_adet'] += stats['tahsilat'][f'{period}_adet']
+                toplam_satis[f'{period}_adet'] += satis_stats[f'{period}_adet']
+                toplam_satis[f'{period}_tutar'] += float(satis_stats[f'{period}_tutar'])
+                toplam_tahsilat[f'{period}_adet'] += tahsilat_stats[f'{period}_adet']
                 toplam_tahsilat[f'{period}_tutar'] += float(
-                    stats['tahsilat'][f'{period}_tutar'])
+                    tahsilat_stats[f'{period}_tutar'])
 
         return {
             'plasiyerler': plasiyer_data,
             'toplam_satis': toplam_satis,
-            'toplam_tahsilat': toplam_tahsilat
+            'toplam_tahsilat': toplam_tahsilat,
         }
+
+    def _genel_dashboard_plasiyer_batch_sqls(self, mf):
+        """FATURA + TAHSILAT_LOGO plasiyer özet toplu sorguları (mf = MONTH ifadesi)."""
+        week_start_expr = (
+            "DATEADD(day, -((DATEPART(WEEKDAY, CAST(GETDATE() AS DATE)) + @@DATEFIRST - 2) % 7), "
+            "CAST(GETDATE() AS DATE))"
+        )
+        satis_sql = f"""
+        SELECT
+            UPPER(RTRIM(LTRIM({_FATURA_PLASIYER_CANON}))) AS plasiyer_key,
+            MIN({_FATURA_PLASIYER_CANON}) AS plasiyer_label,
+            SUM(CASE WHEN CAST([TARİH] AS DATE) = CAST(GETDATE() AS DATE)
+                THEN CAST([TUTAR] AS DECIMAL(18,2)) ELSE 0 END) AS gunluk_tutar,
+            SUM(CASE WHEN CAST([TARİH] AS DATE) = CAST(GETDATE() AS DATE)
+                THEN 1 ELSE 0 END) AS gunluk_adet,
+            SUM(CASE WHEN CAST([TARİH] AS DATE) >= {week_start_expr}
+                AND YEAR([TARİH]) = YEAR(GETDATE()) AND ({mf})
+                THEN CAST([TUTAR] AS DECIMAL(18,2)) ELSE 0 END) AS haftalik_tutar,
+            SUM(CASE WHEN CAST([TARİH] AS DATE) >= {week_start_expr}
+                AND YEAR([TARİH]) = YEAR(GETDATE()) AND ({mf})
+                THEN 1 ELSE 0 END) AS haftalik_adet,
+            SUM(CASE WHEN YEAR([TARİH]) = YEAR(GETDATE()) AND ({mf})
+                THEN CAST([TUTAR] AS DECIMAL(18,2)) ELSE 0 END) AS aylik_tutar,
+            SUM(CASE WHEN YEAR([TARİH]) = YEAR(GETDATE()) AND ({mf})
+                THEN 1 ELSE 0 END) AS aylik_adet
+        FROM [GO3].[dbo].[FATURA]
+        WHERE (TRCODE=8 OR TRCODE=7)
+        GROUP BY UPPER(RTRIM(LTRIM({_FATURA_PLASIYER_CANON})))
+        """
+        tahsilat_sql = f"""
+        DECLARE @today DATE = CAST(GETDATE() AS DATE);
+        DECLARE @week_start DATE = DATEADD(day, -((DATEPART(WEEKDAY, @today) + @@DATEFIRST - 2) % 7), @today);
+        SELECT
+            UPPER(RTRIM(LTRIM([PLASİYER]))) AS plasiyer_key,
+            MIN([PLASİYER]) AS plasiyer_label,
+            SUM(CASE WHEN CAST([TARİH] AS DATE) = @today THEN 1 ELSE 0 END) AS gunluk_adet,
+            ISNULL(SUM(CASE WHEN CAST([TARİH] AS DATE) = @today
+                THEN CAST([TUTAR] AS DECIMAL(15,2)) ELSE 0 END), 0) AS gunluk_tutar,
+            SUM(CASE WHEN CAST([TARİH] AS DATE) >= @week_start
+                AND YEAR([TARİH]) = YEAR(GETDATE()) AND ({mf})
+                THEN 1 ELSE 0 END) AS haftalik_adet,
+            ISNULL(SUM(CASE WHEN CAST([TARİH] AS DATE) >= @week_start
+                AND YEAR([TARİH]) = YEAR(GETDATE()) AND ({mf})
+                THEN CAST([TUTAR] AS DECIMAL(15,2)) ELSE 0 END), 0) AS haftalik_tutar,
+            SUM(CASE WHEN YEAR([TARİH]) = YEAR(GETDATE()) AND ({mf})
+                THEN 1 ELSE 0 END) AS aylik_adet,
+            ISNULL(SUM(CASE WHEN YEAR([TARİH]) = YEAR(GETDATE()) AND ({mf})
+                THEN CAST([TUTAR] AS DECIMAL(15,2)) ELSE 0 END), 0) AS aylik_tutar
+        FROM [GO3].[dbo].[TAHSILAT_LOGO]
+        WHERE [PLASİYER] IS NOT NULL AND LTRIM(RTRIM([PLASİYER])) <> N''
+        GROUP BY UPPER(RTRIM(LTRIM([PLASİYER])))
+        """
+        return satis_sql, tahsilat_sql
+
+    def get_all_plasiyerler_stats(self, selected_months=None):
+        """Tüm plasiyerlerin istatistiklerini getirir — FATURA + TAHSILAT_LOGO için toplu sorgular (dashboard performansı)."""
+        try:
+            plasiyerler = self.get_plasiyer_list_from_fatura()
+            if not plasiyerler:
+                plasiyerler = ['EYÜP', 'ALİ', 'MERT', 'ATAKAN', 'AZİZ',
+                              'YİĞİT', 'SÜLEYMAN', 'GÖRKEM', 'CAN', 'HASAN', 'NECATİ']
+                logger.warning(
+                    "FATURA tablosundan plasiyer bulunamadı, varsayılan liste kullanılıyor")
+            else:
+                logger.info(
+                    f"FATURA tablosundan {len(plasiyerler)} plasiyer bulundu: {plasiyerler}")
+        except Exception as e:
+            logger.error(
+                f"Plasiyer listesi alınırken hata: {e}, varsayılan liste kullanılıyor")
+            plasiyerler = ['EYÜP', 'ALİ', 'MERT', 'ATAKAN', 'AZİZ',
+                          'YİĞİT', 'SÜLEYMAN', 'GÖRKEM', 'CAN', 'HASAN', 'NECATİ']
+
+        mf = self._genel_dashboard_month_sql_filter(selected_months)
+        satis_sql, tahsilat_sql = self._genel_dashboard_plasiyer_batch_sqls(mf)
+
+        satis_lookup = {}
+        tahsilat_lookup = {}
+        conn = None
+        try:
+            conn = self.get_connection()
+            cur = conn.cursor()
+            cur.execute(satis_sql)
+            cols_s = [c[0] for c in cur.description]
+            satis_lookup = self._dashboard_plasiyer_batch_row_maps(
+                cur.fetchall(), cols_s, self.safe_decode_string)
+            cur.execute(tahsilat_sql)
+            cols_t = [c[0] for c in cur.description]
+            tahsilat_lookup = self._dashboard_plasiyer_batch_row_maps(
+                cur.fetchall(), cols_t, self.safe_decode_string)
+            cur.close()
+        except Exception as e:
+            logger.error(f"get_all_plasiyerler_stats batch error: {e}")
+            satis_lookup, tahsilat_lookup = {}, {}
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+        return self._assemble_plasiyer_dashboard_from_lookups(
+            plasiyerler, satis_lookup, tahsilat_lookup)
+
+    def get_genel_dashboard_bundle(self, selected_months=None):
+        """Genel dashboard için tek MSSQL bağlantısında plasiyer özetleri + aylık grafik verisi."""
+        defaults = ['EYÜP', 'ALİ', 'MERT', 'ATAKAN', 'AZİZ',
+                      'YİĞİT', 'SÜLEYMAN', 'GÖRKEM', 'CAN', 'HASAN', 'NECATİ']
+        empty_z = {
+            'gunluk_adet': 0, 'gunluk_tutar': 0.0,
+            'haftalik_adet': 0, 'haftalik_tutar': 0.0,
+            'aylik_adet': 0, 'aylik_tutar': 0.0,
+        }
+        monthly_empty = {
+            m: {'satis': 0.0, 'tahsilat': 0.0} for m in range(1, 13)}
+        plasiyer_bundle = {
+            'plasiyerler': [],
+            'toplam_satis': dict(empty_z),
+            'toplam_tahsilat': dict(empty_z),
+        }
+        monthly_data = {
+            m: {'satis': 0.0, 'tahsilat': 0.0} for m in range(1, 13)}
+
+        mf = self._genel_dashboard_month_sql_filter(selected_months)
+        satis_sql, tahsilat_sql = self._genel_dashboard_plasiyer_batch_sqls(mf)
+
+        plasiyer_list_sql = f"""
+        SELECT DISTINCT v
+        FROM (
+            SELECT {_FATURA_PLASIYER_CANON} AS v
+            FROM [GO3].[dbo].[FATURA]
+            WHERE (TRCODE=8 OR TRCODE=7)
+            UNION
+            SELECT LTRIM(RTRIM(ISNULL(CAST([PLASİYER] AS NVARCHAR(120)), N'')))
+            FROM [GO3].[dbo].[TAHSILAT_LOGO]
+            WHERE [PLASİYER] IS NOT NULL AND LTRIM(RTRIM([PLASİYER])) <> N''
+        ) q
+        WHERE q.v <> N'' AND q.v IS NOT NULL
+        ORDER BY v
+        """
+
+        monthly_satis_sql = """
+        SELECT
+            MONTH([TARİH]) AS ay,
+            YEAR([TARİH]) AS yil,
+            ISNULL(SUM([TUTAR]), 0) AS toplam_tutar
+        FROM [GO3].[dbo].[FATURA]
+        WHERE (TRCODE=8 OR TRCODE=7)
+          AND YEAR([TARİH]) = YEAR(GETDATE())
+        GROUP BY MONTH([TARİH]), YEAR([TARİH])
+        ORDER BY MONTH([TARİH])
+        """
+
+        monthly_tahsilat_sql = """
+        SELECT
+            MONTH([TARİH]) AS ay,
+            YEAR([TARİH]) AS yil,
+            ISNULL(SUM(CAST([TUTAR] AS DECIMAL(15,2))), 0) AS toplam_tutar
+        FROM [GO3].[dbo].[TAHSILAT_LOGO]
+        WHERE YEAR([TARİH]) = YEAR(GETDATE())
+        GROUP BY MONTH([TARİH]), YEAR([TARİH])
+        ORDER BY MONTH([TARİH])
+        """
+
+        conn = None
+        try:
+            conn = self.get_connection()
+            cur = conn.cursor()
+
+            cur.execute(plasiyer_list_sql)
+            plasiyerler = []
+            for row in cur.fetchall():
+                p = self.safe_decode_string(row[0])
+                if p and p.strip():
+                    plasiyerler.append(p.strip())
+            if not plasiyerler:
+                plasiyerler = list(defaults)
+                logger.warning(
+                    'get_genel_dashboard_bundle: FATURA plasiyer listesi boş, varsayılan kullanılıyor')
+            else:
+                logger.info(
+                    'get_genel_dashboard_bundle: %s plasiyer, tek MSSQL bağlantısı',
+                    len(plasiyerler))
+
+            cur.execute(satis_sql)
+            cols_s = [c[0] for c in cur.description]
+            satis_lookup = self._dashboard_plasiyer_batch_row_maps(
+                cur.fetchall(), cols_s, self.safe_decode_string)
+
+            cur.execute(tahsilat_sql)
+            cols_t = [c[0] for c in cur.description]
+            tahsilat_lookup = self._dashboard_plasiyer_batch_row_maps(
+                cur.fetchall(), cols_t, self.safe_decode_string)
+
+            cur.execute(monthly_satis_sql)
+            cols_m1 = [c[0] for c in cur.description]
+            for rr in _odbc_keys_lower(cur.fetchall(), cols_m1):
+                ay = int(rr.get('ay') or 0)
+                if 1 <= ay <= 12:
+                    monthly_data[ay]['satis'] = float(rr.get('toplam_tutar') or 0)
+
+            cur.execute(monthly_tahsilat_sql)
+            cols_m2 = [c[0] for c in cur.description]
+            for rr in _odbc_keys_lower(cur.fetchall(), cols_m2):
+                ay = int(rr.get('ay') or 0)
+                if 1 <= ay <= 12:
+                    monthly_data[ay]['tahsilat'] = float(rr.get('toplam_tutar') or 0)
+
+            cur.close()
+
+            plasiyer_bundle = self._assemble_plasiyer_dashboard_from_lookups(
+                plasiyerler, satis_lookup, tahsilat_lookup)
+        except Exception as e:
+            logger.error(f'get_genel_dashboard_bundle error: {e}')
+            plasiyer_bundle = {
+                'plasiyerler': [],
+                'toplam_satis': dict(empty_z),
+                'toplam_tahsilat': dict(empty_z),
+            }
+            monthly_data = dict(monthly_empty)
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+        return {'plasiyer_data': plasiyer_bundle, 'monthly_stats': monthly_data}
 
     def get_monthly_satis_tahsilat_stats(self):
         """Tüm ayların satış ve tahsilat toplamlarını getirir (aylık bazda)"""
@@ -4694,22 +4963,19 @@ class MSSQLService:
                 ISNULL(SUM([TUTAR]), 0) AS toplam_tutar
             FROM [GO3].[dbo].[FATURA]
             WHERE (TRCODE=8 OR TRCODE=7)
-            AND [CARİ KOD] LIKE '120.%'
-            AND [PLASİYER KOD]='PLS'
             AND YEAR([TARİH]) = YEAR(GETDATE())
             GROUP BY MONTH([TARİH]), YEAR([TARİH])
             ORDER BY MONTH([TARİH])
             """
 
-            # Tahsilat verilerini ay bazında grupla
+            # Tahsilat verilerini ay bazında grupla — tüm TAHSILAT_LOGO satırları (dashboard plasiyer toplamları ile aynı kaynak)
             tahsilat_query = """
             SELECT 
                 MONTH([TARİH]) AS ay,
                 YEAR([TARİH]) AS yil,
-                ISNULL(SUM(CAST([TUTAR] as DECIMAL(15,2))), 0) AS toplam_tutar
+                ISNULL(SUM(CAST([TUTAR] AS DECIMAL(15,2))), 0) AS toplam_tutar
             FROM [GO3].[dbo].[TAHSILAT_LOGO]
-            WHERE [PLASİYER KOD] = 'PLS'
-            AND YEAR([TARİH]) = YEAR(GETDATE())
+            WHERE YEAR([TARİH]) = YEAR(GETDATE())
             GROUP BY MONTH([TARİH]), YEAR([TARİH])
             ORDER BY MONTH([TARİH])
             """
@@ -5809,129 +6075,6 @@ class MSSQLService:
             except Exception:
                 pass
 
-    def get_malzeme_satis_detay(self, baslangic_tarihi=None, bitis_tarihi=None, plasiyer=None, cari_kod=None, cari_unvan=None, malzeme_kodu=None, malzeme_aciklama=None, page=1, page_size=100):
-        """DETAY tablosundan malzeme satış detaylarını getirir - sadece dolu parametrelerle filtreleme"""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor()
-
-            # Base query
-            base_query = """
-                  SELECT [TARİH], [MALZEME KODU], [AÇIKLAMASI], [MARKA], [MALZEME TÜRÜ],
-                      [MİKTAR], [BİRİM], [BİRİM BRÜT], [BİRİM İNDİRİM], [BİRİM NET], [B2B], [FARK],
-                      [TOPLAM İNDİRİM], [KDV TUTARI], [NET TOPLAM], [FATURA NO],
-                      [CARİ KOD], [CARİ ÜNVAN], [PLASİYER], [BÖLGE]
-                FROM [GO3].[dbo].[DETAY] 
-                WHERE (TRCODE = 8 OR TRCODE = 7)
-            """
-
-            params = []
-
-            # Sadece dolu parametreler için filtreleme koşulları ekle
-            if baslangic_tarihi and baslangic_tarihi.strip():
-                base_query += " AND [TARİH] >= ?"
-                params.append(baslangic_tarihi)
-
-            if bitis_tarihi and bitis_tarihi.strip():
-                base_query += " AND [TARİH] <= ?"
-                params.append(bitis_tarihi)
-
-            if plasiyer and plasiyer.strip():
-                base_query += " AND [PLASİYER] = ?"
-                params.append(plasiyer)
-
-            if cari_kod and cari_kod.strip():
-                base_query += " AND [CARİ KOD] LIKE ?"
-                params.append(f'%{cari_kod}%')
-
-            if cari_unvan and cari_unvan.strip():
-                base_query += " AND [CARİ ÜNVAN] LIKE ?"
-                params.append(f'%{cari_unvan}%')
-
-            if malzeme_kodu and malzeme_kodu.strip():
-                base_query += " AND [MALZEME KODU] LIKE ?"
-                params.append(f'%{malzeme_kodu}%')
-
-            if malzeme_aciklama and malzeme_aciklama.strip():
-                base_query += " AND [AÇIKLAMASI] LIKE ?"
-                params.append(f'%{malzeme_aciklama}%')
-
-            # Toplam kayıt sayısını al
-            count_query = "SELECT COUNT(*) FROM (" + \
-                base_query + ") AS CountQuery"
-            cursor.execute(count_query, params)
-            total_count = cursor.fetchone()[0]
-
-            # Sayfalama hesaplamaları
-            if page_size is None:
-                # Hepsi seçeneği
-                offset = 0
-                limit = total_count
-                total_pages = 1
-                current_page = 1
-            else:
-                offset = (page - 1) * page_size
-                limit = page_size
-                total_pages = (total_count + page_size - 1) // page_size
-                current_page = page
-
-            # Ana sorgu sayfalama ile
-            main_query = base_query + \
-                " ORDER BY [TARİH] DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
-            params.extend([offset, limit])
-
-            cursor.execute(main_query, params)
-            rows = cursor.fetchall()
-
-            # Sonuçları format et
-            data = []
-            for row in rows:
-                item = {
-                    'TARİH': row[0].strftime('%d.%m.%Y') if row[0] else '-',
-                    'MALZEME_KODU': self.safe_decode_string(row[1]),
-                    'AÇIKLAMASI': self.safe_decode_string(row[2]),
-                    'MARKA': self.safe_decode_string(row[3]),
-                    'MALZEME_TÜRÜ': self.safe_decode_string(row[4]),
-                    'MİKTAR': float(row[5]) if row[5] else 0,
-                    'BİRİM': self.safe_decode_string(row[6]),
-                    'BİRİM_BRÜT': float(row[7]) if row[7] else 0,
-                    'BİRİM_İNDİRİM': float(row[8]) if row[8] else 0,
-                    'BİRİM_NET': float(row[9]) if row[9] else 0,
-                    'B2B': float(row[10]) if row[10] else 0,
-                    'FARK': float(row[11]) if row[11] else 0,
-                    'TOPLAM_İNDİRİM': float(row[12]) if row[12] else 0,
-                    'KDV_TUTARI': float(row[13]) if row[13] else 0,
-                    'NET_TOPLAM': float(row[14]) if row[14] else 0,
-                    'FATURA_NO': self.safe_decode_string(row[15]),
-                    'CARİ_KOD': self.safe_decode_string(row[16]),
-                    'CARİ_ÜNVAN': self.safe_decode_string(row[17]),
-                    'PLASİYER': self.safe_decode_string(row[18]),
-                    'BÖLGE': self.safe_decode_string(row[19])
-                }
-                data.append(item)
-
-            conn.close()
-
-            return {
-                'data': data,
-                'total_count': total_count,
-                'total_pages': total_pages,
-                'current_page': current_page,
-                'has_next': current_page < total_pages,
-                'has_previous': current_page > 1
-            }
-
-        except Exception as e:
-            logger.error(f"get_malzeme_satis_detay error: {e}")
-            return {
-                'data': [],
-                'total_count': 0,
-                'total_pages': 0,
-                'current_page': 1,
-                'has_next': False,
-                'has_previous': False
-            }
-
     def get_malzeme_satis_detay_all(self, baslangic_tarihi=None, bitis_tarihi=None, plasiyer=None, cari_kod=None, cari_unvan=None, malzeme_kodu=None, malzeme_aciklama=None):
         """DETAY tablosundan tüm malzeme satış detaylarını getirir - sayfalama olmadan - sadece dolu parametrelerle filtreleme"""
         try:
@@ -6766,8 +6909,7 @@ class MSSQLService:
                 COUNT(CASE WHEN CAST([TARİH] AS DATE) = CAST(GETDATE() AS DATE) THEN 1 END) as adet,
                 SUM(CASE WHEN CAST([TARİH] AS DATE) = CAST(GETDATE() AS DATE) THEN [TUTAR] ELSE 0 END) as toplam_tutar
             FROM [GO3].[dbo].[FATURA] 
-            WHERE [PLASİYER KOD] = 'PLS'
-            AND TRCODE=1
+            WHERE TRCODE=1
             AND [CARİ KOD] LIKE '320.%'
             AND [TARİH] >= DATEADD(month, -1, GETDATE())
             
@@ -6778,8 +6920,7 @@ class MSSQLService:
                 COUNT(CASE WHEN CAST([TARİH] AS DATE) >= DATEADD(day, -(DATEPART(WEEKDAY, GETDATE()) - 2), CAST(GETDATE() AS DATE)) THEN 1 END) as adet,
                 SUM(CASE WHEN CAST([TARİH] AS DATE) >= DATEADD(day, -(DATEPART(WEEKDAY, GETDATE()) - 2), CAST(GETDATE() AS DATE)) THEN [TUTAR] ELSE 0 END) as toplam_tutar
             FROM [GO3].[dbo].[FATURA] 
-            WHERE [PLASİYER KOD] = 'PLS'
-            AND TRCODE=1
+            WHERE TRCODE=1
             AND [CARİ KOD] LIKE '320.%'
             
             UNION ALL
@@ -6789,8 +6930,7 @@ class MSSQLService:
                 COUNT(CASE WHEN CAST([TARİH] AS DATE) >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) THEN 1 END) as adet,
                 SUM(CASE WHEN CAST([TARİH] AS DATE) >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) THEN [TUTAR] ELSE 0 END) as toplam_tutar
             FROM [GO3].[dbo].[FATURA] 
-            WHERE [PLASİYER KOD] = 'PLS'
-            AND TRCODE=1
+            WHERE TRCODE=1
             AND [CARİ KOD] LIKE '320.%'
             """
 
@@ -6833,8 +6973,7 @@ class MSSQLService:
                 COUNT(CASE WHEN CAST([TARİH] AS DATE) >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) THEN 1 END) as aylik_adet,
                 SUM(CASE WHEN CAST([TARİH] AS DATE) >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) THEN [TUTAR] ELSE 0 END) as aylik_tutar
             FROM [GO3].[dbo].[FATURA] 
-            WHERE [PLASİYER KOD] = 'PLS'
-            AND TRCODE=1
+            WHERE TRCODE=1
             AND [CARİ KOD] LIKE '320.%'
             GROUP BY [PLASİYER]
             ORDER BY aylik_tutar DESC
@@ -7315,56 +7454,50 @@ class MSSQLService:
             raise e
 
     def get_malzeme_satis_detay(self, baslangic_tarihi='', bitis_tarihi='', plasiyer='', cari_kod='', cari_unvan='', malzeme_kodu='', malzeme_aciklama='', page=1, page_size=50):
-        """Malzeme satış detaylarını getirir - DETAY tablosu TRCODE=7 veya 8 ve CARİ KOD LIKE '120.%' filtreli"""
+        """Malzeme satış detayları — DETAY + FATURA JOIN, parametreli filtrelerle."""
+        connection = None
         try:
             connection = self.get_connection()
             cursor = connection.cursor()
 
-            # Filtreleme koşulları - DETAY ve FATURA tablolarını JOIN ile birleştir
-            where_conditions = ["(f.TRCODE=7 OR f.TRCODE=8)",
-                                "f.[CARİ KOD] LIKE '120.%'"]
+            where_conditions = ["f.TRCODE IN (7, 8)"]
+            params = []
 
-            if baslangic_tarihi:
+            if baslangic_tarihi and str(baslangic_tarihi).strip():
+                where_conditions.append("CAST(d.[TARİH] AS DATE) >= ?")
+                params.append(baslangic_tarihi)
+            if bitis_tarihi and str(bitis_tarihi).strip():
+                where_conditions.append("CAST(d.[TARİH] AS DATE) <= ?")
+                params.append(bitis_tarihi)
+            if plasiyer and str(plasiyer).strip():
                 where_conditions.append(
-                    f"CAST(d.[TARİH] AS DATE) >= '{baslangic_tarihi}'")
-            if bitis_tarihi:
-                where_conditions.append(
-                    f"CAST(d.[TARİH] AS DATE) <= '{bitis_tarihi}'")
-            if plasiyer:
-                where_conditions.append(
-                    "(f.[PLASİYER] = ? OR f.[PLASİYER KOD] = ?)")
-            if cari_kod:
-                where_conditions.append(f"f.[CARİ KOD] LIKE '%{cari_kod}%'")
-            if cari_unvan:
-                where_conditions.append(
-                    f"f.[CARİ ÜNVAN] LIKE '%{cari_unvan}%'")
-            if malzeme_kodu:
-                where_conditions.append(
-                    f"d.[MALZEME KODU] LIKE '%{malzeme_kodu}%'")
-            if malzeme_aciklama:
-                where_conditions.append(
-                    f"d.[AÇIKLAMASI] LIKE '%{malzeme_aciklama}%'")
+                    f"UPPER(RTRIM(LTRIM({_FATURA_PLASIYER_CANON}))) = UPPER(RTRIM(LTRIM(?)))"
+                )
+                params.append(plasiyer)
+            if cari_kod and str(cari_kod).strip():
+                where_conditions.append("f.[CARİ KOD] LIKE ?")
+                params.append(f"%{cari_kod}%")
+            if cari_unvan and str(cari_unvan).strip():
+                where_conditions.append("f.[CARİ ÜNVAN] LIKE ?")
+                params.append(f"%{cari_unvan}%")
+            if malzeme_kodu and str(malzeme_kodu).strip():
+                where_conditions.append("d.[MALZEME KODU] LIKE ?")
+                params.append(f"%{malzeme_kodu}%")
+            if malzeme_aciklama and str(malzeme_aciklama).strip():
+                where_conditions.append("d.[AÇIKLAMASI] LIKE ?")
+                params.append(f"%{malzeme_aciklama}%")
 
-            # Toplam kayıt sayısı
             count_query = f"""
             SELECT COUNT(*)
             FROM [GO3].[dbo].[DETAY] d
             INNER JOIN [GO3].[dbo].[FATURA] f ON d.[FATURAID] = f.[FATURAID]
             WHERE {' AND '.join(where_conditions)}
             """
-
-            if plasiyer:
-                cursor.execute(count_query, [plasiyer, plasiyer])
-            else:
-                cursor.execute(count_query)
+            cursor.execute(count_query, params)
             total_count = cursor.fetchone()[0]
 
-            # Sayfalama için offset hesapla
-            offset = (page - 1) * page_size
-
-            # Ana sorgu - DETAY ve FATURA tablolarını JOIN ile birleştir
-            query = f"""
-            SELECT 
+            base_query = f"""
+            SELECT
                 d.[TARİH],
                 d.[İŞLEM TARİHİ],
                 d.[MALZEME KODU],
@@ -7376,39 +7509,54 @@ class MSSQLService:
                 d.[BİRİM BRÜT],
                 d.[BİRİM İNDİRİM],
                 d.[BİRİM NET],
+                ISNULL(d.[B2B], 0) AS [B2B],
+                ISNULL(d.[FARK], 0) AS [FARK],
                 d.[TOPLAM İNDİRİM],
                 d.[KDV TUTARI],
                 d.[NET TOPLAM],
+                d.[FATURA NO],
                 f.[CARİ KOD],
                 f.[CARİ ÜNVAN],
+                {_FATURA_PLASIYER_CANON} AS [PLASİYER_CANON],
+                f.[BÖLGE],
                 f.[İŞLEM TARİHİ]
             FROM [GO3].[dbo].[DETAY] d
             INNER JOIN [GO3].[dbo].[FATURA] f ON d.[FATURAID] = f.[FATURAID]
             WHERE {' AND '.join(where_conditions)}
             ORDER BY d.[TARİH] DESC, d.[DETAYID] DESC
-            OFFSET ? ROWS
-            FETCH NEXT ? ROWS ONLY
             """
 
-            if plasiyer:
-                cursor.execute(query, [plasiyer, plasiyer, offset, page_size])
-            else:
-                cursor.execute(query, [offset, page_size])
+            current_page = 1
+            total_pages = 1 if total_count else 0
+            has_next = False
+            has_previous = False
+            query_params = list(params)
+
+            if page_size is not None:
+                safe_page = max(int(page or 1), 1)
+                safe_page_size = max(int(page_size), 1)
+                offset = (safe_page - 1) * safe_page_size
+                total_pages = (total_count + safe_page_size - 1) // safe_page_size if total_count else 0
+                has_next = safe_page < total_pages
+                has_previous = safe_page > 1
+                current_page = safe_page
+                base_query += """
+                OFFSET ? ROWS
+                FETCH NEXT ? ROWS ONLY
+                """
+                query_params.extend([offset, safe_page_size])
+
+            cursor.execute(base_query, query_params)
             rows = cursor.fetchall()
 
-            # Sonuçları formatla
             data = []
             for row in rows:
-                formatted_date = None
-                if row[0]:  # TARİH
+                formatted_date = '-'
+                if row[0]:
                     try:
-                        date_obj = row[0]
-                        if hasattr(date_obj, 'strftime'):
-                            formatted_date = date_obj.strftime('%d.%m.%Y')
-                        else:
-                            formatted_date = str(row[0])[:10]
-                    except:
-                        formatted_date = str(row[0])[:10] if row[0] else None
+                        formatted_date = row[0].strftime('%d.%m.%Y')
+                    except AttributeError:
+                        formatted_date = str(row[0])[:10]
 
                 data.append({
                     'TARİH': formatted_date,
@@ -7422,31 +7570,44 @@ class MSSQLService:
                     'BİRİM_BRÜT': float(row[8]) if row[8] is not None else 0,
                     'BİRİM_İNDİRİM': float(row[9]) if row[9] is not None else 0,
                     'BİRİM_NET': float(row[10]) if row[10] is not None else 0,
-                    'TOPLAM_İNDİRİM': float(row[11]) if row[11] is not None else 0,
-                    'KDV_TUTARI': float(row[12]) if row[12] is not None else 0,
-                    'NET_TOPLAM': float(row[13]) if row[13] is not None else 0,
-                    'CARİ_KOD': self.safe_decode_string(row[14]),
-                    'CARİ_ÜNVAN': self.safe_decode_string(row[15]),
-                    'İŞLEM_TARİHİ_FATURA': row[16]
+                    'B2B': float(row[11]) if row[11] is not None else 0,
+                    'FARK': float(row[12]) if row[12] is not None else 0,
+                    'TOPLAM_İNDİRİM': float(row[13]) if row[13] is not None else 0,
+                    'KDV_TUTARI': float(row[14]) if row[14] is not None else 0,
+                    'NET_TOPLAM': float(row[15]) if row[15] is not None else 0,
+                    'FATURA_NO': self.safe_decode_string(row[16]),
+                    'CARİ_KOD': self.safe_decode_string(row[17]),
+                    'CARİ_ÜNVAN': self.safe_decode_string(row[18]),
+                    'PLASİYER': self.safe_decode_string(row[19]),
+                    'BÖLGE': self.safe_decode_string(row[20]),
+                    'İŞLEM_TARİHİ_FATURA': row[21],
                 })
-
-            # Sayfalama bilgileri
-            total_pages = (total_count + page_size - 1) // page_size
-            has_next = page < total_pages
-            has_previous = page > 1
 
             return {
                 'data': data,
                 'total_count': total_count,
                 'total_pages': total_pages,
-                'current_page': page,
+                'current_page': current_page,
                 'has_next': has_next,
-                'has_previous': has_previous
+                'has_previous': has_previous,
             }
 
         except Exception as e:
             logger.error(f"get_malzeme_satis_detay error: {e}")
-            raise e
+            return {
+                'data': [],
+                'total_count': 0,
+                'total_pages': 0,
+                'current_page': 1,
+                'has_next': False,
+                'has_previous': False,
+            }
+        finally:
+            if connection is not None:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
 
     def get_tahsilat_raporu(self, baslangic_tarihi='', bitis_tarihi=''):
         """Klasik Tahsilat Raporu için plasiyer bazında tahsilat türleri verisi getirir"""

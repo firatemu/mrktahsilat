@@ -1,3 +1,6 @@
+# Yerel veritabanı yedekleri (tarihli klasörler)
+backups/
+
 # Django
 *.pyc
 __pycache__/
