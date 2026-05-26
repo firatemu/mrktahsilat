@@ -3852,6 +3852,191 @@ class MSSQLService:
             logger.error(f"get_plasiyer_list_from_fatura error: {e}")
             return []
 
+    def get_hakedis_hedef_filter_options(self):
+        """DETAY tablosundan hakediş hedef ekranı için marka ve tür seçeneklerini getirir."""
+        query = """
+        SELECT DISTINCT
+            LTRIM(RTRIM([MARKA])) AS marka,
+            NULLIF(LTRIM(RTRIM(COALESCE([MALZEME TÜRÜ], ''))), '') AS malzeme_turu
+        FROM [GO3].[dbo].[DETAY]
+        WHERE TRCODE IN (7, 8)
+          AND [MARKA] IS NOT NULL
+          AND LTRIM(RTRIM([MARKA])) <> ''
+        ORDER BY marka, malzeme_turu
+        """
+
+        connection = None
+        try:
+            connection = self.get_connection()
+            cursor = connection.cursor()
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+            marka_tur_map = {}
+            for row in rows:
+                marka = self.safe_decode_string(row[0]).strip()
+                tur = self.safe_decode_string(row[1]).strip() if row[1] else ''
+                if not marka:
+                    continue
+                marka_tur_map.setdefault(marka, set())
+                if tur:
+                    marka_tur_map[marka].add(tur)
+
+            return {
+                'markalar': sorted(marka_tur_map.keys()),
+                'marka_turleri': {
+                    marka: sorted(list(turler))
+                    for marka, turler in marka_tur_map.items()
+                }
+            }
+        except Exception as e:
+            logger.error(f"get_hakedis_hedef_filter_options error: {e}")
+            return {
+                'markalar': [],
+                'marka_turleri': {},
+            }
+        finally:
+            if connection is not None:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
+
+    def get_aylik_hakedis_satis_toplamlari(self, yil, ay):
+        """DETAY tablosundan aylık plasiyer + marka + tür bazlı NET TOPLAM aggregate verisi döndürür."""
+        query = """
+        SELECT
+            UPPER(LTRIM(RTRIM(COALESCE([PLASİYER], '')))) AS plasiyer,
+            LTRIM(RTRIM([MARKA])) AS marka,
+            NULLIF(LTRIM(RTRIM(COALESCE([MALZEME TÜRÜ], ''))), '') AS malzeme_turu,
+            SUM(CAST([NET TOPLAM] AS DECIMAL(18, 2))) AS net_toplam
+        FROM [GO3].[dbo].[DETAY]
+        WHERE TRCODE IN (7, 8)
+          AND YEAR([TARİH]) = ?
+          AND MONTH([TARİH]) = ?
+          AND [MARKA] IS NOT NULL
+          AND LTRIM(RTRIM([MARKA])) <> ''
+        GROUP BY
+            UPPER(LTRIM(RTRIM(COALESCE([PLASİYER], '')))),
+            LTRIM(RTRIM([MARKA])),
+            NULLIF(LTRIM(RTRIM(COALESCE([MALZEME TÜRÜ], ''))), '')
+        ORDER BY plasiyer, marka, malzeme_turu
+        """
+
+        connection = None
+        try:
+            connection = self.get_connection()
+            cursor = connection.cursor()
+            cursor.execute(query, [yil, ay])
+            rows = cursor.fetchall()
+
+            results = []
+            for row in rows:
+                results.append({
+                    'plasiyer': self.safe_decode_string(row[0]).strip(),
+                    'marka': self.safe_decode_string(row[1]).strip(),
+                    'malzeme_turu': self.safe_decode_string(row[2]).strip() if row[2] else '',
+                    'net_toplam': float(row[3]) if row[3] is not None else 0.0,
+                })
+            return results
+        except Exception as e:
+            logger.error(f"get_aylik_hakedis_satis_toplamlari error: {e}")
+            return []
+        finally:
+            if connection is not None:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
+
+    def get_aylik_hakedis_hedef_toplamlari(self, yil, ay, hedef_filtreleri):
+        """
+        Hakediş hedefleri için DETAY tablosundan birleşik satış toplamı döndürür.
+        Çoklu malzeme türü seçimlerinde SQL tarafında OR koşulu ile tek hedef toplamı hesaplanır.
+        """
+        if not hedef_filtreleri:
+            return {}
+
+        subqueries = []
+        params = []
+
+        for hedef in hedef_filtreleri:
+            marka = self.safe_decode_string(hedef.get('marka')).strip()
+            target_key = str(hedef.get('target_key') or '').strip()
+            malzeme_turleri = [
+                self.safe_decode_string(tur).strip()
+                for tur in (hedef.get('malzeme_turleri') or [])
+                if self.safe_decode_string(tur).strip()
+            ]
+
+            if not marka or not target_key:
+                continue
+
+            subquery = """
+            SELECT
+                UPPER(LTRIM(RTRIM(COALESCE([PLASİYER], '')))) AS plasiyer,
+                ? AS target_key,
+                CAST([NET TOPLAM] AS DECIMAL(18, 2)) AS net_toplam
+            FROM [GO3].[dbo].[DETAY]
+            WHERE TRCODE IN (7, 8)
+              AND YEAR([TARİH]) = ?
+              AND MONTH([TARİH]) = ?
+              AND [MARKA] IS NOT NULL
+              AND LTRIM(RTRIM([MARKA])) <> ''
+              AND LTRIM(RTRIM([MARKA])) = ?
+            """
+            subquery_params = [target_key, yil, ay, marka]
+
+            if malzeme_turleri:
+                or_conditions = " OR ".join(
+                    [
+                        "NULLIF(LTRIM(RTRIM(COALESCE([MALZEME TÜRÜ], ''))), '') = ?"
+                        for _ in malzeme_turleri
+                    ]
+                )
+                subquery += f" AND ({or_conditions})"
+                subquery_params.extend(malzeme_turleri)
+
+            subqueries.append(subquery)
+            params.extend(subquery_params)
+
+        if not subqueries:
+            return {}
+
+        query = f"""
+        SELECT
+            plasiyer,
+            target_key,
+            SUM(net_toplam) AS net_toplam
+        FROM (
+            {' UNION ALL '.join(subqueries)}
+        ) hedefler
+        GROUP BY plasiyer, target_key
+        """
+
+        connection = None
+        try:
+            connection = self.get_connection()
+            cursor = connection.cursor()
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+
+            results = {}
+            for row in rows:
+                plasiyer = self.safe_decode_string(row[0]).strip().upper()
+                target_key = self.safe_decode_string(row[1]).strip()
+                results[(plasiyer, target_key)] = float(row[2]) if row[2] is not None else 0.0
+            return results
+        except Exception as e:
+            logger.error(f"get_aylik_hakedis_hedef_toplamlari error: {e}")
+            return {}
+        finally:
+            if connection is not None:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
+
     def get_cari_bakiye_by_plasiyer(self, plasiyer, bolge=None, cari_tipi=None):
         """Belirli plasiyer için cari bakiye listesini getirir (bakiye büyükten küçüğe sıralı)"""
         query = """

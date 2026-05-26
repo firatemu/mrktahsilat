@@ -29,6 +29,7 @@ def has_menu_permission(user, menu_name):
     alt_menu_mapping = {
         'muhasebe': ['muhasebe_yeni_tahsilat', 'muhasebe_tahsilat_listesi', 'muhasebe_klasik_rapor', 'muhasebe_gunluk_rapor'],
         'genel_gorunum': ['genel_dashboard', 'genel_tahsilatlar', 'genel_satislar', 'genel_alimlar', 'genel_ekstre', 'genel_cari_analiz', 'genel_cari_aylik_ozet'],
+        'hakedis_yonetimi': ['plasiyer_hedef_durumu', 'hedeflerim', 'hedef_belirleme'],
         'stok_yonetimi': ['stok_listesi', 'fiyat_analizi', 'stok_detayli_analiz', 'ortalama_maliyet'],
         'cari_yonetimi': ['cari_analiz', 'cari_vade_analizi', 'cari_gecikmeleri_detay'],
     }
@@ -67,6 +68,7 @@ def get_user_permissions(user):
     alt_menu_mapping = {
         'muhasebe': ['muhasebe_yeni_tahsilat', 'muhasebe_tahsilat_listesi', 'muhasebe_klasik_rapor', 'muhasebe_gunluk_rapor'],
         'genel_gorunum': ['genel_dashboard', 'genel_tahsilatlar', 'genel_satislar', 'genel_alimlar', 'genel_ekstre', 'genel_cari_analiz', 'genel_cari_aylik_ozet'],
+        'hakedis_yonetimi': ['plasiyer_hedef_durumu', 'hedeflerim', 'hedef_belirleme'],
         'stok_yonetimi': ['stok_listesi', 'fiyat_analizi', 'stok_detayli_analiz', 'ortalama_maliyet'],
         'cari_yonetimi': ['cari_analiz', 'cari_vade_analizi', 'cari_gecikmeleri_detay'],
     }
@@ -104,6 +106,7 @@ def has_any_permission(user):
     alt_menu_mapping = {
         'muhasebe': ['muhasebe_yeni_tahsilat', 'muhasebe_tahsilat_listesi', 'muhasebe_klasik_rapor', 'muhasebe_gunluk_rapor'],
         'genel_gorunum': ['genel_dashboard', 'genel_tahsilatlar', 'genel_satislar', 'genel_alimlar', 'genel_ekstre', 'genel_cari_analiz', 'genel_cari_aylik_ozet'],
+        'hakedis_yonetimi': ['plasiyer_hedef_durumu', 'hedeflerim', 'hedef_belirleme'],
         'stok_yonetimi': ['stok_listesi', 'fiyat_analizi', 'stok_detayli_analiz', 'ortalama_maliyet'],
         'cari_yonetimi': ['cari_analiz', 'cari_vade_analizi', 'cari_gecikmeleri_detay'],
     }

@@ -1,0 +1,334 @@
+{% extends 'base.html' %}
+{% load tahsilat_extras %}
+{% load humanize %}
+
+{% block title %}Hedef Belirleme{% endblock %}
+
+{% block extra_css %}
+<style>
+    .summary-card {
+        border: 0;
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    }
+    .summary-value {
+        font-size: 1.6rem;
+        font-weight: 700;
+    }
+    .target-form-card,
+    .target-table-card {
+        border: 0;
+        border-radius: 18px;
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+    }
+    .plasiyer-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+    }
+    .table thead th {
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+    .scope-badge {
+        background: rgba(59, 130, 246, 0.12);
+        color: #1d4ed8;
+        border-radius: 999px;
+        padding: 0.35rem 0.75rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+    }
+    .multi-select-note {
+        font-size: 0.82rem;
+        color: #6b7280;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card target-form-card">
+                <div class="card-body">
+                    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+                        <div>
+                            <h4 class="mb-1 text-primary">
+                                <i class="bi bi-sliders me-2"></i>Hedef Belirleme
+                            </h4>
+                            <p class="text-muted mb-0">Marka + opsiyonel malzeme türü bazında ortak hedef setini tanımlayın, plasiyer tutarlarını tek ekranda yönetin.</p>
+                        </div>
+                        <form method="get" class="row g-2 align-items-end">
+                            <div class="col-auto">
+                                <label class="form-label mb-1">Yıl</label>
+                                <select name="yil" class="form-select">
+                                    {% for yil in years %}
+                                    <option value="{{ yil }}" {% if yil == selected_year %}selected{% endif %}>{{ yil }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <label class="form-label mb-1">Ay</label>
+                                <select name="ay" class="form-select">
+                                    {% for ay in months %}
+                                    <option value="{{ ay }}" {% if ay == selected_month %}selected{% endif %}>{{ ay }}. Ay</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-funnel me-1"></i>Göster
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-6 col-xl-3">
+            <div class="card summary-card h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Hedef Grubu</div>
+                    <div class="summary-value text-primary">{{ toplam_hedef_grubu }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="card summary-card h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Toplam Satır</div>
+                    <div class="summary-value text-success">{{ toplam_hedef_satiri }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="card summary-card h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Aktif Satır</div>
+                    <div class="summary-value text-dark">{{ aktif_hedef_satiri }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="card summary-card h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Benzersiz Marka</div>
+                    <div class="summary-value text-warning">{{ benzersiz_marka_sayisi }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="card target-form-card">
+                <div class="card-header bg-white border-0 pt-4 pb-0">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <h5 class="mb-1">
+                                {% if edit_group %}Hedef Grubu Düzenle{% else %}Yeni Hedef Grubu{% endif %}
+                            </h5>
+                            <p class="text-muted mb-0">{{ selected_month }} / {{ selected_year }} dönemi için ortak hedef seti tanımlayın.</p>
+                        </div>
+                        {% if edit_group %}
+                        <a href="?yil={{ selected_year }}&ay={{ selected_month }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-x-circle me-1"></i>Düzenlemeyi İptal Et
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body pt-4">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="save_target_group">
+                        <input type="hidden" name="donem_yil" value="{{ selected_year }}">
+                        <input type="hidden" name="donem_ay" value="{{ selected_month }}">
+                        {% if edit_group %}
+                        <input type="hidden" name="edit_group_id" value="{{ edit_group.edit_group_id }}">
+                        {% endif %}
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <label class="form-label">Marka</label>
+                                <select name="marka" id="markaSelect" class="form-select" required>
+                                    <option value="">Marka seçin</option>
+                                    {% for marka in markalar %}
+                                    <option value="{{ marka }}" {% if edit_group and edit_group.marka == marka %}selected{% endif %}>{{ marka }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Malzeme Türü</label>
+                                <select name="malzeme_turu" id="malzemeTuruSelect" class="form-select" multiple size="6">
+                                </select>
+                                <div class="multi-select-note mt-2">
+                                    `Ctrl` / `Cmd` ile çoklu seçim yapabilirsiniz. Seçilen türler tek hedef kaydı olarak tutulur ve hesaplama bu türlerin toplamı üzerinden yapılır. Seçim yapılmazsa kayıt marka geneli olarak oluşturulur.
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Kademe No</label>
+                                <input type="number" class="form-control" name="kademe_no" min="1" value="{% if edit_group %}{{ edit_group.kademe_no }}{% else %}1{% endif %}" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Hakediş %</label>
+                                <input type="number" class="form-control" name="hakedis_yuzde" step="0.01" min="0" value="{% if edit_group %}{{ edit_group.hakedis_yuzde|floatformat:2 }}{% endif %}" placeholder="0,00" required>
+                            </div>
+                            <div class="col-md-1 d-flex align-items-end">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" role="switch" name="aktif" id="aktifSwitch" {% if edit_group %}{% if edit_group.aktif %}checked{% endif %}{% else %}checked{% endif %}>
+                                    <label class="form-check-label" for="aktifSwitch">Aktif</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border rounded-4 p-3 p-lg-4 bg-light-subtle">
+                            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                <div>
+                                    <h6 class="mb-1">Plasiyer Bazlı Hedef Tutarları</h6>
+                                    <p class="text-muted mb-0 small">Boş veya 0 bırakılan plasiyer için bu hedef grubu oluşturulmaz.</p>
+                                </div>
+                            </div>
+                            <div class="plasiyer-grid">
+                                {% for plasiyer in plasiyer_alanlari %}
+                                <div>
+                                    <label class="form-label">{{ plasiyer.label }}</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">TL</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            class="form-control"
+                                            name="hedef_{{ plasiyer.key }}"
+                                            value="{% if edit_group %}{{ edit_group.hedefler|get_item:plasiyer.label|floatformat:2 }}{% endif %}"
+                                            placeholder="0,00">
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save me-1"></i>{% if edit_group %}Güncelle{% else %}Kaydet{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card target-table-card">
+                <div class="card-header bg-white border-0 pt-4 pb-0">
+                    <h5 class="mb-1">Tanımlı Hedefler</h5>
+                    <p class="text-muted mb-0">{{ selected_month }} / {{ selected_year }} dönemi için kaydedilen hedef grupları</p>
+                </div>
+                <div class="card-body pt-4">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Marka</th>
+                                    <th>Kapsam</th>
+                                    <th>Kademe</th>
+                                    <th>Hakediş %</th>
+                                    {% for plasiyer in plasiyer_alanlari %}
+                                    <th>{{ plasiyer.label }}</th>
+                                    {% endfor %}
+                                    <th>Durum</th>
+                                    <th class="text-end">İşlem</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for group in grouped_targets %}
+                                <tr>
+                                    <td class="fw-semibold">{{ group.marka }}</td>
+                                    <td><span class="scope-badge">{{ group.kapsam_etiketi }}</span></td>
+                                    <td>{{ group.kademe_no }}</td>
+                                    <td>%{{ group.hakedis_yuzde|floatformat:2 }}</td>
+                                    {% for plasiyer in plasiyer_alanlari %}
+                                    <td>
+                                        {% with tutar=group.hedefler|get_item:plasiyer.label %}
+                                            {% if tutar %}
+                                                {{ tutar|floatformat:2|intcomma }} TL
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        {% endwith %}
+                                    </td>
+                                    {% endfor %}
+                                    <td>
+                                        {% if group.aktif %}
+                                        <span class="badge text-bg-success">Aktif</span>
+                                        {% else %}
+                                        <span class="badge text-bg-secondary">Pasif</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <div class="d-flex justify-content-end gap-2">
+                                            <a href="?yil={{ selected_year }}&ay={{ selected_month }}&edit={{ group.edit_group_id }}" class="btn btn-outline-primary btn-sm">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </a>
+                                            <form method="post" onsubmit="return confirm('Bu hedef grubunu silmek istediğinize emin misiniz?');">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="delete_target_group">
+                                                <input type="hidden" name="donem_yil" value="{{ selected_year }}">
+                                                <input type="hidden" name="donem_ay" value="{{ selected_month }}">
+                                                <input type="hidden" name="group_id" value="{{ group.edit_group_id }}">
+                                                <button type="submit" class="btn btn-outline-danger btn-sm">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="14" class="text-center text-muted py-4">Bu dönem için henüz hedef tanımı bulunmuyor.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script id="markaTurleriData" type="application/json">{{ marka_turleri_json|safe }}</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const markaSelect = document.getElementById('markaSelect');
+    const turSelect = document.getElementById('malzemeTuruSelect');
+    const markaTurleri = JSON.parse(document.getElementById('markaTurleriData').textContent || '{}');
+    const selectedTypes = JSON.parse('{{ edit_group_malzeme_turleri_json|escapejs }}');
+
+    function renderTurOptions() {
+        const marka = markaSelect.value;
+        const turler = markaTurleri[marka] || [];
+
+        turSelect.innerHTML = '';
+        turler.forEach(function (tur) {
+            const option = document.createElement('option');
+            option.value = tur;
+            option.textContent = tur;
+            if (selectedTypes.includes(tur)) {
+                option.selected = true;
+            }
+            turSelect.appendChild(option);
+        });
+    }
+
+    markaSelect.addEventListener('change', function () {
+        renderTurOptions();
+    });
+
+    renderTurOptions();
+});
+</script>
+{% endblock %}

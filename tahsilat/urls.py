@@ -172,4 +172,9 @@ urlpatterns = [
     path('plasiyer-prim/hesapla/', views.plasiyer_prim_hesapla, name='plasiyer_prim_hesapla'),
     path('plasiyer-prim/kaydet/', views.plasiyer_prim_kaydet, name='plasiyer_prim_kaydet'),
 
+    # Hakediş Hedef Modülü
+    path('hakedis-yonetimi/hedef-belirleme/', views.hedef_belirleme, name='hedef_belirleme'),
+    path('hakedis-yonetimi/plasiyer-hedef-durumu/', views.plasiyer_hedef_durumu, name='plasiyer_hedef_durumu'),
+    path('hakedis-yonetimi/hedeflerim/', views.hedeflerim, name='hedeflerim'),
+
 ]

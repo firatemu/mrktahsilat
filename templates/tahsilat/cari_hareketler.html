@@ -1,333 +1,433 @@
 {% extends 'base.html' %}
-{% load currency_filters %}
 {% load humanize %}
 {% load tahsilat_extras %}
 
-{% block title %}{{ sayfa_baslik }} - MRK OTOMOTİV{% endblock %}
+{% block title %}{{ sayfa_baslik }}{% endblock %}
 
 {% block extra_css %}
 <style>
-    /* Modern Gradient Cards */
-    .stats-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 12px;
-        padding: 0.75rem !important;
-        margin-bottom: 0.75rem !important;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        border: none;
-        position: relative;
+    .hareket-dashboard {
+        background:
+            radial-gradient(circle at top left, rgba(29, 78, 216, 0.08), transparent 24%),
+            radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 22%),
+            linear-gradient(180deg, #f8fafc 0%, #edf3f9 100%);
+        min-height: calc(100vh - 80px);
+    }
+    .hero-card,
+    .metric-card,
+    .detail-card,
+    .filter-card,
+    .table-card {
+        border: 0;
+        border-radius: 24px;
+        box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+    }
+    .hero-card {
+        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #0ea5e9 100%);
+        color: #eff6ff;
         overflow: hidden;
     }
-
-    .stats-card.success {
-        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        box-shadow: 0 4px 15px rgba(17, 153, 142, 0.2);
+    .hero-card .card-body,
+    .filter-card .card-body,
+    .table-card .card-body {
+        padding: 1.5rem;
     }
-
-    .stats-card.danger {
-        background: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%);
-        box-shadow: 0 4px 15px rgba(252, 70, 107, 0.2);
+    .hero-card p,
+    .hero-meta {
+        color: rgba(239, 246, 255, 0.82);
     }
-
-    .stats-card .card-icon {
-        font-size: 1.5rem !important;
-        opacity: 0.9;
-        margin-bottom: 0.25rem !important;
-    }
-
-    .stats-card .card-value {
-        font-size: 1.2rem !important;
-        font-weight: 700;
-        margin: 0.25rem 0 !important;
-        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-    }
-
-    .stats-card .card-label {
-        font-size: 0.75rem !important;
-        opacity: 0.95;
-        font-weight: 500;
-    }
-
-    .page-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 1rem 0 !important;
-        margin-bottom: 1rem !important;
-        border-radius: 0 0 20px 20px;
-        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
-    }
-
-    .page-header h1 {
-        font-size: 1.5rem !important;
-        font-weight: 700;
-        margin: 0;
-        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-    }
-
-    .page-header p {
-        opacity: 0.95;
-        font-size: 0.85rem !important;
-        margin-top: 0.25rem !important;
-    }
-
-    .data-table-wrapper {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
-        overflow: hidden;
-        margin-top: 1rem !important;
-    }
-
-    .data-table-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 0.75rem !important;
+    .hero-actions {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
     }
-
-    .data-table-header h5 {
-        margin: 0;
-        font-weight: 600;
-        font-size: 1rem !important;
+    .hero-actions .btn {
+        border-radius: 999px;
+        font-weight: 700;
+        padding-inline: 1rem;
     }
-
-    .table-modern {
-        margin: 0;
-        width: 100%;
+    .metric-card {
+        color: #fff;
+        overflow: hidden;
+        position: relative;
     }
-
-    .table-modern thead {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    .metric-card::after {
+        content: '';
+        position: absolute;
+        width: 110px;
+        height: 110px;
+        top: -30px;
+        right: -30px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.12);
     }
-
-    .table-modern thead th {
-        border: none;
-        padding: 0.75rem 0.5rem !important;
-        font-weight: 600;
-        font-size: 1rem !important;
+    .metric-card .card-body,
+    .detail-card .card-body {
+        padding: 1.15rem 1.25rem;
+        position: relative;
+        z-index: 1;
+    }
+    .metric-primary { background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%); }
+    .metric-danger { background: linear-gradient(135deg, #b91c1c 0%, #ef4444 100%); }
+    .metric-success { background: linear-gradient(135deg, #047857 0%, #10b981 100%); }
+    .metric-slate { background: linear-gradient(135deg, #334155 0%, #475569 100%); }
+    .metric-label,
+    .detail-label {
+        font-size: 0.8rem;
         text-transform: uppercase;
-        letter-spacing: 0.3px;
-        color: #495057;
-        border-bottom: 2px solid #dee2e6;
+        letter-spacing: 0.04em;
+        opacity: 0.82;
     }
-
-    .table-modern tbody tr {
-        transition: all 0.2s ease;
-        border-bottom: 1px solid #f0f0f0;
+    .metric-value {
+        font-size: 1.45rem;
+        font-weight: 800;
+        margin-top: 0.35rem;
     }
-
-    .table-modern tbody tr:hover {
-        background: linear-gradient(90deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
-        transform: scale(1.01);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    .detail-card {
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid rgba(148, 163, 184, 0.18);
     }
-
-    .table-modern tbody td {
-        padding: 0.6rem 0.5rem !important;
+    .detail-value {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-top: 0.25rem;
+    }
+    .filter-card,
+    .table-card {
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid rgba(148, 163, 184, 0.16);
+    }
+    .filter-label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 0.5rem;
+    }
+    .table-shell {
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        overflow: hidden;
+    }
+    .table-shell .table {
+        margin-bottom: 0;
+    }
+    .table-shell thead th {
+        background: #e2e8f0;
+        color: #0f172a;
+        border-bottom: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-size: 0.78rem;
+        white-space: nowrap;
+        padding: 0.95rem 0.85rem;
+    }
+    .table-shell tbody td,
+    .table-shell tfoot td {
+        padding: 0.9rem 0.85rem;
         vertical-align: middle;
-        border: none;
-        font-size: 1rem !important;
+        border-color: #eef2f7;
+    }
+    .table-shell tbody tr:hover {
+        background: rgba(59, 130, 246, 0.04);
+    }
+    .row-type {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.35rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        background: #eff6ff;
+        color: #1d4ed8;
+    }
+    .money-negative {
+        color: #b91c1c;
+        font-weight: 700;
+    }
+    .money-positive {
+        color: #15803d;
+        font-weight: 700;
+    }
+    .balance-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 120px;
+        padding: 0.42rem 0.8rem;
+        border-radius: 999px;
+        font-weight: 800;
+    }
+    .balance-pill.positive {
+        background: rgba(220, 38, 38, 0.12);
+        color: #b91c1c;
+    }
+    .balance-pill.negative {
+        background: rgba(22, 163, 74, 0.12);
+        color: #15803d;
+    }
+    .balance-pill.zero {
+        background: rgba(100, 116, 139, 0.14);
+        color: #475569;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #64748b;
+    }
+    .empty-state i {
+        font-size: 3rem;
+        color: #94a3b8;
+        margin-bottom: 0.75rem;
+    }
+    @media (max-width: 768px) {
+        .hero-card .card-body,
+        .filter-card .card-body,
+        .table-card .card-body {
+            padding: 1.1rem;
+        }
+        .metric-value {
+            font-size: 1.2rem;
+        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-3">
-    <!-- Page Header -->
-    <div class="page-header">
-        <div class="container-fluid">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1>
-                        <i class="bi {{ sayfa_ikon }} me-2"></i>{{ sayfa_baslik }}
-                    </h1>
-                    <p class="mb-0">{{ cari_unvan }}</p>
-                </div>
-                <div>
-                    <a href="{% url 'tahsilat:cari_bakiyeler' %}" class="btn btn-light btn-sm me-2">
-                        <i class="bi bi-arrow-left me-1"></i>Geri
-                    </a>
-                    <a href="?export=pdf" class="btn btn-danger btn-sm me-2" target="_blank">
-                        <i class="bi bi-file-pdf me-1"></i>PDF İndir
-                    </a>
-                    <button type="button" class="btn btn-light btn-sm" onclick="window.location.reload()">
-                        <i class="bi bi-arrow-clockwise me-1"></i>Yenile
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Toplam İstatistikler -->
-    <div class="row g-2 mb-2">
-        <div class="col-md-3">
-            <div class="stats-card">
-                <div class="card-icon">
-                    <i class="bi bi-file-text"></i>
-                </div>
-                <div class="card-value">{{ toplam_kayit|intcomma }}</div>
-                <div class="card-label">Toplam Hareket</div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stats-card danger">
-                <div class="card-icon">
-                    <i class="bi bi-arrow-down-circle"></i>
-                </div>
-                <div class="card-value">{{ toplam_borc|currency_display }}</div>
-                <div class="card-label">Toplam Borç</div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stats-card success">
-                <div class="card-icon">
-                    <i class="bi bi-arrow-up-circle"></i>
-                </div>
-                <div class="card-value">{{ toplam_alacak|currency_display }}</div>
-                <div class="card-label">Toplam Alacak</div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stats-card">
-                <div class="card-icon">
-                    <i class="bi bi-wallet2"></i>
-                </div>
-                <div class="card-value">{{ toplam_bakiye|currency_display }}</div>
-                <div class="card-label">Bakiye</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Data Table -->
-    <div class="data-table-wrapper">
-        <div class="data-table-header">
-            <h5>
-                <i class="bi bi-table me-2"></i>Cari Hesap Hareketleri
-                <span class="badge bg-light text-dark ms-2">{{ toplam_kayit|intcomma }} kayıt</span>
-            </h5>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-modern">
-                <thead>
-                    <tr>
-                        <th>Tarih</th>
-                        <th>Fatura No</th>
-                        <th>Fatura Türü</th>
-                        <th>Açıklama</th>
-                        <th class="text-end">Borç</th>
-                        <th class="text-end">Alacak</th>
-                        <th class="text-end">BAKİYE</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% if error_message and error_message != None %}
-                    <tr>
-                        <td colspan="7" class="text-center text-danger py-5">
-                            <i class="bi bi-exclamation-triangle me-2"></i>
-                            {{ error_message }}
-                        </td>
-                    </tr>
-                    {% elif not hareketler_list %}
-                    <tr>
-                        <td colspan="7" class="text-center py-5">
-                            <i class="bi bi-inbox"></i>
-                            <h5 class="mt-3">Veri bulunamadı</h5>
-                            <p class="text-muted">Bu cari hesap için hareket kaydı bulunmamaktadır.</p>
-                        </td>
-                    </tr>
-                    {% else %}
-                    {% for item in hareketler_list %}
-                    {% with tarih=item|get_item:'TARİH' fatura_no=item|get_item:'FATURANO' fatura_turu=item|get_item:'FATURA TÜRÜ' aciklama=item|get_item:'AÇIKLAMA' borc=item|get_item:'BORÇ' alacak=item|get_item:'ALACAK' yuruyen_bakiye=item|get_item:'YURUYEN_BAKIYE'|default:0 %}
-                    <tr>
-                        <td>
-                            {% if tarih %}
-                                {{ tarih|date:"d.m.Y" }}
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if fatura_no %}
-                                {{ fatura_no }}
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if fatura_turu %}
-                            <span class="badge bg-info">{{ fatura_turu }}</span>
-                            {% else %}
-                            <span class="badge bg-secondary">-</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if aciklama %}
-                                {{ aciklama }}
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td class="text-end">
-                            {% if borc and borc > 0 %}
-                            <span class="text-danger fw-bold">{{ borc|currency_display }}</span>
-                            {% else %}
-                            <span class="text-muted">0,00 ₺</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-end">
-                            {% if alacak and alacak > 0 %}
-                            <span class="text-success fw-bold">{{ alacak|currency_display }}</span>
-                            {% else %}
-                            <span class="text-muted">0,00 ₺</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-end">
-                            {% if yuruyen_bakiye %}
-                            {% if yuruyen_bakiye > 0 %}
-                                <span class="text-danger fw-bold">{{ yuruyen_bakiye|currency_display }}</span>
-                            {% elif yuruyen_bakiye < 0 %}
-                                <span class="text-success fw-bold">{{ yuruyen_bakiye|currency_display }}</span>
-                            {% else %}
-                                <span class="text-muted">0,00 ₺</span>
-                            {% endif %}
-                            {% else %}
-                                <span class="text-muted">0,00 ₺</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endwith %}
-                    {% endfor %}
+<div class="container-fluid py-4 hareket-dashboard">
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card hero-card">
+                <div class="card-body">
+                    <div class="d-flex flex-column flex-xl-row justify-content-between align-items-start gap-3">
+                        <div>
+                            <h3 class="mb-2"><i class="bi {{ sayfa_ikon }} me-2"></i>{{ sayfa_baslik }}</h3>
+                            <p class="mb-1">{{ cari_unvan }}</p>
+                            <div class="hero-meta small">Cari Kod: {{ cari_kod }}</div>
+                        </div>
+                        <div class="hero-actions">
+                            <a href="{% url 'tahsilat:cari_bakiyeler' %}" class="btn btn-light">
+                                <i class="bi bi-arrow-left me-1"></i>Geri
+                            </a>
+                            <a
+                                href="?{% if baslangic_tarihi %}baslangic_tarihi={{ baslangic_tarihi }}&{% endif %}{% if bitis_tarihi %}bitis_tarihi={{ bitis_tarihi }}&{% endif %}export=pdf"
+                                class="btn btn-danger"
+                                target="_blank"
+                            >
+                                <i class="bi bi-file-pdf me-1"></i>PDF İndir
+                            </a>
+                            <button type="button" class="btn btn-outline-light" onclick="window.location.reload()">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Yenile
+                            </button>
+                        </div>
+                    </div>
+                    {% if error_message %}
+                    <div class="alert alert-warning mt-3 mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>{{ error_message }}
+                    </div>
                     {% endif %}
-                </tbody>
-                {% if hareketler_list %}
-                <tfoot>
-                    <tr style="background-color: #f8f9fa; font-weight: bold;">
-                        <td colspan="4" class="text-end"><strong>Toplam:</strong></td>
-                        <td class="text-end">
-                            <span class="text-danger fw-bold">{{ toplam_borc|currency_display }}</span>
-                        </td>
-                        <td class="text-end">
-                            <span class="text-success fw-bold">{{ toplam_alacak|currency_display }}</span>
-                        </td>
-                        <td class="text-end">
-                            {% if toplam_bakiye > 0 %}
-                                <span class="text-danger fw-bold">{{ toplam_bakiye|currency_display }}</span>
-                            {% elif toplam_bakiye < 0 %}
-                                <span class="text-success fw-bold">{{ toplam_bakiye|currency_display }}</span>
-                            {% else %}
-                                <span class="text-muted">0,00 ₺</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-6 col-xl-3">
+            <div class="card metric-card metric-primary h-100">
+                <div class="card-body">
+                    <div class="metric-label">Toplam Hareket</div>
+                    <div class="metric-value">{{ toplam_kayit|intcomma }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="card metric-card metric-danger h-100">
+                <div class="card-body">
+                    <div class="metric-label">Toplam Borç</div>
+                    <div class="metric-value">₺ {{ toplam_borc|format_tr_currency }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="card metric-card metric-success h-100">
+                <div class="card-body">
+                    <div class="metric-label">Toplam Alacak</div>
+                    <div class="metric-value">₺ {{ toplam_alacak|format_tr_currency }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="card metric-card metric-slate h-100">
+                <div class="card-body">
+                    <div class="metric-label">Net Bakiye</div>
+                    <div class="metric-value">₺ {{ toplam_bakiye|format_tr_currency }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-6 col-lg-3">
+            <div class="card detail-card h-100">
+                <div class="card-body">
+                    <div class="detail-label">İlk Hareket</div>
+                    <div class="detail-value">
+                        {% if ilk_hareket_tarihi %}{{ ilk_hareket_tarihi|date:"d.m.Y" }}{% else %}-{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card detail-card h-100">
+                <div class="card-body">
+                    <div class="detail-label">Son Hareket</div>
+                    <div class="detail-value">
+                        {% if son_hareket_tarihi %}{{ son_hareket_tarihi|date:"d.m.Y" }}{% else %}-{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card detail-card h-100">
+                <div class="card-body">
+                    <div class="detail-label">Hareketli Gün</div>
+                    <div class="detail-value">{{ hareketli_gun_sayisi|intcomma }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card detail-card h-100">
+                <div class="card-body">
+                    <div class="detail-label">Belge Türü</div>
+                    <div class="detail-value">{{ fatura_turu_sayisi|intcomma }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card filter-card">
+                <div class="card-body">
+                    <form method="get" class="row g-3 align-items-end">
+                        <div class="col-md-5 col-xl-3">
+                            <div class="filter-label">Başlangıç Tarihi</div>
+                            <input type="date" class="form-control form-control-lg" name="baslangic_tarihi" value="{{ baslangic_tarihi }}">
+                        </div>
+                        <div class="col-md-5 col-xl-3">
+                            <div class="filter-label">Bitiş Tarihi</div>
+                            <input type="date" class="form-control form-control-lg" name="bitis_tarihi" value="{{ bitis_tarihi }}">
+                        </div>
+                        <div class="col-md-2 col-xl-2 d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-search me-1"></i>Filtrele
+                            </button>
+                        </div>
+                        <div class="col-md-12 col-xl-4 d-flex align-items-center gap-2 flex-wrap">
+                            {% if baslangic_tarihi or bitis_tarihi %}
+                            <a href="{% url 'tahsilat:cari_hareketler' cari_kod=cari_kod %}" class="btn btn-outline-secondary btn-lg">
+                                <i class="bi bi-x-circle me-1"></i>Filtreyi Temizle
+                            </a>
                             {% endif %}
-                        </td>
-                    </tr>
-                </tfoot>
-                {% endif %}
-            </table>
+                            <div class="small text-muted">
+                                Tarih filtresi aktif olduğunda PDF çıktısı da aynı tarih aralığını kullanır.
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card table-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <div>
+                            <h5 class="mb-1">Cari Hareket Listesi</h5>
+                            <div class="text-muted small">En yeni kayıt üstte olacak şekilde hareket akışı gösterilir.</div>
+                        </div>
+                        <span class="badge text-bg-light border">{{ toplam_kayit|intcomma }} kayıt</span>
+                    </div>
+
+                    <div class="table-shell">
+                        <div class="table-responsive">
+                            <table class="table align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Tarih</th>
+                                        <th>Fatura No</th>
+                                        <th>Tür</th>
+                                        <th>Açıklama</th>
+                                        <th>Banka</th>
+                                        <th class="text-end">Borç</th>
+                                        <th class="text-end">Alacak</th>
+                                        <th class="text-end">Bakiye</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if not hareketler_list %}
+                                    <tr>
+                                        <td colspan="8">
+                                            <div class="empty-state">
+                                                <i class="bi bi-inbox"></i>
+                                                <h5 class="mt-2">Gösterilecek hareket bulunamadı</h5>
+                                                <p class="mb-0">Bu cari için seçilen filtrelerde hareket kaydı yok.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% else %}
+                                        {% for item in hareketler_list %}
+                                        <tr>
+                                            <td>{% if item.tarih %}{{ item.tarih|date:"d.m.Y" }}{% else %}-{% endif %}</td>
+                                            <td>{{ item.faturano|default:'-' }}</td>
+                                            <td>
+                                                {% if item.fatura_turu %}
+                                                <span class="row-type">{{ item.fatura_turu }}</span>
+                                                {% else %}
+                                                <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ item.aciklama|default:'-' }}</td>
+                                            <td>{{ item.banka|default:'-' }}</td>
+                                            <td class="text-end">
+                                                {% if item.borc > 0 %}
+                                                <span class="money-negative">₺ {{ item.borc|format_tr_currency }}</span>
+                                                {% else %}
+                                                <span class="text-muted">₺ 0,00</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-end">
+                                                {% if item.alacak > 0 %}
+                                                <span class="money-positive">₺ {{ item.alacak|format_tr_currency }}</span>
+                                                {% else %}
+                                                <span class="text-muted">₺ 0,00</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-end">
+                                                <span class="balance-pill {% if item.yuruyen_bakiye > 0 %}positive{% elif item.yuruyen_bakiye < 0 %}negative{% else %}zero{% endif %}">
+                                                    ₺ {{ item.yuruyen_bakiye|format_tr_currency }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% endif %}
+                                </tbody>
+                                {% if hareketler_list %}
+                                <tfoot>
+                                    <tr class="table-light fw-bold">
+                                        <td colspan="5" class="text-end">Toplam</td>
+                                        <td class="text-end text-danger">₺ {{ toplam_borc|format_tr_currency }}</td>
+                                        <td class="text-end text-success">₺ {{ toplam_alacak|format_tr_currency }}</td>
+                                        <td class="text-end">
+                                            <span class="balance-pill {% if toplam_bakiye > 0 %}positive{% elif toplam_bakiye < 0 %}negative{% else %}zero{% endif %}">
+                                                ₺ {{ toplam_bakiye|format_tr_currency }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                                {% endif %}
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 {% endblock %}
-

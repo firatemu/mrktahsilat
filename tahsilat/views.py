@@ -1,4 +1,6 @@
 import io
+import calendar
+from collections import defaultdict
 import xlsxwriter
 from datetime import datetime
 from reportlab.pdfbase.ttfonts import TTFont
@@ -20,13 +22,13 @@ from django.contrib import messages
 from django.http import JsonResponse, HttpResponse, HttpResponseNotFound, HttpResponseRedirect
 from django.views.decorators.http import require_http_methods, require_POST
 from django.views.decorators.csrf import csrf_protect, csrf_exempt
-from django.db import models
+from django.db import models, transaction, IntegrityError
 from django.db.models import Q, Sum, Count
 from django.utils import timezone
 from datetime import date, datetime, timedelta
 from django.conf import settings
 from .mssql_service import mssql_service, MSSQLService
-from .models import UploadedImage, TahsilatEvrak, GiderMasraf, KullaniciYetki, CariGeckme, Mesaj, KullaniciDurumu, LogoTransfer, SystemSettings
+from .models import UploadedImage, TahsilatEvrak, GiderMasraf, KullaniciYetki, CariGeckme, Mesaj, KullaniciDurumu, LogoTransfer, SystemSettings, PlasiyerPrim, HakedisHedef
 from django.core.paginator import Paginator
 
 logger = logging.getLogger('tahsilat')
@@ -252,6 +254,38 @@ def dashboard(request):
     # En yüksek tahsilatlı carileri al
     top_cariler = mssql_service.get_top_cariler(plasiyer, limit=5)
 
+    today = timezone.now().date()
+    month_names = [
+        'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+        'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+    ]
+    month_options = [{'value': 'current', 'label': 'Bu Ay'}]
+    for month in range(today.month, 0, -1):
+        month_options.append({
+            'value': f'{today.year}-{month:02d}',
+            'label': f'{month_names[month - 1]} {today.year}',
+        })
+
+    selected_month_value = selected_month if selected_month else 'current'
+    if selected_month_value != 'current':
+        try:
+            selected_year_part, selected_month_part = selected_month_value.split('-')
+            period_label = f"{month_names[int(selected_month_part) - 1]} {selected_year_part}"
+        except (ValueError, IndexError):
+            period_label = 'Seçili Dönem'
+    else:
+        period_label = 'Bu Ay'
+
+    aylik_toplam = stats.get('aylik_tutar', 0)
+    satis_aylik_toplam = satis_stats.get('aylik_tutar', 0)
+    tahsilat_satis_orani = None
+    try:
+        satis_aylik_float = float(satis_aylik_toplam or 0)
+        if satis_aylik_float > 0:
+            tahsilat_satis_orani = round((float(aylik_toplam or 0) / satis_aylik_float) * 100, 1)
+    except (TypeError, ValueError, ZeroDivisionError):
+        tahsilat_satis_orani = None
+
     context = {
         'user': request.user,
         'user_data': user_data,
@@ -276,6 +310,13 @@ def dashboard(request):
         'satis_aylik_adet': satis_stats.get('aylik_adet', 0),
         # Ay filtresi
         'selected_month': selected_month,
+        'selected_month_value': selected_month_value,
+        'month_options': month_options,
+        'period_label': period_label,
+        'tahsilat_satis_orani': tahsilat_satis_orani,
+        'toplam_aktivite_sayisi': len(son_tahsilatlar) + len(son_satislar),
+        'en_iyi_cari_sayisi': len(top_cariler),
+        'rol_etiketi': 'Yönetici' if request.user.is_superuser or request.user.username.upper() == 'FIRAT' else 'Plasiyer',
     }
 
     return render(request, 'tahsilat/dashboard.html', context)
@@ -4578,197 +4619,277 @@ def _get_filtered_cari_gecikme_queryset(plasiyer_list=None, bolge_list=None, min
     return queryset.order_by('-gecikme_tutari')
 
 
+def _safe_float(value):
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _parse_date_filter(value):
+    raw_value = str(value or '').strip()
+    if not raw_value:
+        return None
+    try:
+        return datetime.strptime(raw_value, '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+
+def _build_cari_bakiyeler_context(request, rows, error_message=None):
+    prepared_rows = []
+    for item in rows or []:
+        borc = _safe_float(item.get('borc'))
+        alacak = _safe_float(item.get('alacak'))
+        bakiye = _safe_float(item.get('bakiye'))
+        prepared_rows.append({
+            'cari_kod': str(item.get('cari_kod') or '').strip(),
+            'cari_unvan': str(item.get('cari_unvan') or '').strip(),
+            'plasiyer': str(item.get('plasiyer') or '').strip(),
+            'bolge': str(item.get('bolge') or '').strip(),
+            'plasiyer_kod': str(item.get('plasiyer_kod') or '').strip(),
+            'borc': borc,
+            'alacak': alacak,
+            'bakiye': bakiye,
+            'bakiye_state': 'positive' if bakiye > 0 else 'negative' if bakiye < 0 else 'zero',
+        })
+
+    toplam_borc = sum(item['borc'] for item in prepared_rows)
+    toplam_alacak = sum(item['alacak'] for item in prepared_rows)
+    toplam_bakiye = sum(item['bakiye'] for item in prepared_rows)
+    toplam_kayit = len(prepared_rows)
+
+    pozitif_rows = [item for item in prepared_rows if item['bakiye'] > 0]
+    negatif_rows = [item for item in prepared_rows if item['bakiye'] < 0]
+    sifir_bakiye_sayisi = len([item for item in prepared_rows if item['bakiye'] == 0])
+
+    en_pozitif_cari = max(pozitif_rows, key=lambda item: item['bakiye']) if pozitif_rows else None
+    en_negatif_cari = min(negatif_rows, key=lambda item: item['bakiye']) if negatif_rows else None
+
+    benzersiz_plasiyer_sayisi = len({item['plasiyer'] for item in prepared_rows if item['plasiyer']})
+    benzersiz_bolge_sayisi = len({item['bolge'] for item in prepared_rows if item['bolge']})
+
+    return {
+        'user': request.user,
+        'user_data': request.session.get('mssql_user_data', {}),
+        'cari_rows': prepared_rows,
+        'toplam_bakiye': toplam_bakiye,
+        'toplam_borc': toplam_borc,
+        'toplam_alacak': toplam_alacak,
+        'toplam_kayit': toplam_kayit,
+        'pozitif_bakiye_sayisi': len(pozitif_rows),
+        'negatif_bakiye_sayisi': len(negatif_rows),
+        'sifir_bakiye_sayisi': sifir_bakiye_sayisi,
+        'benzersiz_plasiyer_sayisi': benzersiz_plasiyer_sayisi,
+        'benzersiz_bolge_sayisi': benzersiz_bolge_sayisi,
+        'en_pozitif_cari': en_pozitif_cari,
+        'en_negatif_cari': en_negatif_cari,
+        'error_message': error_message,
+    }
+
+
+def _export_cari_bakiyeler_excel(cari_rows):
+    import pandas as pd
+
+    output = io.BytesIO()
+    export_rows = [
+        {
+            'Cari Kod': row.get('cari_kod', ''),
+            'Cari Ünvan': row.get('cari_unvan', ''),
+            'Plasiyer': row.get('plasiyer', ''),
+            'Bölge': row.get('bolge', ''),
+            'Plasiyer Kod': row.get('plasiyer_kod', ''),
+            'Borç': row.get('borc', 0),
+            'Alacak': row.get('alacak', 0),
+            'Bakiye': row.get('bakiye', 0),
+        }
+        for row in (cari_rows or [])
+    ]
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df = pd.DataFrame(
+            export_rows,
+            columns=[
+                'Cari Kod',
+                'Cari Ünvan',
+                'Plasiyer',
+                'Bölge',
+                'Plasiyer Kod',
+                'Borç',
+                'Alacak',
+                'Bakiye',
+            ],
+        )
+        df.to_excel(writer, sheet_name='Cari Bakiyeler', index=False)
+
+    output.seek(0)
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = (
+        f'attachment; filename="cari_bakiyeler_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx"'
+    )
+    return response
+
+
+def _build_cari_hareketler_context(request, cari_kod, hareketler_raw, baslangic_tarihi=None, bitis_tarihi=None, error_message=None):
+    hareketler_kronolojik = sorted(
+        hareketler_raw or [],
+        key=lambda item: (
+            item.get('tarih') or date.min,
+            item.get('logicalref') or 0,
+        ),
+    )
+
+    cari_unvan = hareketler_kronolojik[0].get('cari_unvan') if hareketler_kronolojik else 'Bilinmeyen Cari'
+
+    yuruyen_bakiye = 0.0
+    hareketler_list = []
+    hareketli_gunler = set()
+    fatura_turleri = set()
+    for item in hareketler_kronolojik:
+        borc = _safe_float(item.get('borc'))
+        alacak = _safe_float(item.get('alacak'))
+        yuruyen_bakiye += borc - alacak
+        tarih = item.get('tarih')
+        hareket_tarihi = tarih.date() if isinstance(tarih, datetime) else tarih
+        if hareket_tarihi:
+            hareketli_gunler.add(hareket_tarihi)
+        if item.get('fatura_turu'):
+            fatura_turleri.add(str(item.get('fatura_turu')).strip())
+
+        hareketler_list.append({
+            'logicalref': item.get('logicalref'),
+            'tarih': tarih,
+            'faturano': str(item.get('faturano') or '').strip(),
+            'fatura_turu': str(item.get('fatura_turu') or '').strip(),
+            'cari_kod': str(item.get('cari_kod') or cari_kod).strip(),
+            'cari_unvan': str(item.get('cari_unvan') or cari_unvan).strip(),
+            'aciklama': str(item.get('aciklama') or '').strip(),
+            'borc': borc,
+            'alacak': alacak,
+            'banka': str(item.get('banka') or '').strip(),
+            'yuruyen_bakiye': round(yuruyen_bakiye, 2),
+        })
+
+    toplam_borc = sum(item['borc'] for item in hareketler_list)
+    toplam_alacak = sum(item['alacak'] for item in hareketler_list)
+    toplam_bakiye = round(toplam_borc - toplam_alacak, 2)
+    toplam_kayit = len(hareketler_list)
+    ilk_hareket_tarihi = hareketler_kronolojik[0].get('tarih') if hareketler_kronolojik else None
+    son_hareket_tarihi = hareketler_kronolojik[-1].get('tarih') if hareketler_kronolojik else None
+
+    return {
+        'user': request.user,
+        'user_data': request.session.get('mssql_user_data', {}),
+        'hareketler_list': list(reversed(hareketler_list)),
+        'hareketler_pdf_list': hareketler_list,
+        'cari_kod': cari_kod,
+        'cari_unvan': cari_unvan,
+        'toplam_bakiye': toplam_bakiye,
+        'toplam_borc': toplam_borc,
+        'toplam_alacak': toplam_alacak,
+        'toplam_kayit': toplam_kayit,
+        'ilk_hareket_tarihi': ilk_hareket_tarihi,
+        'son_hareket_tarihi': son_hareket_tarihi,
+        'hareketli_gun_sayisi': len(hareketli_gunler),
+        'fatura_turu_sayisi': len(fatura_turleri),
+        'baslangic_tarihi': baslangic_tarihi.strftime('%Y-%m-%d') if baslangic_tarihi else '',
+        'bitis_tarihi': bitis_tarihi.strftime('%Y-%m-%d') if bitis_tarihi else '',
+        'sayfa_baslik': 'Cari Hesap Hareketleri',
+        'sayfa_ikon': 'bi-file-text',
+        'error_message': error_message,
+    }
+
+
 @login_required
 def cari_bakiyeler(request):
     """Cari Bakiyeler sayfası - CARIHESAPEKSTRE tablosundan veri listeler"""
-    # FIRAT kullanıcısı süper kullanıcı - tüm sayfalara erişim yetkisi var
-    if request.user.username.upper() != 'FIRAT':
-        # Yetki kontrolü
-        from .models import KullaniciYetki
-        try:
-            yetki = KullaniciYetki.objects.get(
-                kullanici=request.user, menu_adi='cari_bakiyeler')
-            if not yetki.erisim_izni:
-                messages.error(request, 'Bu sayfaya erişim yetkiniz bulunmamaktadır.')
-                return redirect('tahsilat:dashboard')
-        except KullaniciYetki.DoesNotExist:
-            messages.error(request, 'Bu sayfaya erişim yetkiniz bulunmamaktadır.')
-            return redirect('tahsilat:dashboard')
+    if not _has_menu_access(request.user, 'cari_bakiyeler'):
+        messages.error(request, 'Bu sayfaya erişim yetkiniz bulunmamaktadır.')
+        return redirect('tahsilat:dashboard')
 
-    user_data = request.session.get('mssql_user_data', {})
-    
     try:
-        # SQL sorgusu - tüm cari bakiyeleri getir
         query = """
-        SELECT  [CARİ KOD]
-              ,[CARİ ÜNVAN]
-              ,[PLASİYER]  
-              ,[BÖLGE]
-              ,[PLASİYER KOD]
-              ,[BORÇ]
-              ,[ALACAK]
-              ,[BAKİYE]
+        SELECT
+              LTRIM(RTRIM([CARİ KOD])) AS cari_kod,
+              LTRIM(RTRIM([CARİ ÜNVAN])) AS cari_unvan,
+              LTRIM(RTRIM(COALESCE([PLASİYER], ''))) AS plasiyer,
+              LTRIM(RTRIM(COALESCE([BÖLGE], ''))) AS bolge,
+              LTRIM(RTRIM(COALESCE([PLASİYER KOD], ''))) AS plasiyer_kod,
+              CAST(COALESCE([BORÇ], 0) AS DECIMAL(18, 2)) AS borc,
+              CAST(COALESCE([ALACAK], 0) AS DECIMAL(18, 2)) AS alacak,
+              CAST(COALESCE([BAKİYE], 0) AS DECIMAL(18, 2)) AS bakiye
         FROM [GO3].[dbo].[CARIHESAPEKSTRE] 
-        ORDER BY [BAKİYE] DESC
+        ORDER BY CAST(COALESCE([BAKİYE], 0) AS DECIMAL(18, 2)) DESC
         """
-        
         cari_bakiyeler_list = mssql_service.execute_query(query) or []
-        
-        # Toplam hesaplamalar - hem boşluklu hem boşluksuz key'leri kontrol et
-        
-        toplam_borc = sum([float(item.get('BORÇ') or item.get('BORC') or 0) for item in cari_bakiyeler_list])
-        toplam_alacak = sum([float(item.get('ALACAK') or 0) for item in cari_bakiyeler_list])
-        toplam_bakiye = sum([float(item.get('BAKİYE') or item.get('BAKIYE') or 0) for item in cari_bakiyeler_list])
-        toplam_kayit = len(cari_bakiyeler_list)
-        
-        # Pozitif ve negatif bakiye sayıları
-        pozitif_bakiye_sayisi = len([item for item in cari_bakiyeler_list if float(item.get('BAKİYE') or item.get('BAKIYE') or 0) > 0])
-        negatif_bakiye_sayisi = len([item for item in cari_bakiyeler_list if float(item.get('BAKİYE') or item.get('BAKIYE') or 0) < 0])
-        sifir_bakiye_sayisi = len([item for item in cari_bakiyeler_list if float(item.get('BAKİYE') or item.get('BAKIYE') or 0) == 0])
-        
-        context = {
-            'user': request.user,
-            'user_data': user_data,
-            'cari_bakiyeler_list': cari_bakiyeler_list,
-            'toplam_bakiye': toplam_bakiye,
-            'toplam_borc': toplam_borc,
-            'toplam_alacak': toplam_alacak,
-            'toplam_kayit': toplam_kayit,
-            'pozitif_bakiye_sayisi': pozitif_bakiye_sayisi,
-            'negatif_bakiye_sayisi': negatif_bakiye_sayisi,
-            'sifir_bakiye_sayisi': sifir_bakiye_sayisi,
-        }
-        
+        context = _build_cari_bakiyeler_context(request, cari_bakiyeler_list)
+        if request.GET.get('export') == 'excel':
+            return _export_cari_bakiyeler_excel(context['cari_rows'])
         return render(request, 'tahsilat/cari_bakiyeler.html', context)
-        
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
         logger.error(f"Cari bakiyeler sayfası hatası: {e}\n{error_detail}")
-        print(f"CARI_BAKIYELER ERROR: {e}")
-        print(f"TRACEBACK: {error_detail}")
-        
-        # Hata durumunda bile boş liste ile sayfayı göster
-        context = {
-            'user': request.user,
-            'user_data': request.session.get('mssql_user_data', {}),
-            'cari_bakiyeler_list': [],
-            'toplam_bakiye': 0,
-            'toplam_borc': 0,
-            'toplam_alacak': 0,
-            'toplam_kayit': 0,
-            'pozitif_bakiye_sayisi': 0,
-            'negatif_bakiye_sayisi': 0,
-            'sifir_bakiye_sayisi': 0,
-            'error_message': f'Veriler getirilirken bir hata oluştu: {str(e)}'
-        }
+        context = _build_cari_bakiyeler_context(
+            request,
+            [],
+            error_message=f'Veriler getirilirken bir hata oluştu: {str(e)}',
+        )
         return render(request, 'tahsilat/cari_bakiyeler.html', context)
 
 
 @login_required
 def cari_hareketler(request, cari_kod):
-    """Cari Hesap Hareketleri sayfası - CARIHAREKETLER tablosundan veri listeler"""
-    # FIRAT kullanıcısı süper kullanıcı - tüm sayfalara erişim yetkisi var
-    if request.user.username.upper() != 'FIRAT':
-        # Yetki kontrolü
-        from .models import KullaniciYetki
-        try:
-            yetki = KullaniciYetki.objects.get(
-                kullanici=request.user, menu_adi='cari_bakiyeler')
-            if not yetki.erisim_izni:
-                messages.error(request, 'Bu sayfaya erişim yetkiniz bulunmamaktadır.')
-                return redirect('tahsilat:cari_bakiyeler')
-        except KullaniciYetki.DoesNotExist:
-            messages.error(request, 'Bu sayfaya erişim yetkiniz bulunmamaktadır.')
-            return redirect('tahsilat:cari_bakiyeler')
+    """Cari Hesap Hareketleri sayfası - TUMCARIHARETLER tablosundan veri listeler"""
+    if not _has_menu_access(request.user, 'cari_bakiyeler'):
+        messages.error(request, 'Bu sayfaya erişim yetkiniz bulunmamaktadır.')
+        return redirect('tahsilat:cari_bakiyeler')
 
-    user_data = request.session.get('mssql_user_data', {})
-    
-    # PDF export kontrolü
     export_pdf = request.GET.get('export', '') == 'pdf'
-    
+    baslangic_tarihi = _parse_date_filter(request.GET.get('baslangic_tarihi'))
+    bitis_tarihi = _parse_date_filter(request.GET.get('bitis_tarihi'))
+    if baslangic_tarihi and bitis_tarihi and baslangic_tarihi > bitis_tarihi:
+        baslangic_tarihi, bitis_tarihi = bitis_tarihi, baslangic_tarihi
+
     try:
-        # SQL sorgusu - seçili cari koduna göre filtrele (en eski tarihten başlayarak)
-        query = """
-        SELECT 
-              [TARİH]
-              ,[FATURANO]
-              ,[FATURA TÜRÜ]
-              ,[CARİ KOD]
-              ,[CARİ ÜNVAN]
-              ,[AÇIKLAMA]
-              ,[BORÇ]
-              ,[ALACAK]
-        FROM [GO3].[dbo].[CARIHAREKETLER]
-        WHERE [CARİ KOD] = ?
-        ORDER BY [TARİH] ASC
-        """
-        
-        hareketler_list = mssql_service.execute_query(query, (cari_kod,)) or []
-        
-        # Cari ünvanı al (ilk kayıttan)
-        cari_unvan = hareketler_list[0].get('CARİ ÜNVAN') or hareketler_list[0].get('CARİ_ÜNVAN') if hareketler_list else 'Bilinmeyen Cari'
-        
-        # Yürüyen bakiye hesaplama (en eski tarihten başlayarak)
-        yuruyen_bakiye = 0.0
-        for item in hareketler_list:
-            borc = float(item.get('BORÇ') or item.get('BORC') or 0)
-            alacak = float(item.get('ALACAK') or 0)
-            yuruyen_bakiye = yuruyen_bakiye + borc - alacak
-            item['YURUYEN_BAKIYE'] = yuruyen_bakiye
-        
-        # Toplam hesaplamalar
-        toplam_borc = sum([float(item.get('BORÇ') or item.get('BORC') or 0) for item in hareketler_list])
-        toplam_alacak = sum([float(item.get('ALACAK') or 0) for item in hareketler_list])
-        toplam_bakiye = toplam_borc - toplam_alacak
-        toplam_kayit = len(hareketler_list)
-        
-        # PDF export işlemi
-        if export_pdf and hareketler_list:
-            return generate_cari_hareketler_pdf(hareketler_list, cari_kod, cari_unvan, toplam_borc, toplam_alacak, toplam_bakiye, toplam_kayit)
-        
-        # Listeyi ters çevir (en yeni tarih önce görünsün)
-        hareketler_list = list(reversed(hareketler_list))
-        
-        context = {
-            'user': request.user,
-            'user_data': user_data,
-            'hareketler_list': hareketler_list,
-            'cari_kod': cari_kod,
-            'cari_unvan': cari_unvan,
-            'toplam_bakiye': toplam_bakiye,
-            'toplam_borc': toplam_borc,
-            'toplam_alacak': toplam_alacak,
-            'toplam_kayit': toplam_kayit,
-            'sayfa_baslik': 'Cari Hesap Hareketleri',
-            'sayfa_ikon': 'bi-file-text',
-            'error_message': None,
-        }
-        
+        hareketler_raw = mssql_service.get_cari_hareketleri(
+            cari_kod,
+            baslangic_tarihi,
+            bitis_tarihi,
+        )
+        context = _build_cari_hareketler_context(
+            request,
+            cari_kod,
+            hareketler_raw,
+            baslangic_tarihi=baslangic_tarihi,
+            bitis_tarihi=bitis_tarihi,
+        )
+        if export_pdf and context['hareketler_pdf_list']:
+            return generate_cari_hareketler_pdf(
+                context['hareketler_pdf_list'],
+                cari_kod,
+                context['cari_unvan'],
+                context['toplam_borc'],
+                context['toplam_alacak'],
+                context['toplam_bakiye'],
+                context['toplam_kayit'],
+            )
         return render(request, 'tahsilat/cari_hareketler.html', context)
-        
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
         logger.error(f"Cari hareketler sayfası hatası: {e}\n{error_detail}")
-        print(f"CARI_HAREKETLER ERROR: {e}")
-        print(f"TRACEBACK: {error_detail}")
-        
-        # Hata durumunda bile boş liste ile sayfayı göster
-        context = {
-            'user': request.user,
-            'user_data': request.session.get('mssql_user_data', {}),
-            'hareketler_list': [],
-            'cari_kod': cari_kod,
-            'cari_unvan': 'Bilinmeyen Cari',
-            'toplam_bakiye': 0,
-            'toplam_borc': 0,
-            'toplam_alacak': 0,
-            'toplam_kayit': 0,
-            'error_message': f'Veriler getirilirken bir hata oluştu: {str(e)}',
-            'sayfa_baslik': 'Cari Hesap Hareketleri',
-            'sayfa_ikon': 'bi-file-text',
-        }
+        context = _build_cari_hareketler_context(
+            request,
+            cari_kod,
+            [],
+            baslangic_tarihi=baslangic_tarihi,
+            bitis_tarihi=bitis_tarihi,
+            error_message=f'Veriler getirilirken bir hata oluştu: {str(e)}',
+        )
         return render(request, 'tahsilat/cari_hareketler.html', context)
 
 
@@ -6123,7 +6244,7 @@ def generate_cari_hareketler_pdf(hareketler_list, cari_kod, cari_unvan, toplam_b
         right_para_style = ParagraphStyle('Right', parent=styles['Normal'], alignment=2, fontName='DejaVuSans', fontSize=7)
         
         for item in hareketler_list:
-            tarih = item.get('TARİH')
+            tarih = item.get('TARİH') or item.get('tarih')
             if tarih:
                 if isinstance(tarih, datetime):
                     tarih_str = tarih.strftime('%d.%m.%Y')
@@ -6132,12 +6253,12 @@ def generate_cari_hareketler_pdf(hareketler_list, cari_kod, cari_unvan, toplam_b
             else:
                 tarih_str = '-'
             
-            fatura_no = item.get('FATURANO') or item.get('FATURA_NO') or '-'
-            fatura_turu = item.get('FATURA TÜRÜ') or item.get('FATURA_TÜRÜ') or '-'
+            fatura_no = item.get('FATURANO') or item.get('FATURA_NO') or item.get('faturano') or '-'
+            fatura_turu = item.get('FATURA TÜRÜ') or item.get('FATURA_TÜRÜ') or item.get('fatura_turu') or '-'
             
-            borc = float(item.get('BORÇ') or item.get('BORC') or 0)
-            alacak = float(item.get('ALACAK') or 0)
-            yuruyen_bakiye = float(item.get('YURUYEN_BAKIYE') or 0)
+            borc = float(item.get('BORÇ') or item.get('BORC') or item.get('borc') or 0)
+            alacak = float(item.get('ALACAK') or item.get('alacak') or 0)
+            yuruyen_bakiye = float(item.get('YURUYEN_BAKIYE') or item.get('yuruyen_bakiye') or 0)
             
             borc_str = turkish_number_format(borc, 2) + ' ₺' if borc > 0 else '-'
             alacak_str = turkish_number_format(alacak, 2) + ' ₺' if alacak > 0 else '-'
@@ -8934,6 +9055,863 @@ def stok_detayli_analiz(request):
 def yonetici(request):
     """Placeholder admin page (originally removed)."""
     return redirect('tahsilat:dashboard')
+
+
+HEDEF_PLASIYER_ALANLARI = [
+    {'key': 'ali', 'label': 'ALİ'},
+    {'key': 'aziz', 'label': 'AZİZ'},
+    {'key': 'can', 'label': 'CAN'},
+    {'key': 'eyup', 'label': 'EYÜP'},
+    {'key': 'necati', 'label': 'NECATİ'},
+    {'key': 'hasan', 'label': 'HASAN'},
+    {'key': 'yigit', 'label': 'YİĞİT'},
+    {'key': 'atakan', 'label': 'ATAKAN'},
+]
+
+
+def _has_menu_access(user, menu_name):
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser or user.username.upper() == 'FIRAT':
+        return True
+    return KullaniciYetki.objects.filter(
+        kullanici=user,
+        menu_adi=menu_name,
+        erisim_izni=True,
+    ).exists()
+
+
+def _normalize_target_text(value):
+    return ' '.join(str(value or '').strip().split())
+
+
+def _normalize_target_key(value):
+    return _normalize_target_text(value).upper()
+
+
+def _normalize_target_list(values):
+    normalized = []
+    seen = set()
+    for value in values or []:
+        item = _normalize_target_text(value)
+        key = _normalize_target_key(item)
+        if not item or key in seen:
+            continue
+        normalized.append(item)
+        seen.add(key)
+    return normalized
+
+
+def _deserialize_target_types(value):
+    raw_value = _normalize_target_text(value)
+    if not raw_value:
+        return []
+
+    try:
+        parsed = json.loads(raw_value)
+        if isinstance(parsed, list):
+            return _normalize_target_list(parsed)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        pass
+
+    return [raw_value]
+
+
+def _serialize_target_types(values):
+    normalized = _normalize_target_list(values)
+    if not normalized:
+        return ''
+
+    normalized.sort(key=lambda item: item.upper())
+    return json.dumps(normalized, ensure_ascii=False)
+
+
+def _target_type_label_from_value(value):
+    turler = _deserialize_target_types(value)
+    if not turler:
+        return 'Marka Geneli'
+    return ' + '.join(turler)
+
+
+def _target_type_keys(values):
+    return {_normalize_target_key(value) for value in _deserialize_target_types(values) if _normalize_target_key(value)}
+
+
+def _target_type_values_overlap(left_value, right_value):
+    left_keys = _target_type_keys(left_value)
+    right_keys = _target_type_keys(right_value)
+
+    # Marka geneli hedefi tüm türleri kapsadığı için her kombinasyonla çakışır.
+    if not left_keys or not right_keys:
+        return True
+
+    return bool(left_keys & right_keys)
+
+
+def _build_target_sales_key(marka, malzeme_turu_value):
+    return f"{_normalize_target_key(marka)}::{_normalize_target_key(malzeme_turu_value)}"
+
+
+def _build_excel_sheet_name(label, used_names):
+    sanitized = ''.join(
+        '_' if char in '[]:*?/\\' else char
+        for char in _normalize_target_text(label)
+    ) or 'Hedef'
+    sanitized = sanitized[:31]
+    candidate = sanitized
+    suffix = 1
+
+    while candidate in used_names:
+        suffix_text = f"_{suffix}"
+        candidate = f"{sanitized[:31 - len(suffix_text)]}{suffix_text}"
+        suffix += 1
+
+    used_names.add(candidate)
+    return candidate
+
+
+def _normalize_plasiyer_identity(value):
+    raw_value = _normalize_target_text(value)
+    if not raw_value:
+        return ''
+
+    result = str(raw_value)
+    encoding_fix_map = {
+        'EYÃŒP': 'EYUP',
+        'EYÃœP': 'EYUP',
+        'Ãœ': 'U', 'ÃÌ': 'U', 'ÃŒ': 'U', 'Ã¼': 'u', 'Ü': 'U', 'ü': 'u',
+        'Ä±': 'i', 'Ä°': 'I', 'ı': 'i', 'İ': 'I',
+        'Ã§': 'c', 'Ã‡': 'C', 'ç': 'c', 'Ç': 'C',
+        'ÅŸ': 's', 'Åž': 'S', 'ş': 's', 'Ş': 'S',
+        'Ã¶': 'o', 'Ã–': 'O', 'ö': 'o', 'Ö': 'O',
+        'ÄŸ': 'g', 'Äž': 'G', 'ğ': 'g', 'Ğ': 'G',
+    }
+    for old, new in encoding_fix_map.items():
+        result = result.replace(old, new)
+
+    turkish_to_english = {
+        'Ü': 'U', 'ü': 'u',
+        'İ': 'I', 'ı': 'i',
+        'Ç': 'C', 'ç': 'c',
+        'Ş': 'S', 'ş': 's',
+        'Ö': 'O', 'ö': 'o',
+        'Ğ': 'G', 'ğ': 'g',
+    }
+    for turkish, english in turkish_to_english.items():
+        result = result.replace(turkish, english)
+
+    return _normalize_target_text(result).upper()
+
+
+def _resolve_hedef_plasiyer_label(value):
+    normalized = _normalize_plasiyer_identity(value)
+    if not normalized:
+        return None
+
+    alias_map = {}
+    for plasiyer_field in HEDEF_PLASIYER_ALANLARI:
+        canonical_label = plasiyer_field['label']
+        aliases = {
+            canonical_label,
+            plasiyer_field['key'],
+            canonical_label.replace(' ', ''),
+            plasiyer_field['key'].upper(),
+        }
+        for alias in aliases:
+            alias_map[_normalize_plasiyer_identity(alias)] = canonical_label
+
+    if normalized in alias_map:
+        return alias_map[normalized]
+
+    for token in normalized.split():
+        if token in alias_map:
+            return alias_map[token]
+
+    return None
+
+
+def _resolve_current_hedef_plasiyer(request):
+    user_data = request.session.get('mssql_user_data', {}) if hasattr(request, 'session') else {}
+    candidates = [
+        user_data.get('plasiyer'),
+        user_data.get('kullanici_adi'),
+        request.user.username,
+        getattr(request.user, 'first_name', ''),
+    ]
+    for candidate in candidates:
+        resolved = _resolve_hedef_plasiyer_label(candidate)
+        if resolved:
+            return resolved
+    return None
+
+
+def _parse_decimal_input(value):
+    raw = str(value or '').strip()
+    if not raw:
+        return None
+
+    raw = raw.replace(' ', '')
+    if ',' in raw and '.' in raw:
+        if raw.rfind(',') > raw.rfind('.'):
+            normalized = raw.replace('.', '').replace(',', '.')
+        else:
+            normalized = raw.replace(',', '')
+    elif ',' in raw:
+        normalized = raw.replace('.', '').replace(',', '.')
+    else:
+        normalized = raw.replace(',', '')
+
+    try:
+        return round(float(normalized), 2)
+    except (TypeError, ValueError):
+        return None
+
+
+def _get_hedef_period_context(request):
+    today = timezone.now().date()
+    years = list(range(today.year - 1, today.year + 3))
+    months = list(range(1, 13))
+
+    yil_raw = request.POST.get('donem_yil') or request.GET.get('yil')
+    ay_raw = request.POST.get('donem_ay') or request.GET.get('ay')
+
+    try:
+        selected_year = int(yil_raw or today.year)
+    except (TypeError, ValueError):
+        selected_year = today.year
+
+    try:
+        selected_month = int(ay_raw or today.month)
+    except (TypeError, ValueError):
+        selected_month = today.month
+
+    if selected_year not in years:
+        years.append(selected_year)
+        years = sorted(set(years))
+
+    selected_month = max(1, min(12, selected_month))
+    return selected_year, selected_month, years, months
+
+
+def _get_hakedis_target_group_filter(target):
+    return {
+        'donem_yil': target.donem_yil,
+        'donem_ay': target.donem_ay,
+        'marka': target.marka,
+        'malzeme_turu': target.malzeme_turu,
+        'kademe_no': target.kademe_no,
+    }
+
+
+def _build_hakedis_target_groups(queryset):
+    grouped = {}
+    for target in queryset:
+        malzeme_turleri = _deserialize_target_types(target.malzeme_turu)
+        key = (
+            _normalize_target_key(target.marka),
+            _normalize_target_key(target.malzeme_turu),
+            target.kademe_no,
+        )
+        if key not in grouped:
+            grouped[key] = {
+                'edit_group_id': target.id,
+                'marka': target.marka,
+                'malzeme_turu': target.malzeme_turu,
+                'malzeme_turleri': malzeme_turleri,
+                'kapsam_etiketi': _target_type_label_from_value(target.malzeme_turu),
+                'kademe_no': target.kademe_no,
+                'hakedis_yuzde': float(target.hakedis_yuzde),
+                'aktif': bool(target.aktif),
+                'hedefler': {},
+                'kayit_sayisi': 0,
+            }
+
+        grouped[key]['hedefler'][target.plasiyer] = float(target.hedef_tutar)
+        grouped[key]['kayit_sayisi'] += 1
+        grouped[key]['aktif'] = grouped[key]['aktif'] and bool(target.aktif)
+
+    grouped_list = list(grouped.values())
+    grouped_list.sort(
+        key=lambda item: (
+            _normalize_target_key(item['marka']),
+            _normalize_target_key(item['malzeme_turu']),
+            item['kademe_no'],
+        )
+    )
+    return grouped_list
+
+
+def _get_edit_group_payload(group_id):
+    try:
+        seed = HakedisHedef.objects.get(id=group_id)
+    except HakedisHedef.DoesNotExist:
+        return None
+
+    group_rows = HakedisHedef.objects.filter(
+        **_get_hakedis_target_group_filter(seed)
+    ).order_by('plasiyer')
+
+    if not group_rows.exists():
+        return None
+
+    payload = {
+        'edit_group_id': seed.id,
+        'marka': seed.marka,
+        'malzeme_turu': seed.malzeme_turu,
+        'malzeme_turleri': _deserialize_target_types(seed.malzeme_turu),
+        'kademe_no': seed.kademe_no,
+        'hakedis_yuzde': float(seed.hakedis_yuzde),
+        'aktif': bool(seed.aktif),
+        'hedefler': {row.plasiyer: float(row.hedef_tutar) for row in group_rows},
+    }
+    return payload
+
+
+def _calculate_hakedis_tutar(gerceklesen_tutar, hakedis_yuzde, hedef_tutar):
+    if gerceklesen_tutar < hedef_tutar or hedef_tutar <= 0:
+        return 0.0
+    return round(gerceklesen_tutar * (hakedis_yuzde / 100.0), 2)
+
+
+def _build_plasiyer_hedef_page_data(selected_year, selected_month, plasiyer_filter=None):
+    target_queryset = HakedisHedef.objects.filter(
+        donem_yil=selected_year,
+        donem_ay=selected_month,
+        aktif=True,
+    )
+    if plasiyer_filter:
+        target_queryset = target_queryset.filter(plasiyer=plasiyer_filter)
+    target_queryset = target_queryset.order_by('plasiyer', 'marka', 'malzeme_turu', 'kademe_no', 'hedef_tutar')
+
+    target_definitions = []
+    target_definition_keys = set()
+    for target in target_queryset:
+        target_key = _build_target_sales_key(target.marka, target.malzeme_turu)
+        if target_key in target_definition_keys:
+            continue
+        target_definition_keys.add(target_key)
+        target_definitions.append({
+            'target_key': target_key,
+            'marka': target.marka,
+            'malzeme_turleri': _deserialize_target_types(target.malzeme_turu),
+        })
+
+    sales_totals_by_target = mssql_service.get_aylik_hakedis_hedef_toplamlari(
+        selected_year,
+        selected_month,
+        target_definitions,
+    )
+
+    combo_targets = defaultdict(list)
+    for target in target_queryset:
+        combo_targets[
+            (
+                _normalize_target_key(target.plasiyer),
+                _normalize_target_key(target.marka),
+                _normalize_target_key(target.malzeme_turu),
+            )
+        ].append(target)
+
+    visible_plasiyerler = HEDEF_PLASIYER_ALANLARI
+    if plasiyer_filter:
+        visible_plasiyerler = [
+            item for item in HEDEF_PLASIYER_ALANLARI
+            if _normalize_target_key(item['label']) == _normalize_target_key(plasiyer_filter)
+        ]
+        if not visible_plasiyerler:
+            visible_plasiyerler = [{'key': _normalize_target_key(plasiyer_filter).lower(), 'label': plasiyer_filter}]
+
+    plasiyer_cards = []
+    liste_gruplari_map = {}
+    for plasiyer_field in visible_plasiyerler:
+        plasiyer_label = plasiyer_field['label']
+        plasiyer_key = _normalize_target_key(plasiyer_label)
+        grup_kartlari = []
+        toplam_hakedis = 0.0
+        toplam_gerceklesen = 0.0
+        toplam_hedef = 0.0
+        tutan_grup_sayisi = 0
+
+        seller_keys = sorted(
+            [key for key in combo_targets.keys() if key[0] == plasiyer_key],
+            key=lambda item: (item[1], item[2])
+        )
+
+        for combo_key in seller_keys:
+            targets = sorted(
+                combo_targets[combo_key],
+                key=lambda item: (float(item.hedef_tutar), item.kademe_no)
+            )
+            sample = targets[0]
+            target_key = _build_target_sales_key(sample.marka, sample.malzeme_turu)
+            actual_total = sales_totals_by_target.get(
+                (plasiyer_key, target_key),
+                0.0,
+            )
+            achieved_target = None
+            row_items = []
+            selected_row_item = None
+
+            for target in targets:
+                hedef_tutar = float(target.hedef_tutar)
+                progress_ratio = (actual_total / hedef_tutar) if hedef_tutar > 0 else 0
+                hedef_tutturdu = actual_total >= hedef_tutar and hedef_tutar > 0
+                if hedef_tutturdu:
+                    achieved_target = target
+
+                if hedef_tutturdu and actual_total > hedef_tutar:
+                    durum = 'aştı'
+                elif hedef_tutturdu:
+                    durum = 'tutturdu'
+                else:
+                    durum = 'bekliyor'
+
+                row_items.append({
+                    'kademe_no': target.kademe_no,
+                    'hedef_tutar': hedef_tutar,
+                    'hakedis_yuzde': float(target.hakedis_yuzde),
+                    'gerceklesen': round(actual_total, 2),
+                    'kalan_tutar': round(max(hedef_tutar - actual_total, 0), 2),
+                    'durum': durum,
+                    'ilerleme_yuzde': round(min(progress_ratio * 100, 999), 1),
+                    'is_kazanan_kademe': False,
+                    'hesaplanan_hakedis': 0.0,
+                })
+
+            if achieved_target is not None:
+                for row_item in row_items:
+                    if row_item['kademe_no'] == achieved_target.kademe_no:
+                        row_item['is_kazanan_kademe'] = True
+                        row_item['hesaplanan_hakedis'] = _calculate_hakedis_tutar(
+                            gerceklesen_tutar=actual_total,
+                            hakedis_yuzde=float(achieved_target.hakedis_yuzde),
+                            hedef_tutar=float(achieved_target.hedef_tutar),
+                        )
+                        toplam_hakedis += row_item['hesaplanan_hakedis']
+                        tutan_grup_sayisi += 1
+                        selected_row_item = row_item
+                        break
+
+            if selected_row_item is None and row_items:
+                selected_row_item = row_items[0]
+
+            group_payload = {
+                'plasiyer': plasiyer_label,
+                'marka': sample.marka,
+                'malzeme_turu': sample.malzeme_turu,
+                'kapsam_etiketi': _target_type_label_from_value(sample.malzeme_turu),
+                'gerceklesen': round(actual_total, 2),
+                'en_yuksek_hedef': round(max(float(target.hedef_tutar) for target in targets), 2),
+                'karsilanan_kademe': achieved_target.kademe_no if achieved_target else None,
+                'rows': row_items,
+                'ozet_hedef_tutar': float(selected_row_item['hedef_tutar']) if selected_row_item else 0.0,
+                'ozet_hakedis_yuzde': float(selected_row_item['hakedis_yuzde']) if selected_row_item else 0.0,
+                'ozet_hakedis_tutar': float(selected_row_item['hesaplanan_hakedis']) if selected_row_item else 0.0,
+                'ozet_durum': selected_row_item['durum'] if selected_row_item else 'bekliyor',
+                'ozet_kademe_no': selected_row_item['kademe_no'] if selected_row_item else None,
+                'ozet_ilerleme_yuzde': float(selected_row_item['ilerleme_yuzde']) if selected_row_item else 0.0,
+            }
+            grup_kartlari.append(group_payload)
+
+            liste_key = (
+                _normalize_target_key(sample.marka),
+                _normalize_target_key(sample.malzeme_turu),
+            )
+            if liste_key not in liste_gruplari_map:
+                baslik = sample.marka
+                if group_payload['kapsam_etiketi'] != 'Marka Geneli':
+                    baslik = f"{sample.marka} - {group_payload['kapsam_etiketi']}"
+
+                liste_gruplari_map[liste_key] = {
+                    'baslik': baslik,
+                    'marka': sample.marka,
+                    'kapsam_etiketi': group_payload['kapsam_etiketi'],
+                    'satirlar': [],
+                }
+
+            liste_gruplari_map[liste_key]['satirlar'].append({
+                'plasiyer': plasiyer_label,
+                'hedef_tutar': group_payload['ozet_hedef_tutar'],
+                'gerceklesen': group_payload['gerceklesen'],
+                'hakedis_yuzde': group_payload['ozet_hakedis_yuzde'],
+                'hakedis_tutar': group_payload['ozet_hakedis_tutar'],
+                'durum': group_payload['ozet_durum'],
+                'kademe_no': group_payload['ozet_kademe_no'],
+                'ilerleme_yuzde': group_payload['ozet_ilerleme_yuzde'],
+            })
+
+            toplam_gerceklesen += actual_total
+            toplam_hedef += max(float(target.hedef_tutar) for target in targets)
+
+        plasiyer_cards.append({
+            'plasiyer': plasiyer_label,
+            'gruplar': grup_kartlari,
+            'toplam_hakedis': round(toplam_hakedis, 2),
+            'toplam_gerceklesen': round(toplam_gerceklesen, 2),
+            'toplam_hedef': round(toplam_hedef, 2),
+            'tutan_grup_sayisi': tutan_grup_sayisi,
+            'toplam_grup_sayisi': len(grup_kartlari),
+        })
+
+    plasiyer_order = {
+        _normalize_target_key(item['label']): index
+        for index, item in enumerate(visible_plasiyerler)
+    }
+    liste_gruplari = list(liste_gruplari_map.values())
+    for liste_grubu in liste_gruplari:
+        liste_grubu['satirlar'].sort(
+            key=lambda item: plasiyer_order.get(_normalize_target_key(item['plasiyer']), 999)
+        )
+    liste_gruplari.sort(
+        key=lambda item: (
+            _normalize_target_key(item['marka']),
+            _normalize_target_key(item['kapsam_etiketi']),
+        )
+    )
+
+    return {
+        'plasiyer_cards': plasiyer_cards,
+        'liste_gruplari': liste_gruplari,
+        'toplam_aktif_hedef': target_queryset.count(),
+        'hedef_tanimli_plasiyer': sum(1 for card in plasiyer_cards if card['toplam_grup_sayisi'] > 0),
+        'toplam_hedef_grubu': sum(card['toplam_grup_sayisi'] for card in plasiyer_cards),
+    }
+
+
+def _export_plasiyer_hedef_excel(liste_gruplari, selected_year, selected_month, filename_prefix):
+    import pandas as pd
+
+    output = io.BytesIO()
+    genel_ozet_satirlari = []
+    for liste_grubu in liste_gruplari:
+        for satir in liste_grubu['satirlar']:
+            genel_ozet_satirlari.append({
+                'Grup': liste_grubu['baslik'],
+                'Satıcı': satir['plasiyer'],
+                'Hedef Tutar': satir['hedef_tutar'],
+                'Gerçekleşen Rakam': satir['gerceklesen'],
+                'Kazanılan Prim': satir['hakedis_tutar'],
+                'Prim %': satir['hakedis_yuzde'],
+                'Durum': 'Tutturdu' if satir['durum'] == 'tutturdu' else 'Aştı' if satir['durum'] == 'aştı' else 'Bekliyor',
+                'Kademe': satir['kademe_no'],
+                'İlerleme %': satir['ilerleme_yuzde'],
+            })
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        summary_df = pd.DataFrame(
+            genel_ozet_satirlari,
+            columns=[
+                'Grup',
+                'Satıcı',
+                'Hedef Tutar',
+                'Gerçekleşen Rakam',
+                'Kazanılan Prim',
+                'Prim %',
+                'Durum',
+                'Kademe',
+                'İlerleme %',
+            ],
+        )
+        summary_df.to_excel(writer, sheet_name='Genel Ozet', index=False)
+
+        used_sheet_names = {'Genel Ozet'}
+        for liste_grubu in liste_gruplari:
+            group_df = pd.DataFrame([
+                {
+                    'Satıcı': satir['plasiyer'],
+                    'Hedef Tutar': satir['hedef_tutar'],
+                    'Gerçekleşen Rakam': satir['gerceklesen'],
+                    'Kazanılan Prim': satir['hakedis_tutar'],
+                    'Prim %': satir['hakedis_yuzde'],
+                    'Durum': 'Tutturdu' if satir['durum'] == 'tutturdu' else 'Aştı' if satir['durum'] == 'aştı' else 'Bekliyor',
+                    'Kademe': satir['kademe_no'],
+                    'İlerleme %': satir['ilerleme_yuzde'],
+                }
+                for satir in liste_grubu['satirlar']
+            ])
+
+            sheet_name = _build_excel_sheet_name(liste_grubu['baslik'], used_sheet_names)
+            group_df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+    output.seek(0)
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = (
+        f'attachment; filename="{filename_prefix}_{selected_year}_{selected_month:02d}.xlsx"'
+    )
+    return response
+
+
+@login_required
+def hedef_belirleme(request):
+    if not _has_menu_access(request.user, 'hedef_belirleme'):
+        messages.error(request, 'Hedef Belirleme sayfasına erişim yetkiniz yok.')
+        return redirect('tahsilat:dashboard')
+
+    selected_year, selected_month, years, months = _get_hedef_period_context(request)
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'delete_target_group':
+            group_id = request.POST.get('group_id')
+            try:
+                seed = HakedisHedef.objects.get(id=group_id)
+                deleted_count, _ = HakedisHedef.objects.filter(
+                    **_get_hakedis_target_group_filter(seed)
+                ).delete()
+                messages.success(request, f'{deleted_count} hedef kaydı silindi.')
+            except HakedisHedef.DoesNotExist:
+                messages.error(request, 'Silinecek hedef grubu bulunamadı.')
+
+            return redirect(f'{request.path}?yil={selected_year}&ay={selected_month}')
+
+        if action == 'save_target_group':
+            marka = _normalize_target_text(request.POST.get('marka'))
+            malzeme_turleri = _normalize_target_list(request.POST.getlist('malzeme_turu'))
+            malzeme_turu_value = _serialize_target_types(malzeme_turleri)
+            kademe_no_raw = request.POST.get('kademe_no')
+            hakedis_yuzde = _parse_decimal_input(request.POST.get('hakedis_yuzde'))
+            edit_group_id = request.POST.get('edit_group_id')
+            aktif = request.POST.get('aktif') == 'on'
+
+            try:
+                kademe_no = max(int(kademe_no_raw or 1), 1)
+            except (TypeError, ValueError):
+                kademe_no = 1
+
+            if not marka:
+                messages.error(request, 'Marka seçimi zorunludur.')
+                return redirect(f'{request.path}?yil={selected_year}&ay={selected_month}')
+
+            if hakedis_yuzde is None or hakedis_yuzde < 0:
+                messages.error(request, 'Geçerli bir hakediş yüzdesi giriniz.')
+                return redirect(f'{request.path}?yil={selected_year}&ay={selected_month}')
+
+            current_group_filter = None
+            if edit_group_id:
+                try:
+                    seed = HakedisHedef.objects.get(id=edit_group_id)
+                    current_group_filter = _get_hakedis_target_group_filter(seed)
+                except HakedisHedef.DoesNotExist:
+                    messages.error(request, 'Düzenlenecek hedef grubu bulunamadı.')
+                    return redirect(f'{request.path}?yil={selected_year}&ay={selected_month}')
+
+            existing_rows = HakedisHedef.objects.filter(
+                donem_yil=selected_year,
+                donem_ay=selected_month,
+                marka=marka,
+                kademe_no=kademe_no,
+            )
+            if current_group_filter:
+                existing_rows = existing_rows.exclude(
+                    pk__in=HakedisHedef.objects.filter(**current_group_filter).values_list('pk', flat=True)
+                )
+
+            conflict_labels = []
+            seen_conflicts = set()
+            for conflict_type in existing_rows.values_list('malzeme_turu', flat=True).distinct():
+                if not _target_type_values_overlap(malzeme_turu_value, conflict_type):
+                    continue
+                label = _target_type_label_from_value(conflict_type)
+                label_key = _normalize_target_key(label)
+                if label_key in seen_conflicts:
+                    continue
+                conflict_labels.append(label)
+                seen_conflicts.add(label_key)
+
+            if conflict_labels:
+
+                messages.error(
+                    request,
+                    'Bu dönem için aynı marka/kademe kapsamında çakışan hedef tanımı var: '
+                    + ', '.join(conflict_labels)
+                    + '. Aynı satışın iki kez sayılmaması için mevcut kaydı düzenleyin ya da farklı kademe/marka kullanın.'
+                )
+                return redirect(f'{request.path}?yil={selected_year}&ay={selected_month}')
+
+            target_rows = []
+            for plasiyer_field in HEDEF_PLASIYER_ALANLARI:
+                tutar = _parse_decimal_input(
+                    request.POST.get(f"hedef_{plasiyer_field['key']}")
+                )
+                if tutar is None or tutar <= 0:
+                    continue
+                target_rows.append(
+                    HakedisHedef(
+                        plasiyer=plasiyer_field['label'],
+                        donem_yil=selected_year,
+                        donem_ay=selected_month,
+                        kademe_no=kademe_no,
+                        marka=marka,
+                        malzeme_turu=malzeme_turu_value,
+                        hedef_tutar=tutar,
+                        hakedis_yuzde=hakedis_yuzde,
+                        aktif=aktif,
+                        olusturan=request.user,
+                    )
+                )
+
+            if not target_rows:
+                messages.error(request, 'En az bir plasiyer için hedef tutarı giriniz.')
+                return redirect(f'{request.path}?yil={selected_year}&ay={selected_month}')
+
+            try:
+                with transaction.atomic():
+                    if current_group_filter:
+                        HakedisHedef.objects.filter(**current_group_filter).delete()
+                    HakedisHedef.objects.bulk_create(target_rows)
+            except IntegrityError:
+                messages.error(
+                    request,
+                    'Hedef kaydı oluşturulurken aynı kombinasyona ait mevcut kayıt ile çakışma oluştu.'
+                )
+                return redirect(f'{request.path}?yil={selected_year}&ay={selected_month}')
+
+            if edit_group_id:
+                messages.success(request, 'Hedef grubu güncellendi.')
+            else:
+                messages.success(request, 'Yeni hedef grubu kaydedildi.')
+            return redirect(f'{request.path}?yil={selected_year}&ay={selected_month}')
+
+    filter_options = mssql_service.get_hakedis_hedef_filter_options()
+    target_queryset = HakedisHedef.objects.filter(
+        donem_yil=selected_year,
+        donem_ay=selected_month,
+    ).order_by('marka', 'malzeme_turu', 'kademe_no', 'plasiyer')
+    grouped_targets = _build_hakedis_target_groups(target_queryset)
+
+    edit_group = None
+    edit_group_id = request.GET.get('edit')
+    if edit_group_id:
+        edit_group = _get_edit_group_payload(edit_group_id)
+        if edit_group is None:
+            messages.error(request, 'Düzenlemek istediğiniz hedef grubu bulunamadı.')
+
+    context = {
+        'selected_year': selected_year,
+        'selected_month': selected_month,
+        'years': years,
+        'months': months,
+        'plasiyer_alanlari': HEDEF_PLASIYER_ALANLARI,
+        'markalar': filter_options.get('markalar', []),
+        'marka_turleri_json': json.dumps(filter_options.get('marka_turleri', {}), ensure_ascii=False),
+        'grouped_targets': grouped_targets,
+        'edit_group': edit_group,
+        'edit_group_malzeme_turu': edit_group.get('malzeme_turu', '') if edit_group else '',
+        'edit_group_malzeme_turleri_json': json.dumps(edit_group.get('malzeme_turleri', []) if edit_group else [], ensure_ascii=False),
+        'toplam_hedef_grubu': len(grouped_targets),
+        'toplam_hedef_satiri': target_queryset.count(),
+        'aktif_hedef_satiri': target_queryset.filter(aktif=True).count(),
+        'benzersiz_marka_sayisi': target_queryset.values('marka').distinct().count(),
+    }
+    return render(request, 'tahsilat/hedef_belirleme.html', context)
+
+
+@login_required
+def plasiyer_hedef_durumu(request):
+    if not _has_menu_access(request.user, 'plasiyer_hedef_durumu'):
+        messages.error(request, 'Plasiyer Hedef Durumu sayfasına erişim yetkiniz yok.')
+        return redirect('tahsilat:dashboard')
+
+    selected_year, selected_month, years, months = _get_hedef_period_context(request)
+    selected_view = request.GET.get('gorunum', 'kart')
+    if selected_view not in {'kart', 'liste'}:
+        selected_view = 'kart'
+
+    page_data = _build_plasiyer_hedef_page_data(selected_year, selected_month)
+    if request.GET.get('export') == 'excel':
+        return _export_plasiyer_hedef_excel(
+            page_data['liste_gruplari'],
+            selected_year,
+            selected_month,
+            'plasiyer_hedef_durumu',
+        )
+
+    context = {
+        'selected_year': selected_year,
+        'selected_month': selected_month,
+        'years': years,
+        'months': months,
+        'selected_view': selected_view,
+        'page_title': 'Plasiyer Hedef Durumu',
+        'page_subtitle': 'Seçilen dönemde her plasiyerin hedef gerçekleşmesini ve hakediş tutarını izleyin.',
+        'summary_metric_1_label': 'Aktif Hedef Satırı',
+        'summary_metric_1_value': page_data['toplam_aktif_hedef'],
+        'summary_metric_2_label': 'Hedef Tanımlı Plasiyer',
+        'summary_metric_2_value': page_data['hedef_tanimli_plasiyer'],
+        'overall_empty_message': 'Seçilen dönemde aktif hedef tanımı bulunmuyor.',
+        'card_empty_message': 'Bu plasiyer için seçilen dönemde aktif hedef tanımı bulunmuyor.',
+        'list_empty_message': 'Bu dönem için listelenecek aktif hedef tanımı bulunmuyor.',
+        'page_notice': None,
+        'current_plasiyer': None,
+        **page_data,
+    }
+    return render(request, 'tahsilat/plasiyer_hedef_durumu.html', context)
+
+
+@login_required
+def hedeflerim(request):
+    if not _has_menu_access(request.user, 'hedeflerim'):
+        messages.error(request, 'Hedeflerim sayfasına erişim yetkiniz yok.')
+        return redirect('tahsilat:dashboard')
+
+    selected_year, selected_month, years, months = _get_hedef_period_context(request)
+    selected_view = request.GET.get('gorunum', 'kart')
+    if selected_view not in {'kart', 'liste'}:
+        selected_view = 'kart'
+
+    current_plasiyer = _resolve_current_hedef_plasiyer(request)
+    page_notice = None
+    if current_plasiyer:
+        page_data = _build_plasiyer_hedef_page_data(
+            selected_year,
+            selected_month,
+            plasiyer_filter=current_plasiyer,
+        )
+    else:
+        page_notice = 'Giriş yapan kullanıcı adı için eşleşen plasiyer bulunamadı. Yönetici ile görüşerek kullanıcı/plasiyer eşleşmesini kontrol edin.'
+        page_data = {
+            'plasiyer_cards': [],
+            'liste_gruplari': [],
+            'toplam_aktif_hedef': 0,
+            'hedef_tanimli_plasiyer': 0,
+            'toplam_hedef_grubu': 0,
+        }
+
+    if request.GET.get('export') == 'excel':
+        filename_prefix = 'hedeflerim'
+        if current_plasiyer:
+            filename_prefix = f"hedeflerim_{_normalize_plasiyer_identity(current_plasiyer).lower()}"
+        return _export_plasiyer_hedef_excel(
+            page_data['liste_gruplari'],
+            selected_year,
+            selected_month,
+            filename_prefix,
+        )
+
+    context = {
+        'selected_year': selected_year,
+        'selected_month': selected_month,
+        'years': years,
+        'months': months,
+        'selected_view': selected_view,
+        'page_title': 'Hedeflerim',
+        'page_subtitle': 'Seçilen dönemde sadece kendi hedef, gerçekleşen satış ve hakediş durumunuzu izleyin.',
+        'summary_metric_1_label': 'Aktif Hedef Satırı',
+        'summary_metric_1_value': page_data['toplam_aktif_hedef'],
+        'summary_metric_2_label': 'Aktif Hedef Grubu',
+        'summary_metric_2_value': page_data['toplam_hedef_grubu'],
+        'overall_empty_message': 'Bu kullanıcı için seçilen dönemde aktif hedef tanımı bulunmuyor.',
+        'card_empty_message': 'Bu kullanıcı için seçilen dönemde aktif hedef tanımı bulunmuyor.',
+        'list_empty_message': 'Bu kullanıcı için listelenecek aktif hedef tanımı bulunmuyor.',
+        'page_notice': page_notice,
+        'current_plasiyer': current_plasiyer,
+        **page_data,
+    }
+    return render(request, 'tahsilat/plasiyer_hedef_durumu.html', context)
 # Prim oranları (sabit) - plasiyer_prim sayfası için
 PLASIYER_PRIM_ORANLAR = {
     'Nakit': 0.01,        # %1

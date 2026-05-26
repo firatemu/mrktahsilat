@@ -1,3 +1,4 @@
+import json
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -100,6 +101,7 @@ class KullaniciYetki(models.Model):
         # Ana Menüler
         ('dashboard', 'Dashboard'),
         ('genel_gorunum', 'Genel Görünüm'),
+        ('hakedis_yonetimi', 'Hakediş Yönetimi'),
         ('satislar', 'Satışlar'),
         ('tahsilatlar', 'Tahsilatlar'),
         ('alimlar', 'Alımlar'),
@@ -129,6 +131,11 @@ class KullaniciYetki(models.Model):
         ('genel_ekstre', 'Genel Görünüm > Ekstre'),
         ('genel_cari_analiz', 'Genel Görünüm > Cari Genel Analiz'),
         ('genel_cari_aylik_ozet', 'Genel Görünüm > Cari Aylık Özet'),
+
+        # Hakediş Yönetimi Alt Menüleri
+        ('plasiyer_hedef_durumu', 'Hakediş Yönetimi > Plasiyer Hedef Durumu'),
+        ('hedeflerim', 'Hakediş Yönetimi > Hedeflerim'),
+        ('hedef_belirleme', 'Hakediş Yönetimi > Hedef Belirleme'),
 
         # Stok Yönetimi Alt Menüleri
         ('stok_listesi', 'Stok Yönetimi > Stok Listesi'),
@@ -186,6 +193,7 @@ class KullaniciYetki(models.Model):
             'Ana Menüler': [
                 ('dashboard', 'Dashboard'),
                 ('genel_gorunum', 'Genel Görünüm'),
+                ('hakedis_yonetimi', 'Hakediş Yönetimi'),
                 ('satislar', 'Satışlar'),
                 ('tahsilatlar', 'Tahsilatlar'),
                 ('alimlar', 'Alımlar'),
@@ -217,6 +225,11 @@ class KullaniciYetki(models.Model):
                 ('genel_ekstre', 'Ekstre'),
                 ('genel_cari_analiz', 'Cari Genel Analiz'),
                 ('genel_cari_aylik_ozet', 'Cari Aylık Özet'),
+            ],
+            'Hakediş Yönetimi Alt Menüleri': [
+                ('plasiyer_hedef_durumu', 'Plasiyer Hedef Durumu'),
+                ('hedeflerim', 'Hedeflerim'),
+                ('hedef_belirleme', 'Hedef Belirleme'),
             ],
             'Stok Yönetimi Alt Menüleri': [
                 ('stok_listesi', 'Stok Listesi'),
@@ -874,3 +887,83 @@ class PlasiyerPrim(models.Model):
 
     def __str__(self):
         return f"{self.plasiyer} - {self.donem_ay}/{self.donem_yil}"
+
+
+class HakedisHedef(models.Model):
+    """Aylık hakediş hedefleri - ortak hedef seti, plasiyer bazlı tutar."""
+
+    plasiyer = models.CharField('Plasiyer', max_length=50, choices=PlasiyerPrim.PLASIYER_CHOICES)
+    donem_ay = models.PositiveSmallIntegerField('Dönem Ay')
+    donem_yil = models.PositiveSmallIntegerField('Dönem Yıl')
+    kademe_no = models.PositiveSmallIntegerField('Kademe No', default=1)
+    marka = models.CharField('Marka', max_length=100)
+    malzeme_turu = models.CharField('Malzeme Türü', max_length=500, blank=True, default='')
+    hedef_tutar = models.DecimalField('Hedef Tutar', max_digits=15, decimal_places=2)
+    hakedis_yuzde = models.DecimalField('Hakediş Yüzdesi', max_digits=5, decimal_places=2)
+    aktif = models.BooleanField('Aktif', default=True)
+    olusturan = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='olusturulan_hakedis_hedefleri',
+        verbose_name='Oluşturan',
+    )
+    olusturma_tarihi = models.DateTimeField('Oluşturma Tarihi', auto_now_add=True)
+    guncelleme_tarihi = models.DateTimeField('Güncelleme Tarihi', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Hakediş Hedefi'
+        verbose_name_plural = 'Hakediş Hedefleri'
+        ordering = ['-donem_yil', '-donem_ay', 'marka', 'malzeme_turu', 'kademe_no', 'plasiyer']
+        unique_together = ['plasiyer', 'donem_ay', 'donem_yil', 'kademe_no', 'marka', 'malzeme_turu']
+        indexes = [
+            models.Index(fields=['donem_yil', 'donem_ay']),
+            models.Index(fields=['marka', 'malzeme_turu']),
+            models.Index(fields=['plasiyer', 'aktif']),
+        ]
+
+    def __str__(self):
+        tur = self.kapsam_etiketi
+        return f'{self.plasiyer} - {self.marka} / {tur} / Kademe {self.kademe_no}'
+
+    @property
+    def kapsam_etiketi(self):
+        turler = self.get_malzeme_turleri()
+        if not turler:
+            return 'Marka Geneli'
+        return ' + '.join(turler)
+
+    def get_malzeme_turleri(self):
+        raw_value = (self.malzeme_turu or '').strip()
+        if not raw_value:
+            return []
+
+        try:
+            parsed = json.loads(raw_value)
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pass
+
+        return [raw_value]
+
+    def set_malzeme_turleri(self, turler):
+        normalized = []
+        seen = set()
+        for tur in turler or []:
+            value = ' '.join(str(tur or '').strip().split())
+            if not value:
+                continue
+            upper_value = value.upper()
+            if upper_value in seen:
+                continue
+            normalized.append(value)
+            seen.add(upper_value)
+
+        if not normalized:
+            self.malzeme_turu = ''
+            return
+
+        normalized.sort(key=lambda item: item.upper())
+        self.malzeme_turu = json.dumps(normalized, ensure_ascii=False)

@@ -3,39 +3,107 @@
 
 <head>
     <style>
-        /* Loading Spinner Styles */
+        /* Global Loading Overlay */
         #global-loading-spinner {
             position: fixed;
             top: 0;
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(255, 255, 255, 0.7);
+            background: rgba(248, 250, 252, 0.82);
+            backdrop-filter: blur(10px);
             z-index: 9999;
-            display: flex;
+            display: none;
             align-items: center;
             justify-content: center;
-            transition: opacity 0.3s;
+            transition: opacity 0.28s ease;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #global-loading-spinner.is-visible {
+            display: flex;
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #global-loading-spinner .loading-shell {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.1rem 1.35rem;
+            border-radius: 22px;
+            background: rgba(255, 255, 255, 0.94);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+            min-width: 280px;
+            max-width: min(92vw, 360px);
+        }
+
+        #global-loading-spinner .loading-visual {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex: 0 0 auto;
+        }
+
+        #global-loading-spinner .loading-icon-wrap {
+            width: 48px;
+            height: 48px;
+            border-radius: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+            border: 1px solid rgba(37, 99, 235, 0.12);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+
+        #global-loading-spinner .loading-icon {
+            font-size: 1.25rem;
+            color: #2563eb;
+            line-height: 1;
+        }
+
+        #global-loading-spinner .loading-copy {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        #global-loading-spinner .loading-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.25;
+        }
+
+        #global-loading-spinner .loading-subtitle {
+            font-size: 0.83rem;
+            color: #64748b;
+            margin-top: 0.2rem;
+            line-height: 1.35;
         }
 
         #global-loading-spinner .lds-ring {
             display: inline-block;
             position: relative;
-            width: 80px;
-            height: 80px;
+            width: 56px;
+            height: 56px;
+            flex: 0 0 auto;
         }
 
         #global-loading-spinner .lds-ring div {
             box-sizing: border-box;
             display: block;
             position: absolute;
-            width: 64px;
-            height: 64px;
-            margin: 8px;
-            border: 8px solid #667eea;
+            width: 44px;
+            height: 44px;
+            margin: 6px;
+            border: 5px solid #2563eb;
             border-radius: 50%;
             animation: lds-ring 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
-            border-color: #667eea transparent transparent transparent;
+            border-color: #2563eb transparent transparent transparent;
         }
 
         #global-loading-spinner .lds-ring div:nth-child(1) {
@@ -57,6 +125,36 @@
 
             100% {
                 transform: rotate(360deg);
+            }
+        }
+
+        @media (max-width: 575.98px) {
+            #global-loading-spinner .loading-shell {
+                padding: 1rem 1rem;
+                gap: 0.85rem;
+                min-width: 0;
+            }
+
+            #global-loading-spinner .loading-visual {
+                gap: 0.65rem;
+            }
+
+            #global-loading-spinner .loading-icon-wrap {
+                width: 42px;
+                height: 42px;
+                border-radius: 14px;
+            }
+
+            #global-loading-spinner .loading-icon {
+                font-size: 1.1rem;
+            }
+
+            #global-loading-spinner .loading-title {
+                font-size: 0.95rem;
+            }
+
+            #global-loading-spinner .loading-subtitle {
+                font-size: 0.78rem;
             }
         }
     </style>
@@ -963,53 +1061,233 @@
 
 <body>
     <!-- Global Loading Spinner -->
-    <div id="global-loading-spinner" style="display:none;">
-        <div class="lds-ring">
-            <div></div>
-            <div></div>
-            <div></div>
-            <div></div>
+    <div id="global-loading-spinner" aria-hidden="true">
+        <div class="loading-shell" role="status" aria-live="polite">
+            <div class="loading-visual">
+                <div class="loading-icon-wrap" aria-hidden="true">
+                    <i id="global-loading-icon" class="bi bi-hourglass-split loading-icon"></i>
+                </div>
+                <div class="lds-ring" aria-hidden="true">
+                    <div></div>
+                    <div></div>
+                    <div></div>
+                    <div></div>
+                </div>
+            </div>
+            <div class="loading-copy">
+                <div class="loading-title" id="global-loading-title">Sayfa yukleniyor</div>
+                <div class="loading-subtitle" id="global-loading-subtitle">Icerik hazirlaniyor, lutfen bekleyin.</div>
+            </div>
         </div>
-        <span style="margin-left:24px;font-size:1.2rem;color:#333;">Sayfa açılıyor...</span>
     </div>
     <script>
-        // Global loading spinner initialization
-        document.addEventListener('DOMContentLoaded', function () {
-            var spinner = document.getElementById('global-loading-spinner');
-            if (spinner) {
-                // Ensure it's hidden initially if not needed
-                // spinner.style.display = 'none';
-            }
-        });
+        (function () {
+            var loadingTimer = null;
+            var fallbackTimer = null;
+            var HIDE_DELAY_MS = 220;
+            var FAILSAFE_HIDE_MS = 8000;
+            var DEFAULT_LOADING_COPY = {
+                title: 'Sayfa yukleniyor',
+                subtitle: 'Icerik hazirlaniyor, lutfen bekleyin.',
+                icon: 'bi-hourglass-split'
+            };
 
-        window.addEventListener('load', function () {
-            var spinner = document.getElementById('global-loading-spinner');
-            if (spinner) {
-                spinner.style.opacity = '0';
-                setTimeout(function () {
-                    spinner.style.display = 'none';
-                }, 300);
+            function getSpinner() {
+                return document.getElementById('global-loading-spinner');
             }
-        });
 
-        // Global function to show/hide spinner manually
-        window.showGlobalLoading = function () {
-            var spinner = document.getElementById('global-loading-spinner');
-            if (spinner) {
-                spinner.style.display = 'flex';
-                spinner.style.opacity = '1';
+            function getLoadingNodes() {
+                return {
+                    title: document.getElementById('global-loading-title'),
+                    subtitle: document.getElementById('global-loading-subtitle'),
+                    icon: document.getElementById('global-loading-icon')
+                };
             }
-        };
 
-        window.hideGlobalLoading = function () {
-            var spinner = document.getElementById('global-loading-spinner');
-            if (spinner) {
-                spinner.style.opacity = '0';
-                setTimeout(function () {
-                    spinner.style.display = 'none';
-                }, 300);
+            function resolveLoadingCopy(input) {
+                var pathname = '';
+
+                if (typeof input === 'string') {
+                    try {
+                        pathname = new URL(input, window.location.href).pathname || '';
+                    } catch (e) {
+                        pathname = input;
+                    }
+                } else if (input && typeof input === 'object') {
+                    if (input.pathname) {
+                        pathname = input.pathname;
+                    } else if (input.href) {
+                        try {
+                            pathname = new URL(input.href, window.location.href).pathname || '';
+                        } catch (e) {
+                            pathname = '';
+                        }
+                    }
+                    if (input.title || input.subtitle) {
+                        return {
+                            title: input.title || DEFAULT_LOADING_COPY.title,
+                            subtitle: input.subtitle || DEFAULT_LOADING_COPY.subtitle,
+                            icon: input.icon || DEFAULT_LOADING_COPY.icon
+                        };
+                    }
+                } else {
+                    pathname = window.location.pathname || '';
+                }
+
+                var loadingMap = [
+                    {
+                        match: /^\/$/,
+                        title: 'Panel hazirlaniyor',
+                        subtitle: 'Genel gorunum ve ozetler yukleniyor.',
+                        icon: 'bi-speedometer2'
+                    },
+                    {
+                        match: /^\/dashboard\/?$/,
+                        title: 'Panel hazirlaniyor',
+                        subtitle: 'Genel gorunum ve ozetler yukleniyor.',
+                        icon: 'bi-speedometer2'
+                    },
+                    {
+                        match: /^\/cari-bakiyeler\/?$/,
+                        title: 'Cari bakiyeler hazirlaniyor',
+                        subtitle: 'Bakiye dagilimi ve cari listesi yukleniyor.',
+                        icon: 'bi-wallet2'
+                    },
+                    {
+                        match: /^\/cari-hareketler\/.+/,
+                        title: 'Cari hareketler hazirlaniyor',
+                        subtitle: 'Hareket akisi ve bakiye ozeti getiriliyor.',
+                        icon: 'bi-file-text'
+                    },
+                    {
+                        match: /^\/cari-analiz\/?$/,
+                        title: 'Cari analiz hazirlaniyor',
+                        subtitle: 'Analiz verileri ve hareketler isleniyor.',
+                        icon: 'bi-graph-up-arrow'
+                    },
+                    {
+                        match: /^\/hakedis-yonetimi\/hedeflerim\/?$/,
+                        title: 'Hedefleriniz hazirlaniyor',
+                        subtitle: 'Kisisel performans ve hakedis durumu yukleniyor.',
+                        icon: 'bi-person-badge'
+                    },
+                    {
+                        match: /^\/hakedis-yonetimi\/plasiyer-hedef-durumu\/?$/,
+                        title: 'Hedef durumu hazirlaniyor',
+                        subtitle: 'Plasiyer performansi ve ozetler yukleniyor.',
+                        icon: 'bi-bullseye'
+                    },
+                    {
+                        match: /^\/hakedis-yonetimi\/hedef-belirleme\/?$/,
+                        title: 'Hedef tanimlari hazirlaniyor',
+                        subtitle: 'Kayitlar ve donem bilgileri yukleniyor.',
+                        icon: 'bi-sliders'
+                    },
+                    {
+                        match: /^\/satislarim\/?$/,
+                        title: 'Satis kayitlari hazirlaniyor',
+                        subtitle: 'Fatura listesi ve filtreler yukleniyor.',
+                        icon: 'bi-receipt'
+                    },
+                    {
+                        match: /^\/tahsilat-raporlari\/tahsilatlarim\/?$/,
+                        title: 'Tahsilat kayitlari hazirlaniyor',
+                        subtitle: 'Tahsilat listesi ve ozetler yukleniyor.',
+                        icon: 'bi-cash-stack'
+                    },
+                    {
+                        match: /^\/stok-/,
+                        title: 'Stok verileri hazirlaniyor',
+                        subtitle: 'Urun bilgileri ve analiz verileri getiriliyor.',
+                        icon: 'bi-box-seam'
+                    },
+                    {
+                        match: /^\/muhasebe\//,
+                        title: 'Muhasebe verileri hazirlaniyor',
+                        subtitle: 'Kayitlar ve raporlar guvenli sekilde yukleniyor.',
+                        icon: 'bi-journal-text'
+                    }
+                ];
+
+                for (var i = 0; i < loadingMap.length; i++) {
+                    if (loadingMap[i].match.test(pathname)) {
+                        return {
+                            title: loadingMap[i].title,
+                            subtitle: loadingMap[i].subtitle,
+                            icon: loadingMap[i].icon || DEFAULT_LOADING_COPY.icon
+                        };
+                    }
+                }
+
+                return DEFAULT_LOADING_COPY;
             }
-        };
+
+            function applyLoadingCopy(input) {
+                var nodes = getLoadingNodes();
+                var copy = resolveLoadingCopy(input);
+                if (nodes.title) nodes.title.textContent = copy.title;
+                if (nodes.subtitle) nodes.subtitle.textContent = copy.subtitle;
+                if (nodes.icon) nodes.icon.className = 'bi ' + (copy.icon || DEFAULT_LOADING_COPY.icon) + ' loading-icon';
+            }
+
+            function clearLoadingTimers() {
+                if (loadingTimer) {
+                    clearTimeout(loadingTimer);
+                    loadingTimer = null;
+                }
+                if (fallbackTimer) {
+                    clearTimeout(fallbackTimer);
+                    fallbackTimer = null;
+                }
+            }
+
+            function forceHideSpinner() {
+                var spinner = getSpinner();
+                if (!spinner) return;
+                clearLoadingTimers();
+                spinner.classList.remove('is-visible');
+                spinner.setAttribute('aria-hidden', 'true');
+                applyLoadingCopy(window.location.pathname);
+            }
+
+            function delayedHideSpinner() {
+                clearLoadingTimers();
+                loadingTimer = setTimeout(forceHideSpinner, HIDE_DELAY_MS);
+            }
+
+            window.showGlobalLoading = function (input) {
+                var spinner = getSpinner();
+                if (!spinner) return;
+                clearLoadingTimers();
+                applyLoadingCopy(input);
+                spinner.classList.add('is-visible');
+                spinner.setAttribute('aria-hidden', 'false');
+                fallbackTimer = setTimeout(forceHideSpinner, FAILSAFE_HIDE_MS);
+            };
+
+            window.hideGlobalLoading = delayedHideSpinner;
+
+            document.addEventListener('DOMContentLoaded', function () {
+                applyLoadingCopy(window.location.pathname);
+                forceHideSpinner();
+            });
+            window.addEventListener('load', delayedHideSpinner);
+
+            // Back/forward cache restorations can bring back the old DOM state.
+            window.addEventListener('pageshow', function () {
+                forceHideSpinner();
+            });
+
+            // If the browser returns to a visible tab/page state, never leave the overlay hanging.
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'visible') {
+                    delayedHideSpinner();
+                }
+            });
+
+            window.addEventListener('focus', delayedHideSpinner);
+            window.addEventListener('popstate', delayedHideSpinner);
+        })();
     </script>
     <script>
         (function () {
@@ -1054,7 +1332,8 @@
                 if (isDropdownToggle) return;
 
                 try {
-                    window.showGlobalLoading();
+                    var url = new URL(el.href, window.location.href);
+                    window.showGlobalLoading(url.pathname);
                 } catch (e) { }
             }, true);
 
@@ -1068,7 +1347,7 @@
                     var action = form.getAttribute('action') || '';
                     if (action.indexOf('export=pdf') > -1 || action.indexOf('export=excel') > -1) return;
                     
-                    window.showGlobalLoading();
+                    window.showGlobalLoading(form.getAttribute('action') || window.location.pathname);
                 } catch (e) { }
             }, true);
         })();
@@ -1190,6 +1469,41 @@
                             <span>Plasiyer Prim</span>
                         </a>
                     </li>
+                </ul>
+            </li>
+            {% endif %}
+            {% if user|has_menu_permission:'hakedis_yonetimi' %}
+            <li class="sidebar-nav-item">
+                <a class="sidebar-nav-link" href="#" onclick="toggleDropdown(this)">
+                    <i class="bi bi-award"></i>
+                    <span>Hakediş Yönetimi</span>
+                    <i class="bi bi-chevron-down dropdown-arrow"></i>
+                </a>
+                <ul class="sidebar-dropdown">
+                    {% if user|has_menu_permission:'plasiyer_hedef_durumu' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:plasiyer_hedef_durumu' %}">
+                            <i class="bi bi-bullseye"></i>
+                            <span>Plasiyer Hedef Durumu</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'hedeflerim' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:hedeflerim' %}">
+                            <i class="bi bi-person-badge"></i>
+                            <span>Hedeflerim</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user|has_menu_permission:'hedef_belirleme' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:hedef_belirleme' %}">
+                            <i class="bi bi-sliders"></i>
+                            <span>Hedef Belirleme</span>
+                        </a>
+                    </li>
+                    {% endif %}
                 </ul>
             </li>
             {% endif %}

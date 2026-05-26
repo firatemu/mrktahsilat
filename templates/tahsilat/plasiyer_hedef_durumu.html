@@ -1,0 +1,672 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}{{ page_title|default:'Plasiyer Hedef Durumu' }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .status-dashboard {
+        background:
+            radial-gradient(circle at top left, rgba(14, 165, 233, 0.10), transparent 28%),
+            radial-gradient(circle at top right, rgba(59, 130, 246, 0.10), transparent 24%),
+            linear-gradient(180deg, #f6f9fc 0%, #eef4fb 100%);
+        min-height: calc(100vh - 80px);
+    }
+    .status-filter-card,
+    .status-card {
+        border: 0;
+        border-radius: 24px;
+        box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+    }
+    .status-filter-card {
+        background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #0ea5e9 100%);
+        overflow: hidden;
+    }
+    .status-filter-card .card-body {
+        padding: 1.75rem;
+    }
+    .status-filter-card h4,
+    .status-filter-card .text-muted,
+    .status-filter-card .form-label {
+        color: #f8fafc !important;
+    }
+    .status-filter-card .text-muted {
+        opacity: 0.84;
+    }
+    .status-filter-card .form-select {
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.14);
+        color: #fff;
+        min-width: 110px;
+        backdrop-filter: blur(10px);
+    }
+    .status-filter-card .form-select option {
+        color: #0f172a;
+    }
+    .status-filter-card .btn-primary {
+        border: 0;
+        background: linear-gradient(135deg, #f8fafc 0%, #dbeafe 100%);
+        color: #1d4ed8;
+        font-weight: 700;
+        box-shadow: 0 12px 26px rgba(15, 23, 42, 0.18);
+    }
+    .status-filter-form {
+        width: 100%;
+    }
+    .metric-box {
+        border-radius: 20px;
+        padding: 1rem 1.25rem;
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    }
+    .metric-box::after {
+        content: '';
+        position: absolute;
+        top: -30%;
+        right: -10%;
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.12);
+    }
+    .metric-box-primary {
+        background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
+        color: #eff6ff;
+    }
+    .metric-box-success {
+        background: linear-gradient(135deg, #047857 0%, #10b981 100%);
+        color: #ecfdf5;
+    }
+    .metric-box-slate {
+        background: linear-gradient(135deg, #334155 0%, #475569 100%);
+        color: #f8fafc;
+    }
+    .metric-box-amber {
+        background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%);
+        color: #fffbeb;
+    }
+    .metric-box-cyan {
+        background: linear-gradient(135deg, #0f766e 0%, #06b6d4 100%);
+        color: #ecfeff;
+    }
+    .metric-label {
+        font-size: 0.78rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        opacity: 0.82;
+        margin-bottom: 0.35rem;
+    }
+    .metric-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        position: relative;
+        z-index: 1;
+    }
+    .status-card {
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        backdrop-filter: blur(10px);
+    }
+    .status-card-header {
+        background: linear-gradient(180deg, rgba(248, 250, 252, 0.96) 0%, rgba(241, 245, 249, 0.92) 100%);
+        border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+        border-radius: 24px 24px 0 0 !important;
+    }
+    .progress {
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.18);
+    }
+    .progress-bar {
+        border-radius: 999px;
+    }
+    .status-table th,
+    .status-table td {
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+    .status-table thead th {
+        background: #e2e8f0;
+        color: #0f172a;
+        border-bottom: 0;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .status-table tbody tr.table-success {
+        --bs-table-bg: rgba(16, 185, 129, 0.10);
+        --bs-table-striped-bg: rgba(16, 185, 129, 0.14);
+    }
+    .group-panel {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.92) 100%);
+        border: 1px solid rgba(191, 219, 254, 0.9);
+        border-radius: 22px;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+        padding: 1rem;
+    }
+    .group-title {
+        font-weight: 700;
+        color: #1d4ed8;
+    }
+    .empty-state {
+        border-radius: 20px;
+        border-color: rgba(191, 219, 254, 0.8) !important;
+        background: linear-gradient(180deg, rgba(239, 246, 255, 0.95) 0%, rgba(248, 250, 252, 0.98) 100%);
+        color: #334155;
+    }
+    .view-switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.88);
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    }
+    .view-switch-link {
+        border-radius: 999px;
+        padding: 0.55rem 1rem;
+        text-decoration: none;
+        font-weight: 600;
+        color: #475569;
+        transition: all 0.2s ease;
+    }
+    .view-switch-link.active {
+        background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 100%);
+        color: #fff;
+        box-shadow: 0 10px 20px rgba(29, 78, 216, 0.18);
+    }
+    .export-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        border-radius: 999px;
+        padding: 0.6rem 1rem;
+        text-decoration: none;
+        font-weight: 700;
+        color: #166534;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(34, 197, 94, 0.22);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    }
+    .list-card {
+        background: rgba(255, 255, 255, 0.94);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 24px;
+        box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+        overflow: hidden;
+    }
+    .excel-table {
+        margin-bottom: 0;
+        --bs-table-bg: transparent;
+    }
+    .excel-table th,
+    .excel-table td {
+        border: 1px solid #1e293b;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+    .excel-table .excel-title-row th {
+        background: #ffffff;
+        color: #0f172a;
+        font-size: 1.15rem;
+        font-weight: 800;
+        text-align: center;
+        padding: 0.9rem 0.75rem;
+    }
+    .excel-table .excel-head th {
+        background: #0f2d6b;
+        color: #f8ff3d;
+        font-weight: 700;
+        font-size: 0.95rem;
+        padding: 0.9rem 0.75rem;
+    }
+    .excel-table .seller-col {
+        min-width: 180px;
+        background: #ffffff;
+        font-weight: 700;
+        color: #111827;
+    }
+    .excel-table .target-col {
+        background: #dbeafe;
+    }
+    .excel-table .actual-col {
+        background: #fed7aa;
+    }
+    .excel-table .prim-col {
+        background: #cfe9bb;
+    }
+    .excel-table .status-col {
+        background: #f8fafc;
+    }
+    .excel-table tbody td {
+        padding: 0.8rem 0.75rem;
+        font-size: 0.98rem;
+    }
+    .excel-table .status-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.3rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+    .excel-table .status-chip.ok {
+        background: rgba(22, 163, 74, 0.14);
+        color: #15803d;
+    }
+    .excel-table .status-chip.waiting {
+        background: rgba(71, 85, 105, 0.12);
+        color: #475569;
+    }
+    @media (max-width: 1199.98px) {
+        .status-card-header,
+        .status-card .card-body,
+        .status-filter-card .card-body {
+            padding-left: 1.25rem;
+            padding-right: 1.25rem;
+        }
+        .metric-value {
+            font-size: 1.35rem;
+        }
+    }
+    @media (max-width: 991.98px) {
+        .status-dashboard {
+            padding-left: 0.25rem;
+            padding-right: 0.25rem;
+        }
+        .status-filter-card .card-body {
+            padding: 1.25rem;
+        }
+        .status-filter-form .col-auto {
+            flex: 1 1 100%;
+            width: 100%;
+        }
+        .status-filter-form .form-select,
+        .status-filter-form .btn {
+            width: 100%;
+        }
+        .view-switch {
+            width: 100%;
+            justify-content: stretch;
+            flex-wrap: wrap;
+        }
+        .view-switch-link {
+            flex: 1 1 180px;
+            text-align: center;
+        }
+        .export-link {
+            width: 100%;
+            justify-content: center;
+        }
+        .metric-box {
+            padding: 0.9rem 1rem;
+        }
+        .metric-label {
+            font-size: 0.74rem;
+        }
+        .metric-value {
+            font-size: 1.2rem;
+        }
+        .group-panel {
+            padding: 0.85rem;
+        }
+        .group-title {
+            font-size: 1rem;
+        }
+    }
+    @media (max-width: 767.98px) {
+        .status-filter-card,
+        .status-card,
+        .list-card {
+            border-radius: 20px;
+        }
+        .status-card-header {
+            border-radius: 20px 20px 0 0 !important;
+        }
+        .status-filter-card h4 {
+            font-size: 1.2rem;
+        }
+        .status-filter-card p,
+        .status-filter-card .small {
+            font-size: 0.88rem;
+        }
+        .metric-box::after {
+            width: 84px;
+            height: 84px;
+            top: -22px;
+            right: -22px;
+        }
+        .status-card .card-body {
+            padding-top: 1rem !important;
+        }
+        .excel-table .excel-title-row th {
+            font-size: 1rem;
+            padding: 0.75rem 0.55rem;
+        }
+        .excel-table .excel-head th,
+        .excel-table tbody td {
+            font-size: 0.85rem;
+            padding: 0.7rem 0.55rem;
+        }
+        .excel-table .seller-col {
+            min-width: 140px;
+        }
+        .status-table th,
+        .status-table td {
+            font-size: 0.82rem;
+            white-space: normal;
+        }
+        .status-table td:last-child,
+        .status-table th:last-child,
+        .status-table td:nth-last-child(2),
+        .status-table th:nth-last-child(2) {
+            white-space: nowrap;
+        }
+        .empty-state {
+            padding: 1rem;
+        }
+    }
+    @media (max-width: 575.98px) {
+        .status-dashboard {
+            padding-top: 1rem !important;
+        }
+        .status-filter-card .card-body,
+        .status-card-header,
+        .status-card .card-body,
+        .list-card .table-responsive {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+        .status-filter-card .card-body {
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+        .metric-value {
+            font-size: 1.08rem;
+        }
+        .metric-label {
+            font-size: 0.7rem;
+        }
+        .view-switch-link,
+        .export-link,
+        .status-filter-form .btn {
+            font-size: 0.9rem;
+        }
+        .excel-table {
+            min-width: 640px;
+        }
+        .status-table {
+            min-width: 720px;
+        }
+        .status-table td[style],
+        .status-table th[style] {
+            min-width: 160px !important;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 status-dashboard">
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card status-filter-card">
+                <div class="card-body">
+                    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+                        <div>
+                            <h4 class="mb-1">
+                                <i class="bi bi-bullseye me-2"></i>{{ page_title|default:'Plasiyer Hedef Durumu' }}
+                            </h4>
+                            <p class="text-muted mb-0">{{ page_subtitle|default:'Seçilen dönemde her plasiyerin hedef gerçekleşmesini ve hakediş tutarını izleyin.' }}</p>
+                            {% if current_plasiyer %}
+                            <div class="small mt-2 text-white-50">Aktif plasiyer: {{ current_plasiyer }}</div>
+                            {% endif %}
+                        </div>
+                        <form method="get" class="row g-2 align-items-end status-filter-form">
+                            <input type="hidden" name="gorunum" value="{{ selected_view }}">
+                            <div class="col-auto">
+                                <label class="form-label mb-1">Yıl</label>
+                                <select name="yil" class="form-select">
+                                    {% for yil in years %}
+                                    <option value="{{ yil }}" {% if yil == selected_year %}selected{% endif %}>{{ yil }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <label class="form-label mb-1">Ay</label>
+                                <select name="ay" class="form-select">
+                                    {% for ay in months %}
+                                    <option value="{{ ay }}" {% if ay == selected_month %}selected{% endif %}>{{ ay }}. Ay</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-eye me-1"></i>Durumu Göster
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-6 col-xl-3">
+            <div class="metric-box metric-box-primary">
+                <div class="metric-label">{{ summary_metric_1_label|default:'Aktif Hedef Satırı' }}</div>
+                <div class="metric-value">{{ summary_metric_1_value|default:0 }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="metric-box metric-box-success">
+                <div class="metric-label">{{ summary_metric_2_label|default:'Hedef Tanımlı Plasiyer' }}</div>
+                <div class="metric-value">{{ summary_metric_2_value|default:0 }}</div>
+            </div>
+        </div>
+        <div class="col-12">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                <div class="view-switch">
+                    <a href="?yil={{ selected_year }}&ay={{ selected_month }}&gorunum=kart" class="view-switch-link {% if selected_view == 'kart' %}active{% endif %}">
+                        <i class="bi bi-grid-3x3-gap me-1"></i>Kart Görünümü
+                    </a>
+                    <a href="?yil={{ selected_year }}&ay={{ selected_month }}&gorunum=liste" class="view-switch-link {% if selected_view == 'liste' %}active{% endif %}">
+                        <i class="bi bi-table me-1"></i>Liste Görünümü
+                    </a>
+                </div>
+                {% if liste_gruplari %}
+                <a href="?yil={{ selected_year }}&ay={{ selected_month }}&gorunum=liste&export=excel" class="export-link">
+                    <i class="bi bi-file-earmark-excel"></i>Excel Aktar
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% if page_notice %}
+        <div class="col-12">
+            <div class="alert alert-light empty-state mb-0">
+                {{ page_notice }}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if selected_view == 'liste' %}
+    <div class="row g-4">
+        {% for liste_grubu in liste_gruplari %}
+        <div class="col-12">
+            <div class="list-card">
+                <div class="table-responsive">
+                    <table class="table excel-table align-middle">
+                        <thead>
+                            <tr class="excel-title-row">
+                                <th style="width: 180px;"></th>
+                                <th colspan="5">{{ liste_grubu.baslik }}</th>
+                            </tr>
+                            <tr class="excel-head">
+                                <th>Satıcı</th>
+                                <th>Hedef Tutar</th>
+                                <th>Gerçekleşen Rakam</th>
+                                <th>Kazanılan Prim</th>
+                                <th>Prim %</th>
+                                <th>Durum</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for satir in liste_grubu.satirlar %}
+                            <tr>
+                                <td class="seller-col">{{ satir.plasiyer }}</td>
+                                <td class="target-col">{{ satir.hedef_tutar|floatformat:2|intcomma }} TL</td>
+                                <td class="actual-col">{{ satir.gerceklesen|floatformat:2|intcomma }} TL</td>
+                                <td class="prim-col">{{ satir.hakedis_tutar|floatformat:2|intcomma }} TL</td>
+                                <td class="prim-col">%{{ satir.hakedis_yuzde|floatformat:2 }}</td>
+                                <td class="status-col">
+                                    {% if satir.durum == 'aştı' or satir.durum == 'tutturdu' %}
+                                    <span class="status-chip ok">{{ satir.durum|title }}</span>
+                                    {% else %}
+                                    <span class="status-chip waiting">Bekliyor</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-light empty-state mb-0">
+                {{ list_empty_message|default:'Bu dönem için listelenecek aktif hedef tanımı bulunmuyor.' }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    {% if plasiyer_cards %}
+    <div class="row g-4">
+        {% for card in plasiyer_cards %}
+        <div class="col-12 col-xxl-6">
+            <div class="card status-card h-100">
+                <div class="card-header status-card-header border-0 pt-4 pb-0">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                        <div>
+                            <h5 class="mb-1">{{ card.plasiyer }}</h5>
+                            <p class="text-muted mb-0">{{ card.tutan_grup_sayisi }}/{{ card.toplam_grup_sayisi }} hedef grubu karşılandı</p>
+                        </div>
+                        <div class="text-end">
+                            <div class="small text-muted">Toplam Hakediş</div>
+                            <div class="fw-bold fs-5 text-success">{{ card.toplam_hakedis|floatformat:2|intcomma }} TL</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body pt-4">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <div class="metric-box metric-box-cyan">
+                                <div class="metric-label">Gerçekleşen</div>
+                                <div class="metric-value">{{ card.toplam_gerceklesen|floatformat:2|intcomma }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="metric-box metric-box-slate">
+                                <div class="metric-label">Hedef Toplamı</div>
+                                <div class="metric-value">{{ card.toplam_hedef|floatformat:2|intcomma }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="metric-box metric-box-amber">
+                                <div class="metric-label">Grup Sayısı</div>
+                                <div class="metric-value">{{ card.toplam_grup_sayisi }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if card.gruplar %}
+                        {% for grup in card.gruplar %}
+                        <div class="group-panel mb-3">
+                            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+                                <div>
+                                    <div class="group-title">{{ grup.marka }}</div>
+                                    <div class="text-muted small">{{ grup.kapsam_etiketi }}</div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="small text-muted">Gerçekleşen Satış</div>
+                                    <div class="fw-semibold">{{ grup.gerceklesen|floatformat:2|intcomma }} TL</div>
+                                </div>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table table-sm status-table mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Kademe</th>
+                                            <th>Hedef</th>
+                                            <th>Hakediş %</th>
+                                            <th>Kalan</th>
+                                            <th>İlerleme</th>
+                                            <th>Durum</th>
+                                            <th>Hakediş</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in grup.rows %}
+                                        <tr {% if row.is_kazanan_kademe %}class="table-success"{% endif %}>
+                                            <td>{{ row.kademe_no }}</td>
+                                            <td>{{ row.hedef_tutar|floatformat:2|intcomma }} TL</td>
+                                            <td>%{{ row.hakedis_yuzde|floatformat:2 }}</td>
+                                            <td>{{ row.kalan_tutar|floatformat:2|intcomma }} TL</td>
+                                            <td style="min-width: 180px;">
+                                                <div class="progress mb-1">
+                                                    <div class="progress-bar {% if row.is_kazanan_kademe %}bg-success{% else %}bg-primary{% endif %}" role="progressbar" style="width: {% if row.ilerleme_yuzde > 100 %}100{% else %}{{ row.ilerleme_yuzde }}{% endif %}%"></div>
+                                                </div>
+                                                <div class="small text-muted">%{{ row.ilerleme_yuzde|floatformat:1 }}</div>
+                                            </td>
+                                            <td>
+                                                {% if row.durum == 'aştı' %}
+                                                <span class="badge text-bg-success">Aştı</span>
+                                                {% elif row.durum == 'tutturdu' %}
+                                                <span class="badge text-bg-primary">Tutturdu</span>
+                                                {% else %}
+                                                <span class="badge text-bg-secondary">Bekliyor</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="fw-semibold">
+                                                {% if row.is_kazanan_kademe %}
+                                                {{ row.hesaplanan_hakedis|floatformat:2|intcomma }} TL
+                                                {% else %}
+                                                <span class="text-muted">0,00 TL</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="alert alert-light empty-state mb-0">
+                        {{ card_empty_message|default:'Bu plasiyer için seçilen dönemde aktif hedef tanımı bulunmuyor.' }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="alert alert-light empty-state mb-0">
+                {{ overall_empty_message|default:'Seçilen dönemde aktif hedef tanımı bulunmuyor.' }}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}
