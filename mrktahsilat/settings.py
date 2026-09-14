@@ -129,6 +129,11 @@ CSRF_COOKIE_HTTPONLY = get_env_bool(
 CSRF_COOKIE_SAMESITE = get_env_var(
     'CSRF_COOKIE_SAMESITE', default='Lax')  # AJAX istekleri için Lax
 
+# Uygulama debug bayrakları
+TAHSILAT_DEBUG_REQUESTS = get_env_bool(
+    'TAHSILAT_DEBUG_REQUESTS', default=False)
+TAHSILAT_DEBUG_SQL = get_env_bool('TAHSILAT_DEBUG_SQL', default=False)
+
 CSRF_TRUSTED_ORIGINS = [
     'http://mrktahsilat.com',
     'https://mrktahsilat.com',
@@ -161,6 +166,7 @@ LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/login/'
 
 # Logging configuration
+LOG_LEVEL = get_env_var('DJANGO_LOG_LEVEL', default='INFO').upper()
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -176,13 +182,13 @@ LOGGING = {
     },
     'handlers': {
         'file': {
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
             'class': 'logging.FileHandler',
             'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
             'formatter': 'verbose',
         },
         'console': {
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
         },
@@ -190,12 +196,12 @@ LOGGING = {
     'loggers': {
         'django': {
             'handlers': ['file', 'console'],
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
             'propagate': True,
         },
         'tahsilat': {
             'handlers': ['file', 'console'],
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
             'propagate': True,
         },
     },

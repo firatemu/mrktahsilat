@@ -1,11 +1,20 @@
 import pyodbc
 from django.conf import settings
-from datetime import datetime
+from datetime import datetime, date
 from django.utils import timezone
 import logging
+import json
 import re
 import time
 import traceback
+
+from tahsilat.services.mssql.common import (
+    build_mssql_connection_string,
+    fix_turkish_encoding,
+    get_mssql_fallbacks,
+    safe_decode_mssql_value,
+)
+from tahsilat.services.mssql.tahsilat import build_gunluk_tahsilat_filters
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +28,65 @@ def _odbc_keys_lower(rows, colnames):
             for c, val in zip(colnames, tup)
         })
     return out
+
+
+def _sql_debug_enabled():
+    return getattr(settings, 'TAHSILAT_DEBUG_SQL', False)
+
+
+def _safe_log_payload(data):
+    try:
+        return json.dumps(data, ensure_ascii=False, default=str)
+    except TypeError:
+        return str(data)
+
+
+def _log_sql_debug(message, **payload):
+    if not _sql_debug_enabled():
+        return
+    if payload:
+        logger.debug("%s | %s", message, _safe_log_payload(payload))
+    else:
+        logger.debug("%s", message)
+
+
+def _sanitize_sql_params(params, preview_limit=5):
+    if not params:
+        return []
+    sanitized = []
+    for index, value in enumerate(params):
+        if index >= preview_limit:
+            sanitized.append('...')
+            break
+        if value is None:
+            sanitized.append(None)
+        elif isinstance(value, (int, float, bool)):
+            sanitized.append(value)
+        else:
+            text = str(value)
+            sanitized.append(text if len(text) <= 24 else text[:21] + '...')
+    return sanitized
+
+
+_MSSQL_LIST_CACHE = {}
+
+
+def _cache_get(key):
+    cached = _MSSQL_LIST_CACHE.get(key)
+    if not cached:
+        return None
+    if cached['expires_at'] <= time.time():
+        _MSSQL_LIST_CACHE.pop(key, None)
+        return None
+    return cached['value']
+
+
+def _cache_set(key, value, ttl_seconds=300):
+    _MSSQL_LIST_CACHE[key] = {
+        'value': value,
+        'expires_at': time.time() + ttl_seconds,
+    }
+    return value
 
 
 # FATURA: Logo'da [PLASİYER] metni sık sık boş kalır; [PLASİYER KOD] dolu olur. Yalnızca [PLASİYER]'a
@@ -153,6 +221,9 @@ class MSSQLService:
 
     def get_malzeme_filter_options(self):
         """Malzeme türü ve marka seçeneklerini veritabanından getirir"""
+        cached = _cache_get('malzeme_filter_options')
+        if cached is not None:
+            return cached
         logger.info("=== get_malzeme_filter_options started ===")
         try:
             connection = self.get_connection()
@@ -199,7 +270,7 @@ class MSSQLService:
 
             logger.info(
                 "=== get_malzeme_filter_options completed successfully ===")
-            return result
+            return _cache_set('malzeme_filter_options', result)
         except Exception as e:
             import traceback
             logger.error("=== get_malzeme_filter_options failed ===")
@@ -207,6 +278,9 @@ class MSSQLService:
 
     def get_unique_tahsilat_bankalar(self):
         """Tahsilat kayıtlarında geçen benzersiz banka adlarını döndürür"""
+        cached = _cache_get('unique_tahsilat_bankalar')
+        if cached is not None:
+            return cached
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
@@ -265,13 +339,16 @@ class MSSQLService:
                     seen.add(canon)
                     bankalar.append(canon)
             conn.close()
-            return bankalar
+            return _cache_set('unique_tahsilat_bankalar', bankalar)
         except Exception as e:
             logger.error(f'get_unique_tahsilat_bankalar error: {e}')
             return []
 
     def get_unique_plasiyerler(self):
         """Tahsilat tablosundan benzersiz plasiyer isimlerini döndürür"""
+        cached = _cache_get('unique_plasiyerler')
+        if cached is not None:
+            return cached
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
@@ -287,13 +364,16 @@ class MSSQLService:
             rows = cursor.fetchall()
             plasiyerler = [self.safe_decode_string(r[0]) for r in rows if r and r[0]]
             conn.close()
-            return plasiyerler
+            return _cache_set('unique_plasiyerler', plasiyerler)
         except Exception as e:
             logger.error(f'get_unique_plasiyerler error: {e}')
             return []
 
     def get_unique_kullanicilar(self):
         """KULLANICITB tablosundan benzersiz kullanıcı isimlerini döndürür"""
+        cached = _cache_get('unique_kullanicilar')
+        if cached is not None:
+            return cached
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
@@ -309,7 +389,7 @@ class MSSQLService:
             rows = cursor.fetchall()
             kullanicilar = [self.safe_decode_string(r[0]) for r in rows if r and r[0]]
             conn.close()
-            return kullanicilar
+            return _cache_set('unique_kullanicilar', kullanicilar)
         except Exception as e:
             logger.error(f'get_unique_kullanicilar error: {e}')
             logger.error(f"Traceback: {traceback.format_exc()}")
@@ -407,25 +487,8 @@ class MSSQLService:
         self.failure_threshold = 10  # saniye - geçici hata sonrası tekrar deneme süresi
         # Kalıcı encoding ayarlarını kullan
         encoding_opts = self.config.get('encoding_options', {})
-
-        # Connection string'i encoding ayarları ile oluştur
-        self.connection_string = (
-            f"DRIVER={{{self.config['driver']}}};"
-            f"SERVER={self.config['server']},{self.config['port']};"
-            f"DATABASE={self.config['database']};"
-            f"UID={self.config['username']};"
-            f"PWD={self.config['password']};"
-            f"TrustServerCertificate=yes;"
-            f"LoginTimeout=5;"
-        )
-
-        # AutoTranslate=no ekle (encoding sorunları için)
-        if not encoding_opts.get('auto_translate', True):
-            self.connection_string += "AutoTranslate=no;"
-
-        # Encoding fallback listesi
-        self.encoding_fallbacks = encoding_opts.get(
-            'encoding_fallbacks', ['cp1254', 'utf-8', 'latin-1', 'iso-8859-9'])
+        self.connection_string = build_mssql_connection_string(self.config) + "LoginTimeout=5;"
+        self.encoding_fallbacks = get_mssql_fallbacks(self.config)
         self.primary_encoding = encoding_opts.get(
             'connection_encoding', 'cp1254')
 
@@ -439,16 +502,20 @@ class MSSQLService:
             raise Exception(f"MSSQL connection skipped (Circuit breaker active). Please try again in {remaining} seconds.")
 
         try:
-            logger.info("=== Attempting MSSQL connection ===")
-            logger.info(f"Connection string: {self.connection_string}")
-            logger.info(f"Primary encoding: {self.primary_encoding}")
-            logger.info(f"Config: {self.config}")
+            _log_sql_debug(
+                "Attempting MSSQL connection",
+                server=self.config.get('server'),
+                port=self.config.get('port'),
+                database=self.config.get('database'),
+                encoding=self.primary_encoding,
+            )
 
             connection = pyodbc.connect(self.connection_string)
 
-            logger.info("Successfully established MSSQL connection")
-            logger.debug(
-                f"MSSQL connection established with encoding: {self.primary_encoding}")
+            _log_sql_debug(
+                "MSSQL connection established",
+                encoding=self.primary_encoding,
+            )
             return connection
 
         except Exception as e:
@@ -463,96 +530,23 @@ class MSSQLService:
 
     def safe_decode_string_preserve_turkish(self, value):
         """String değeri güvenli şekilde decode eder - Türkçe karakterleri ve büyük/küçük harf durumunu korur"""
-        if not value:
-            return ""
-            
-        if not isinstance(value, (str, bytes)):
-            return str(value)
-            
-        # Eğer bytes ise önce decode et
-        if isinstance(value, bytes):
-            # Settings'ten gelen encoding listesini kullan
-            for encoding in self.encoding_fallbacks:
-                try:
-                    decoded = value.decode(encoding)
-                    # Sadece encoding hatalarını düzelt, Türkçe karakterleri koru
-                    return self.fix_encoding_errors_only(decoded)
-                except:
-                    continue
-            # Hiçbiri olmadı ise errors='ignore' ile decode et
-            try:
-                decoded = value.decode('utf-8', errors='ignore')
-                return self.fix_encoding_errors_only(decoded)
-            except:
-                return str(value)
-        
-        # String ise sadece encoding hatalarını düzelt
-        return self.fix_encoding_errors_only(value)
+        return safe_decode_mssql_value(
+            value,
+            fallbacks=self.encoding_fallbacks,
+            preserve_turkish=True,
+        )
 
     def fix_encoding_errors_only(self, text):
         """Sadece encoding hatalarını düzeltir, Türkçe karakterleri ve büyük/küçük harf durumunu korur"""
-        if not text:
-            return ""
-        
-        # Sadece encoding sorunlarını düzelt (örneğin 'ÃŒ' -> 'Ü', 'Ã¼' -> 'ü')
-        # Türkçe karakterleri İngilizce karakterlere çevirme
-        encoding_fix_map = {
-            # EYÜP özel durumu - encoding hatası düzeltmesi
-            'EYÃŒP': 'EYÜP',
-            'EYÃœP': 'EYÜP',
-            
-            # Ü karakteri encoding hataları -> doğru Ü karakteri
-            'Ãœ': 'Ü', 'ÃŒ': 'Ü', 'Ã¼': 'ü',
-            
-            # I/İ karakteri encoding hataları -> doğru İ/ı karakteri
-            'Ä±': 'ı', 'Ä°': 'İ',
-            
-            # Ç karakteri encoding hataları -> doğru Ç karakteri
-            'Ã§': 'ç', 'Ã‡': 'Ç',
-            
-            # Ş karakteri encoding hataları -> doğru Ş karakteri
-            'ÅŸ': 'ş', 'Åž': 'Ş',
-            
-            # Ö karakteri encoding hataları -> doğru Ö karakteri
-            'Ã¶': 'ö', 'Ã–': 'Ö',
-            
-            # Ğ karakteri encoding hataları -> doğru Ğ karakteri
-            'ÄŸ': 'ğ', 'Äž': 'Ğ',
-        }
-        
-        result = str(text)
-        # Sadece encoding hatalarını düzelt
-        for old, new in encoding_fix_map.items():
-            result = result.replace(old, new)
-        
-        return result
+        return fix_turkish_encoding(text)
 
     def safe_decode_string(self, value):
         """String değeri güvenli şekilde decode eder - Kalıcı çözüm"""
-        if not value:
-            return ""
-
-        if not isinstance(value, (str, bytes)):
-            return str(value)
-
-        # Eğer bytes ise önce decode et
-        if isinstance(value, bytes):
-            # Settings'ten gelen encoding listesini kullan
-            for encoding in self.encoding_fallbacks:
-                try:
-                    decoded = value.decode(encoding)
-                    return self.normalize_turkish_chars(decoded)
-                except:
-                    continue
-            # Hiçbiri olmadı ise errors='ignore' ile decode et
-            try:
-                decoded = value.decode('utf-8', errors='ignore')
-                return self.normalize_turkish_chars(decoded)
-            except:
-                return str(value)
-
-        # String ise direkt normalize et
-        return self.normalize_turkish_chars(value)
+        return safe_decode_mssql_value(
+            value,
+            fallbacks=self.encoding_fallbacks,
+            preserve_turkish=True,
+        )
 
     @staticmethod
     def _normalize_sql_column_key(name):
@@ -585,49 +579,7 @@ class MSSQLService:
 
     def normalize_turkish_chars(self, text):
         """Türkçe karakter encoding sorunlarını düzelt - Statik mapping"""
-        if not text:
-            return ""
-
-        # Kalıcı encoding sorun çözücü mapping
-        encoding_fix_map = {
-            # EYÜP özel durumu
-            'EYÃŒP': 'EYÜP',
-            'EYÃœP': 'EYÜP',
-
-            # Ü karakteri varyasyonları
-            'Ãœ': 'Ü', 'ÃŒ': 'Ü', 'Ã¼': 'ü',
-
-            # I/İ karakteri varyasyonları
-            'Ä±': 'ı', 'Ä°': 'İ',
-
-            # Ç karakteri varyasyonları
-            'Ã§': 'ç', 'Ã‡': 'Ç',
-
-            # Ş karakteri varyasyonları
-            'ÅŸ': 'ş', 'Åž': 'Ş',
-
-            # Ö karakteri varyasyonları
-            'Ã¶': 'ö', 'Ã–': 'Ö',
-
-            # Ğ karakteri varyasyonları
-            'ÄŸ': 'ğ', 'Äž': 'Ğ',
-
-            # Özel kelime düzeltmeleri
-            'ÅŸen': 'şen', 'oÄŸuz': 'oğuz',
-            'fÄ±rat': 'fırat', 'sÃ¼leyman': 'süleyman',
-
-            # Şirket isimleri için yaygın düzeltmeler
-            'OTOMOTİV': 'OTOMOTİV', 'İNŞ.': 'İNŞ.',
-            'SANAYİ': 'SANAYİ', 'TİC.': 'TİC.',
-            'LTD.': 'LTD.', 'ŞTİ.': 'ŞTİ.',
-            'A.Ş.': 'A.Ş.'
-        }
-
-        result = str(text)
-        for old, new in encoding_fix_map.items():
-            result = result.replace(old, new)
-
-        return result
+        return fix_turkish_encoding(text)
 
     def execute_query_safe(self, query, params=None):
         """Encoding sorunlarına karşı güvenli SQL sorgusu - Kalıcı çözüm"""
@@ -642,22 +594,10 @@ class MSSQLService:
                 # Önce column isimlerini alalım
                 columns = [column[0] for column in cursor.description]
                 
-                # #region agent log
-                import json
-                log_data = {
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'C',
-                    'location': 'mssql_service.py:454',
-                    'message': 'Column names from cursor.description',
-                    'data': {'columns': columns[:10] if len(columns) > 10 else columns},
-                                    'timestamp': int(time.time() * 1000)
-                }
-                try:
-                    with open('/var/.cursor/debug.log', 'a', encoding='utf-8') as f:
-                        f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-                except: pass
-                # #endregion
+                _log_sql_debug(
+                    'MSSQL query columns loaded',
+                    columns=columns[:10] if len(columns) > 10 else columns,
+                )
 
                 results = []
                 processed_rows = 0
@@ -715,27 +655,13 @@ class MSSQLService:
                                 if normalized_name != column_name:
                                     row_dict[normalized_name] = value
                             
-                            # #region agent log
-                            if processed_rows == 0:  # Log only first row
-                                import json
-                                log_data = {
-                                    'sessionId': 'debug-session',
-                                    'runId': 'run1',
-                                    'hypothesisId': 'B',
-                                    'location': 'mssql_service.py:510',
-                                    'message': 'First row dict keys after processing',
-                                    'data': {
-                                        'column_name': column_name,
-                                        'normalized_name': normalized_name,
-                                        'row_dict_keys': list(row_dict.keys())[:10]
-                                    },
-                                    'timestamp': int(time.time() * 1000)
-                                }
-                                try:
-                                    with open('/var/.cursor/debug.log', 'a', encoding='utf-8') as f:
-                                        f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-                                except: pass
-                            # #endregion
+                            if processed_rows == 0:
+                                _log_sql_debug(
+                                    'MSSQL first row processed',
+                                    column_name=column_name,
+                                    normalized_name=normalized_name,
+                                    row_dict_keys=list(row_dict.keys())[:10],
+                                )
 
                         results.append(row_dict)
                         processed_rows += 1
@@ -1166,8 +1092,11 @@ class MSSQLService:
         try:
             logger.info(
                 f"Executing direct tahsilat query for plasiyer: '{plasiyer}'")
-            logger.info(f"SQL Query: {query}")
-            logger.info(f"SQL Params: {params}")
+            _log_sql_debug(
+                'Direct tahsilat query prepared',
+                param_count=len(params),
+                params_preview=_sanitize_sql_params(params),
+            )
             results = self.execute_query(query, params)
             logger.info(
                 f"Direct tahsilat query returned {len(results)} results")
@@ -1426,62 +1355,19 @@ class MSSQLService:
         """
         count_params = []
 
-        # WHERE koşulları
-        where_conditions = []
-
-        if cari_kod:
-            where_conditions.append("UPPER([CariKod]) LIKE UPPER(?)")
-            count_params.append(f"%{cari_kod}%")
-
-        if cari_unvan:
-            where_conditions.append("UPPER([CariUnvan]) LIKE UPPER(?)")
-            count_params.append(f"%{cari_unvan}%")
-
-        # Tarih filtresi - başlangıç ve bitiş tarihi varsa onları kullan
-        if baslangic_tarihi and bitis_tarihi:
-            where_conditions.append("CAST([Tarih] AS DATE) >= ? AND CAST([Tarih] AS DATE) <= ?")
-            count_params.append(baslangic_tarihi)
-            count_params.append(bitis_tarihi)
-        elif baslangic_tarihi:
-            where_conditions.append("CAST([Tarih] AS DATE) >= ?")
-            count_params.append(baslangic_tarihi)
-        elif bitis_tarihi:
-            where_conditions.append("CAST([Tarih] AS DATE) <= ?")
-            count_params.append(bitis_tarihi)
-        elif tarih_filtresi == 'today':
-            where_conditions.append(
-                "CAST([Tarih] AS DATE) = CAST(GETDATE() AS DATE)")
-        elif tarih_filtresi == 'week':
-            where_conditions.append(
-                "CAST([Tarih] AS DATE) >= CAST(DATEADD(day, -7, GETDATE()) AS DATE)")
-        elif tarih_filtresi == 'month':
-            where_conditions.append(
-                "CAST([Tarih] AS DATE) >= CAST(DATEADD(month, -1, GETDATE()) AS DATE)")
-
-        # Tahsilat Türü filtresi
-        if tahsilat_turu:
-            where_conditions.append("[TahsilatTuru] = ?")
-            count_params.append(tahsilat_turu)
-
-        # Banka filtresi
-        if banka:
-            where_conditions.append("UPPER([Banka]) LIKE UPPER(?)")
-            count_params.append(f"%{banka}%")
-
-        # Teslim Durumu filtresi
-        if teslim_durumu:
-            where_conditions.append("[TeslimDurumu] = ?")
-            count_params.append(teslim_durumu)
-
-        # Kullanıcı filtresi
-        if kullanici:
-            where_conditions.append("UPPER([Kullanici]) LIKE UPPER(?)")
-            count_params.append(f"%{kullanici}%")
-
-        # Plasiyer filtresi
-        if plasiyer_filter:
-            where_conditions.append("UPPER([Plasiyer]) LIKE UPPER(?)")
-            count_params.append(f"%{plasiyer_filter}%")
+        where_conditions, count_params = build_gunluk_tahsilat_filters(
+            cari_kod=cari_kod,
+            cari_unvan=cari_unvan,
+            tarih_filtresi=tarih_filtresi,
+            tahsilat_turu=tahsilat_turu,
+            teslim_durumu=teslim_durumu,
+            kullanici=kullanici,
+            banka=banka,
+            baslangic_tarihi=baslangic_tarihi,
+            bitis_tarihi=bitis_tarihi,
+            plasiyer_filter=plasiyer_filter,
+            banka_column='[Banka]',
+        )
 
         # WHERE koşullarını ekle
         if where_conditions:
@@ -1619,64 +1505,19 @@ class MSSQLService:
             ISNULL(SUM(CAST([Tutar] as DECIMAL(15,2))), 0) as total_amount
         FROM [GO3].[dbo].[GunlukTahsilat_V]
         """
-        params = []
-
-        # WHERE koşulları
-        where_conditions = []
-
-        if cari_kod:
-            where_conditions.append("UPPER([CariKod]) LIKE UPPER(?)")
-            params.append(f"%{cari_kod}%")
-
-        if cari_unvan:
-            where_conditions.append("UPPER([CariUnvan]) LIKE UPPER(?)")
-            params.append(f"%{cari_unvan}%")
-
-        # Tarih filtresi - başlangıç ve bitiş tarihi varsa onları kullan
-        if baslangic_tarihi and bitis_tarihi:
-            where_conditions.append("CAST([Tarih] AS DATE) >= ? AND CAST([Tarih] AS DATE) <= ?")
-            params.append(baslangic_tarihi)
-            params.append(bitis_tarihi)
-        elif baslangic_tarihi:
-            where_conditions.append("CAST([Tarih] AS DATE) >= ?")
-            params.append(baslangic_tarihi)
-        elif bitis_tarihi:
-            where_conditions.append("CAST([Tarih] AS DATE) <= ?")
-            params.append(bitis_tarihi)
-        elif tarih_filtresi == 'today':
-            where_conditions.append(
-                "CAST([Tarih] AS DATE) = CAST(GETDATE() AS DATE)")
-        elif tarih_filtresi == 'week':
-            where_conditions.append(
-                "CAST([Tarih] AS DATE) >= CAST(DATEADD(day, -7, GETDATE()) AS DATE)")
-        elif tarih_filtresi == 'month':
-            where_conditions.append(
-                "CAST([Tarih] AS DATE) >= CAST(DATEADD(month, -1, GETDATE()) AS DATE)")
-
-        # Tahsilat Türü filtresi
-        if tahsilat_turu:
-            where_conditions.append("[TahsilatTuru] = ?")
-            params.append(tahsilat_turu)
-
-        # Teslim Durumu filtresi
-        if teslim_durumu:
-            where_conditions.append("[TeslimDurumu] = ?")
-            params.append(teslim_durumu)
-
-        # Kullanıcı filtresi
-        if kullanici:
-            where_conditions.append("UPPER([Kullanici]) LIKE UPPER(?)")
-            params.append(f"%{kullanici}%")
-
-        # Banka filtresi
-        if banka:
-            where_conditions.append("UPPER([BANKAADI]) LIKE UPPER(?)")
-            params.append(f"%{banka}%")
-
-        # Plasiyer filtresi
-        if plasiyer_filter:
-            where_conditions.append("UPPER([Plasiyer]) LIKE UPPER(?)")
-            params.append(f"%{plasiyer_filter}%")
+        where_conditions, params = build_gunluk_tahsilat_filters(
+            cari_kod=cari_kod,
+            cari_unvan=cari_unvan,
+            tarih_filtresi=tarih_filtresi,
+            tahsilat_turu=tahsilat_turu,
+            teslim_durumu=teslim_durumu,
+            kullanici=kullanici,
+            banka=banka,
+            baslangic_tarihi=baslangic_tarihi,
+            bitis_tarihi=bitis_tarihi,
+            plasiyer_filter=plasiyer_filter,
+            banka_column='[BANKAADI]',
+        )
 
         # WHERE koşullarını ekle
         if where_conditions:
@@ -2214,6 +2055,7 @@ class MSSQLService:
         code = (cari_code or "").strip()
         if not code:
             return None
+        ALL_CARI = ("SEZEN",)
         SPECIAL = ("FIRAT", "SEZEN", "OĞUZ", "OGUZ", "TURAN")
         conn = None
         try:
@@ -2239,6 +2081,8 @@ class MSSQLService:
                 else ""
             )
 
+            if username_upper in ALL_CARI:
+                return logicalref
             if username_upper in SPECIAL:
                 if not (db_code.strip().startswith("120")):
                     return None
@@ -2909,7 +2753,7 @@ class MSSQLService:
 
             # Tüm plasiyer listesi
             plasiyer_list = ['ALİ', 'ATAKAN', 'AZİZ', 'EYÜP',
-                             'GÖRKEM', 'HASAN', 'SÜLEYMAN', 'YİĞİT']
+                             'SÜLEYMAN', 'YİĞİT', 'HALİL']
             plasiyer_filter = "', '".join(plasiyer_list)
 
             query = f"""
@@ -3514,7 +3358,7 @@ class MSSQLService:
 
             # Plasiyer listesi - FATURA tablosundaki PLASİYER kolonundan
             plasiyer_list = ['ALİ', 'ATAKAN', 'AZİZ', 'EYÜP',
-                             'GÖRKEM', 'HASAN', 'SÜLEYMAN', 'YİĞİT', 'CAN', 'RECEP']
+                             'SÜLEYMAN', 'YİĞİT', 'CAN', 'RECEP', 'HALİL']
             plasiyer_where = "(" + \
                 ",".join([f"'{p}'" for p in plasiyer_list]) + ")"
 
@@ -3812,7 +3656,7 @@ class MSSQLService:
         SELECT DISTINCT [Plasiyer]
         FROM [GO3].[dbo].[GunlukTahsilat_V]
         WHERE [Plasiyer] IS NOT NULL AND [Plasiyer] != ''
-        AND UPPER([Plasiyer]) IN ('ALİ', 'ATAKAN', 'AZİZ', 'CAN', 'EYÜP', 'GÖRKEM', 'HASAN', 'MERT', 'MURAT', 'NECATİ', 'OĞUZ', 'SÜLEYMAN', 'TURAN', 'YİĞİT')
+        AND UPPER([Plasiyer]) IN ('ALİ', 'ATAKAN', 'AZİZ', 'CAN', 'EYÜP', 'MERT', 'MURAT', 'BAKIR', 'HALİL', 'OĞUZ', 'SÜLEYMAN', 'TURAN', 'YİĞİT')
         ORDER BY [Plasiyer]
         """
 
@@ -3961,18 +3805,29 @@ class MSSQLService:
         params = []
 
         for hedef in hedef_filtreleri:
-            marka = self.safe_decode_string(hedef.get('marka')).strip()
             target_key = str(hedef.get('target_key') or '').strip()
+            markalar = [
+                self.safe_decode_string(marka).strip()
+                for marka in (hedef.get('markalar') or [])
+                if self.safe_decode_string(marka).strip()
+            ]
+            if not markalar:
+                raw_marka = self.safe_decode_string(hedef.get('marka')).strip()
+                if raw_marka:
+                    markalar = [raw_marka]
             malzeme_turleri = [
                 self.safe_decode_string(tur).strip()
                 for tur in (hedef.get('malzeme_turleri') or [])
                 if self.safe_decode_string(tur).strip()
             ]
 
-            if not marka or not target_key:
+            if not markalar or not target_key:
                 continue
 
-            subquery = """
+            marka_conditions = " OR ".join(
+                ["LTRIM(RTRIM([MARKA])) = ?" for _ in markalar]
+            )
+            subquery = f"""
             SELECT
                 UPPER(LTRIM(RTRIM(COALESCE([PLASİYER], '')))) AS plasiyer,
                 ? AS target_key,
@@ -3983,9 +3838,9 @@ class MSSQLService:
               AND MONTH([TARİH]) = ?
               AND [MARKA] IS NOT NULL
               AND LTRIM(RTRIM([MARKA])) <> ''
-              AND LTRIM(RTRIM([MARKA])) = ?
+              AND ({marka_conditions})
             """
-            subquery_params = [target_key, yil, ay, marka]
+            subquery_params = [target_key, yil, ay, *markalar]
 
             if malzeme_turleri:
                 or_conditions = " OR ".join(
@@ -4156,7 +4011,7 @@ class MSSQLService:
             COUNT(CASE WHEN CAST([BAKİYE] as DECIMAL(15,2)) < 0 THEN 1 END) as negatif_kayit_sayisi
         FROM [GO3].[dbo].[CARIBAKIYE]
         WHERE [SPECODE] IS NOT NULL AND [SPECODE] != '' 
-            AND UPPER([SPECODE]) IN ('ALİ', 'ATAKAN', 'AZİZ', 'EYÜP', 'GÖRKEM', 'HASAN', 'MERT', 'SÜLEYMAN', 'YİĞİT')
+            AND UPPER([SPECODE]) IN ('ALİ', 'ATAKAN', 'AZİZ', 'EYÜP', 'MERT', 'SÜLEYMAN', 'YİĞİT')
         GROUP BY [SPECODE]
         ORDER BY toplam_bakiye DESC
         """
@@ -4966,7 +4821,7 @@ class MSSQLService:
             plasiyerler = self.get_plasiyer_list_from_fatura()
             if not plasiyerler:
                 plasiyerler = ['EYÜP', 'ALİ', 'MERT', 'ATAKAN', 'AZİZ',
-                              'YİĞİT', 'SÜLEYMAN', 'GÖRKEM', 'CAN', 'HASAN', 'NECATİ']
+                              'YİĞİT', 'SÜLEYMAN', 'CAN', 'BAKIR', 'HALİL']
                 logger.warning(
                     "FATURA tablosundan plasiyer bulunamadı, varsayılan liste kullanılıyor")
             else:
@@ -4976,7 +4831,7 @@ class MSSQLService:
             logger.error(
                 f"Plasiyer listesi alınırken hata: {e}, varsayılan liste kullanılıyor")
             plasiyerler = ['EYÜP', 'ALİ', 'MERT', 'ATAKAN', 'AZİZ',
-                          'YİĞİT', 'SÜLEYMAN', 'GÖRKEM', 'CAN', 'HASAN', 'NECATİ']
+                          'YİĞİT', 'SÜLEYMAN', 'CAN', 'BAKIR', 'HALİL']
 
         mf = self._genel_dashboard_month_sql_filter(selected_months)
         satis_sql, tahsilat_sql = self._genel_dashboard_plasiyer_batch_sqls(mf)
@@ -5012,7 +4867,7 @@ class MSSQLService:
     def get_genel_dashboard_bundle(self, selected_months=None):
         """Genel dashboard için tek MSSQL bağlantısında plasiyer özetleri + aylık grafik verisi."""
         defaults = ['EYÜP', 'ALİ', 'MERT', 'ATAKAN', 'AZİZ',
-                      'YİĞİT', 'SÜLEYMAN', 'GÖRKEM', 'CAN', 'HASAN', 'NECATİ']
+                      'YİĞİT', 'SÜLEYMAN', 'CAN', 'BAKIR', 'HALİL']
         empty_z = {
             'gunluk_adet': 0, 'gunluk_tutar': 0.0,
             'haftalik_adet': 0, 'haftalik_tutar': 0.0,
@@ -5197,73 +5052,6 @@ class MSSQLService:
         except Exception as e:
             logger.error(f"get_monthly_satis_tahsilat_stats error: {e}")
             return {month: {'satis': 0.0, 'tahsilat': 0.0} for month in range(1, 13)}
-
-    def get_malzeme_stok_list(self, search_term=None, malzeme_turu=None, marka=None, limit=None):
-        """MALZEME_STOK tablosundan stok listesini getirir"""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor()
-
-            # Base query
-            query = """
-                SELECT [MALZEME KODU],
-                       [AÇIKLAMASI], 
-                       [MALZEME TÜRÜ],
-                       [MARKA],
-                       [SEYHAN],
-                       [YÜREĞİR], 
-                       [MERSİN],
-                       [TOPLAM],
-                       [GRUP KODU]
-                FROM [GO3].[dbo].[MALZEME_STOK]
-                WHERE 1=1
-            """
-
-            params = []
-
-            # Filtreleme
-            if search_term:
-                query += " AND ([MALZEME KODU] LIKE ? OR [AÇIKLAMASI] LIKE ?)"
-                params.extend([f'%{search_term}%', f'%{search_term}%'])
-
-            if malzeme_turu:
-                query += " AND [MALZEME TÜRÜ] = ?"
-                params.append(malzeme_turu)
-
-            if marka:
-                query += " AND [MARKA] = ?"
-                params.append(marka)
-
-            # Sıralama
-            query += " ORDER BY [MALZEME KODU]"
-
-            # Limit
-            if limit:
-                query = f"SELECT TOP {limit} * FROM ({query}) AS subquery"
-
-            cursor.execute(query, params)
-            rows = cursor.fetchall()
-
-            stok_listesi = []
-            for row in rows:
-                stok_listesi.append({
-                    'malzeme_kodu': self.safe_decode_string(row[0]),
-                    'aciklamasi': self.safe_decode_string(row[1]),
-                    'malzeme_turu': self.safe_decode_string(row[2]),
-                    'marka': self.safe_decode_string(row[3]),
-                    'seyhan': float(row[4]) if row[4] else 0.0,
-                    'yuregiir': float(row[5]) if row[5] else 0.0,
-                    'mersin': float(row[6]) if row[6] else 0.0,
-                    'toplam': float(row[7]) if row[7] else 0.0,
-                    'grup_kodu': self.safe_decode_string(row[8])
-                })
-
-            conn.close()
-            return stok_listesi
-
-        except Exception as e:
-            logger.error(f"get_malzeme_stok_list error: {e}")
-            return []
 
     def get_malzeme_stok_stats(self):
         """MALZEME_STOK tablosundan özet istatistikleri getirir"""
@@ -5454,21 +5242,19 @@ class MSSQLService:
             logger.error(f"get_malzeme_stok_list error: {e}")
             return []
 
-    def get_fiyat_analizi_list(self, search_term=None, malzeme_turu=None, marka=None, stok_durumu=None, limit=None, max_records=10000):
+    def get_fiyat_analizi_list(self, search_term=None, malzeme_turu=None, marka=None, stok_durumu=None, max_records=10000):
         """FIYATANALIZ tablosundan fiyat analizi listesini getirir - Optimize edilmiş"""
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
-            
-            # HEPsİ seçildiğinde bile maksimum kayıt sayısını sınırla
-            effective_limit = limit if limit and limit != 'all' else max_records
-            
+            safe = self.safe_decode_string
+
             # Base query for FIYATANALIZ table - her zaman TOP kullan
             query = f"""
-                SELECT TOP {effective_limit}
+                SELECT TOP {max_records}
                        [LOGICALREF],
                        [MALZEME KODU],
-                       [AÇIKLAMASI], 
+                       [AÇIKLAMASI],
                        [MALZEME TÜRÜ],
                        [MARKA],
                        [GRUP KODU],
@@ -5480,27 +5266,27 @@ class MSSQLService:
                 FROM [GO3].[dbo].[FIYATANALIZ]
                 WHERE 1=1
             """
-            
+
             params = []
-            
+
             # Filtreleme
             if search_term:
                 query += " AND ([MALZEME KODU] LIKE ? OR [AÇIKLAMASI] LIKE ?)"
                 params.extend([f'%{search_term}%', f'%{search_term}%'])
-            
+
             if malzeme_turu:
                 query += " AND [MALZEME TÜRÜ] = ?"
                 params.append(malzeme_turu)
-            
+
             if marka:
                 query += " AND [MARKA] = ?"
                 params.append(marka)
-            
+
             # Stok durumu filtresi
-            if stok_durumu == 'stokta_olan':
+            if stok_durumu == 'stokta_var':
                 query += " AND [TOPLAM] > 0"
-            elif stok_durumu == 'stokta_olmayan':
-                query += " AND [TOPLAM] = 0"
+            elif stok_durumu == 'stok_bitmis':
+                query += " AND [TOPLAM] <= 0"
             # stok_durumu == 'hepsi' veya boş ise hiçbir filtreleme yapma
 
             # Sıralama
@@ -5513,11 +5299,11 @@ class MSSQLService:
             for row in rows:
                 fiyat_listesi.append({
                     'LOGICALREF': row[0],
-                    'MALZEME_KODU': self.safe_decode_string(row[1]),
-                    'ACIKLAMASI': self.safe_decode_string(row[2]),
-                    'MALZEME_TURU': self.safe_decode_string(row[3]),
-                    'MARKA': self.safe_decode_string(row[4]),
-                    'GRUP_KODU': self.safe_decode_string(row[5]),
+                    'MALZEME_KODU': safe(row[1]),
+                    'ACIKLAMASI': safe(row[2]),
+                    'MALZEME_TURU': safe(row[3]),
+                    'MARKA': safe(row[4]),
+                    'GRUP_KODU': safe(row[5]),
                     'TOPLAM': float(row[6]) if row[6] else 0.0,
                     'TANIMLI_ALIS_FIYATI': float(row[7]) if row[7] else 0.0,
                     'TANIMLI_SATIS_FIYATI': float(row[8]) if row[8] else 0.0,
@@ -5538,17 +5324,50 @@ class MSSQLService:
             conn = self.get_connection()
             cursor = conn.cursor()
 
-            query = """
+            # Toplam ürün sayısı ve distinct count'lar için WHERE kullanma
+            # (tüm tabloyu yansıtmalı)
+            total_query = """
                 SELECT 
                     COUNT(*) as toplam_urun_sayisi,
-                    AVG([KARLILIK ORANI (%)]) as ortalama_karlilik,
-                    MAX([TANIMLI SATIŞ FİYATI]) as en_yuksek_satis_fiyati,
-                    MIN([TANIMLI SATIŞ FİYATI]) as en_dusuk_satis_fiyati,
                     COUNT(DISTINCT [MARKA]) as toplam_marka_sayisi,
                     COUNT(DISTINCT [MALZEME TÜRÜ]) as toplam_turu_sayisi
                 FROM [GO3].[dbo].[FIYATANALIZ]
+            """
+            cursor.execute(total_query)
+            total_row = cursor.fetchone()
+
+            # Fiyat ve karlılık için sadece fiyatı olan ürünleri filtrele
+            price_query = """
+                SELECT 
+                    AVG([KARLILIK ORANI (%)]) as ortalama_karlilik,
+                    MAX([TANIMLI SATIŞ FİYATI]) as en_yuksek_satis_fiyati,
+                    MIN([TANIMLI SATIŞ FİYATI]) as en_dusuk_satis_fiyati
+                FROM [GO3].[dbo].[FIYATANALIZ]
                 WHERE [TANIMLI SATIŞ FİYATI] > 0
             """
+            cursor.execute(price_query)
+            price_row = cursor.fetchone()
+
+            conn.close()
+
+            if total_row:
+                return {
+                    'toplam_urun_sayisi': total_row[0] or 0,
+                    'ortalama_karlilik': float(price_row[0]) if price_row[0] else 0.0,
+                    'en_yuksek_satis_fiyati': float(price_row[1]) if price_row[1] else 0.0,
+                    'en_dusuk_satis_fiyati': float(price_row[2]) if price_row[2] else 0.0,
+                    'toplam_marka_sayisi': total_row[1] or 0,
+                    'toplam_turu_sayisi': total_row[2] or 0,
+                }
+            else:
+                return {
+                    'toplam_urun_sayisi': 0,
+                    'ortalama_karlilik': 0.0,
+                    'en_yuksek_satis_fiyati': 0.0,
+                    'en_dusuk_satis_fiyati': 0.0,
+                    'toplam_marka_sayisi': 0,
+                    'toplam_turu_sayisi': 0,
+                }
 
             cursor.execute(query)
             row = cursor.fetchone()
@@ -5590,18 +5409,17 @@ class MSSQLService:
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
+            safe = self.safe_decode_string
 
             # Malzeme türleri
             cursor.execute(
                 "SELECT DISTINCT [MALZEME TÜRÜ] FROM [GO3].[dbo].[FIYATANALIZ] WHERE [MALZEME TÜRÜ] IS NOT NULL ORDER BY [MALZEME TÜRÜ]")
-            malzeme_turleri = [self.safe_decode_string(
-                row[0]) for row in cursor.fetchall()]
+            malzeme_turleri = [safe(row[0]) for row in cursor.fetchall()]
 
             # Markalar
             cursor.execute(
                 "SELECT DISTINCT [MARKA] FROM [GO3].[dbo].[FIYATANALIZ] WHERE [MARKA] IS NOT NULL ORDER BY [MARKA]")
-            markalar = [self.safe_decode_string(
-                row[0]) for row in cursor.fetchall()]
+            markalar = [safe(row[0]) for row in cursor.fetchall()]
 
             conn.close()
 
@@ -7083,7 +6901,7 @@ class MSSQLService:
 
             # Plasiyer listesi - FATURA tablosundaki PLASİYER kolonundan
             plasiyer_list = ['ALİ', 'ATAKAN', 'AZİZ', 'EYÜP',
-                             'GÖRKEM', 'HASAN', 'SÜLEYMAN', 'YİĞİT', 'CAN', 'RECEP']
+                             'SÜLEYMAN', 'YİĞİT', 'CAN', 'RECEP', 'HALİL']
             plasiyer_where = "(" + \
                 ",".join([f"'{p}'" for p in plasiyer_list]) + ")"
 
@@ -8219,160 +8037,429 @@ class MSSQLService:
             logger.error(f"Cari listesi getirme hatası: {e}")
             return []
 
-    def get_ambar_deger_raporu(self, malzeme_kodu=None, marka=None, malzeme_turu=None, maliyet_filter=None, satis_filter=None):
-        """FIYATANALIZ tablosundan ambar değer raporu verilerini getirir"""
+    def get_ambar_deger_raporu(self, arama=None, malzeme_turu=None, marka=None,
+                               subeler=None, sirala='deger', yon='desc',
+                               stok_durumu='hepsi', max_records=100):
+        """[GO3].[dbo].[STOK_MALIYET_DETAYLI] view'ından detay grid verisini getirir.
+
+        Tüm satırlar tek seferde çekilir; filtreleme / sıralama / KPI
+        hesaplamaları Python tarafında yapılır.
+
+        Parametreler
+        ------------
+        arama        : malzeme kodu veya açıklamada arama (case-insensitive)
+        malzeme_turu : tam eşleşme filtresi
+        marka        : tam eşleşme filtresi
+        subeler      : ['SEYHAN', 'YUREGIR', 'MERSIN'] alt kümesi — seçilen
+                       şubelerden en az birinde stok > 0 olan satırlar.
+                       None/boş = Tüm Stoklar (filtre yok).
+        sirala       : sıralama anahtarı (malzeme_kodu, aciklamasi,
+                       malzeme_turu, marka, seyhan, yuregir, mersin, toplam,
+                       son_alim_tarihi, son_birim_net, deger)
+        yon          : 'asc' | 'desc'
+        stok_durumu  : 'hepsi' (default) | 'stokta_var' | 'stok_bitmis'
+                       'stokta_var'   → TOPLAM > 0
+                       'stok_bitmis'  → TOPLAM <= 0
+                       'hepsi' / None → filtre uygulanmaz
+        max_records  : dönen satır sayısı üst sınırı (None = tümü)
+
+        Dönüş:
+            rows            : sıralanmış + kırpılmış satır listesi
+            kpi             : {toplam_urun, toplam_stok, toplam_deger,
+                               ortalama_birim_deger, marka_sayisi, tur_sayisi}
+            subeler         : [{'kod','ad','stok','deger','pay'}] (3 şube)
+            grid_toplam     : sayfada görünen satırların alt toplamı
+                              (filtrelenmiş + kırpılmış)
+                              {seyhan, yuregir, mersin, toplam, deger}
+            grid_toplam_filtered
+                             : filtreli TÜM satırların alt toplamı (footer)
+            malzeme_turleri : dropdown seçenekleri (tüm veri üzerinden)
+            markalar        : dropdown seçenekleri (tüm veri üzerinden)
+            total_filtered  : filtre sonrası toplam satır sayısı
+            truncated       : max_records nedeniyle kırpıldı mı
+            top_markalar    : ilk 20 marka (tüm veri üzerinden),
+                              [{ad, stok, deger, pay, bar_pct}]
+            top_turler      : ilk 20 malzeme türü (tüm veri üzerinden),
+                              [{ad, stok, deger, pay, bar_pct}]
+        """
+        empty = {
+            'rows': [],
+            'kpi': {
+                'toplam_urun': 0,
+                'toplam_stok': 0.0,
+                'toplam_deger': 0.0,
+                'ortalama_birim_deger': 0.0,
+                'marka_sayisi': 0,
+                'tur_sayisi': 0,
+            },
+            'subeler': [
+                {'kod': 'SEYHAN', 'ad': 'Seyhan', 'stok': 0.0, 'deger': 0.0, 'pay': 0.0},
+                {'kod': 'YUREGIR', 'ad': 'Yüreğir', 'stok': 0.0, 'deger': 0.0, 'pay': 0.0},
+                {'kod': 'MERSIN', 'ad': 'Mersin', 'stok': 0.0, 'deger': 0.0, 'pay': 0.0},
+            ],
+            'grid_toplam': {'seyhan': 0.0, 'yuregir': 0.0, 'mersin': 0.0,
+                            'toplam': 0.0, 'deger': 0.0},
+            'kpi_filtered': {
+                'toplam_urun': 0,
+                'toplam_stok': 0.0,
+                'toplam_deger': 0.0,
+                'ortalama_birim_deger': 0.0,
+                'marka_sayisi': 0,
+                'tur_sayisi': 0,
+            },
+            'subeler_filtered': [
+                {'kod': 'SEYHAN', 'ad': 'Seyhan', 'stok': 0.0, 'deger': 0.0, 'pay': 0.0},
+                {'kod': 'YUREGIR', 'ad': 'Yüreğir', 'stok': 0.0, 'deger': 0.0, 'pay': 0.0},
+                {'kod': 'MERSIN', 'ad': 'Mersin', 'stok': 0.0, 'deger': 0.0, 'pay': 0.0},
+            ],
+            'grid_toplam_filtered': {'seyhan': 0.0, 'yuregir': 0.0, 'mersin': 0.0,
+                                     'toplam': 0.0, 'deger': 0.0},
+            'malzeme_turleri': [],
+            'markalar': [],
+            'total_filtered': 0,
+            'truncated': False,
+            'top_markalar': [],
+            'top_turler': [],
+            'top_markalar_toplam': {'stok': 0.0, 'deger': 0.0, 'pay': 0.0},
+            'top_turler_toplam': {'stok': 0.0, 'deger': 0.0, 'pay': 0.0},
+        }
+
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
-            
-            # Ana verileri çek - Sadece TOPLAM > 0 olanlar
+
             query = """
-                SELECT [LOGICALREF]
-                      ,[MALZEME KODU]
-                      ,[AÇIKLAMASI]
-                      ,[MALZEME TÜRÜ]
-                      ,[MARKA]
-                      ,[GRUP KODU]
-                      ,[TOPLAM]
-                      ,[TANIMLI ALIŞ FİYATI]
-                      ,[TANIMLI SATIŞ FİYATI]
-                      ,[SON ALIŞ BİRİM NET]
-                      ,[KARLILIK ORANI (%)]
-                FROM [GO3].[dbo].[FIYATANALIZ]
-                WHERE [TOPLAM] > 0
+                SELECT
+                    [MALZEME KODU],
+                    [AÇIKLAMASI],
+                    [MALZEME TÜRÜ],
+                    [MARKA],
+                    [SEYHAN],
+                    [YÜREĞİR],
+                    [MERSİN],
+                    [TOPLAM],
+                    [SON ALIM TARİHİ],
+                    [SON BİRİM NET],
+                    [TOPLAM STOK DEĞERİ]
+                FROM [GO3].[dbo].[STOK_MALIYET_DETAYLI]
             """
-            
-            params = []
-            
-            # Filtreleme
-            if malzeme_kodu:
-                query += " AND [MALZEME KODU] LIKE ?"
-                params.append(f'%{malzeme_kodu}%')
-            
-            if marka:
-                query += " AND [MARKA] = ?"
-                params.append(marka)
-            
-            if malzeme_turu:
-                query += " AND [MALZEME TÜRÜ] = ?"
-                params.append(malzeme_turu)
-            
-            cursor.execute(query, params)
-            results = cursor.fetchall()
-            
-            # Verileri dictionary'ye çevir
-            data = []
-            toplam_maliyet = 0
-            toplam_satis_degeri = 0
-            
-            tur_gruplu_maliyet = {}
-            tur_gruplu_satis = {}
-            marka_gruplu_maliyet = {}
-            marka_gruplu_satis = {}
-            
-            for row in results:
-                logicalref = row[0]
-                malzeme_kodu = row[1] or ''
-                aciklamasi = row[2] or ''
-                malzeme_turu = row[3] or ''
-                marka = row[4] or ''
-                grup_kodu = row[5] or ''
-                toplam = float(row[6] or 0)
-                tanimli_alis_fiyati = float(row[7] or 0)
-                tanimli_satis_fiyati = float(row[8] or 0)
-                son_alis_birim_net = float(row[9] or 0)
-                karlilik_orani = float(row[10] or 0)
-                
-                # Hesaplamalar - sadece değerleri olan kayıtlar için
-                maliyet_degeri = toplam * tanimli_alis_fiyati
-                satis_degeri = toplam * tanimli_satis_fiyati
-                kar_tutar = satis_degeri - maliyet_degeri
-                
-                # Filtreleme kontrolü
-                if maliyet_filter == 'sifirdan_buyuk' and maliyet_degeri <= 0:
-                    continue
-                if satis_filter == 'sifirdan_buyuk' and satis_degeri <= 0:
-                    continue
-                
-                toplam_maliyet += maliyet_degeri
-                toplam_satis_degeri += satis_degeri
-                
-                # Malzeme türüne göre grupla
-                if malzeme_turu:
-                    if malzeme_turu not in tur_gruplu_maliyet:
-                        tur_gruplu_maliyet[malzeme_turu] = 0
-                        tur_gruplu_satis[malzeme_turu] = 0
-                    tur_gruplu_maliyet[malzeme_turu] += maliyet_degeri
-                    tur_gruplu_satis[malzeme_turu] += satis_degeri
-                
-                # Markaya göre grupla
-                if marka:
-                    if marka not in marka_gruplu_maliyet:
-                        marka_gruplu_maliyet[marka] = 0
-                        marka_gruplu_satis[marka] = 0
-                    marka_gruplu_maliyet[marka] += maliyet_degeri
-                    marka_gruplu_satis[marka] += satis_degeri
-                
-                data.append({
-                    'logicalref': logicalref,
-                    'malzeme_kodu': malzeme_kodu,
-                    'aciklamasi': aciklamasi,
-                    'malzeme_turu': malzeme_turu,
-                    'marka': marka,
-                    'grup_kodu': grup_kodu,
-                    'toplam': toplam,
-                    'tanimli_alis_fiyati': tanimli_alis_fiyati,
-                    'tanimli_satis_fiyati': tanimli_satis_fiyati,
-                    'son_alis_birim_net': son_alis_birim_net,
-                    'karlilik_orani': karlilik_orani,
-                    'maliyet_degeri': maliyet_degeri,
-                    'satis_degeri': satis_degeri,
-                    'kar_tutar': kar_tutar,
-                })
-            
-            # Tür gruplarını sırala
-            tur_gruplu_maliyet = dict(sorted(tur_gruplu_maliyet.items(), key=lambda x: x[1], reverse=True))
-            tur_gruplu_satis = dict(sorted(tur_gruplu_satis.items(), key=lambda x: x[1], reverse=True))
-            
-            # Marka gruplarını sırala
-            marka_gruplu_maliyet = dict(sorted(marka_gruplu_maliyet.items(), key=lambda x: x[1], reverse=True))
-            marka_gruplu_satis = dict(sorted(marka_gruplu_satis.items(), key=lambda x: x[1], reverse=True))
-            
-            return {
-                'data': data,
-                'ozet': {
-                    'toplam_kayit': len(data),
-                    'toplam_maliyet': toplam_maliyet,
-                    'toplam_satis_degeri': toplam_satis_degeri,
-                    'toplam_kar': toplam_satis_degeri - toplam_maliyet,
-                    'kar_orani': ((toplam_satis_degeri - toplam_maliyet) / toplam_maliyet * 100) if toplam_maliyet > 0 else 0,
-                },
-                'tur_gruplu': {
-                    'maliyet': tur_gruplu_maliyet,
-                    'satis': tur_gruplu_satis,
-                },
-                'marka_gruplu': {
-                    'maliyet': marka_gruplu_maliyet,
-                    'satis': marka_gruplu_satis,
+            cursor.execute(query)
+            raw = cursor.fetchall()
+            conn.close()
+
+            def _to_float(val):
+                if val is None or val == '':
+                    return 0.0
+                try:
+                    return float(val)
+                except (TypeError, ValueError):
+                    return 0.0
+
+            def _to_str(val):
+                if val is None:
+                    return ''
+                try:
+                    return self.safe_decode_string(val)
+                except Exception:
+                    return str(val)
+
+            # ---- Parametre normalizasyonu ----
+            arama_n = (arama or '').strip().lower()
+            tur_n = (malzeme_turu or '').strip()
+            marka_n = (marka or '').strip()
+
+            sube_alias = {
+                'SEYHAN': 'seyhan',
+                'YUREGIR': 'yuregir', 'YÜREĞİR': 'yuregir',
+                'MERSIN': 'mersin', 'MERSİN': 'mersin',
+            }
+            if isinstance(subeler, str):
+                subeler_raw = [s.strip() for s in subeler.split(',') if s.strip()]
+            elif isinstance(subeler, (list, tuple, set)):
+                subeler_raw = [str(s).strip() for s in subeler if s]
+            else:
+                subeler_raw = []
+            sube_keys = []
+            for s in subeler_raw:
+                alias = sube_alias.get(s.upper())
+                if alias and alias not in sube_keys:
+                    sube_keys.append(alias)
+
+            # ---- Tüm satırları dict'e çevir; dropdown seçenekleri tüm veri üzerinden ----
+            all_rows = []
+            tum_turler = set()
+            tum_markalar = set()
+            for row in raw:
+                r = {
+                    'malzeme_kodu': _to_str(row[0]),
+                    'aciklamasi': _to_str(row[1]),
+                    'malzeme_turu': _to_str(row[2]),
+                    'marka': _to_str(row[3]),
+                    'seyhan': _to_float(row[4]),
+                    'yuregir': _to_float(row[5]),
+                    'mersin': _to_float(row[6]),
+                    'toplam': _to_float(row[7]),
+                    'son_alim_tarihi': row[8],
+                    'son_birim_net': _to_float(row[9]),
+                    'toplam_deger': _to_float(row[10]),
                 }
+                if r['toplam_deger'] == 0 and r['toplam'] and r['son_birim_net']:
+                    r['toplam_deger'] = r['toplam'] * r['son_birim_net']
+                all_rows.append(r)
+                if r['malzeme_turu']:
+                    tum_turler.add(r['malzeme_turu'])
+                if r['marka']:
+                    tum_markalar.add(r['marka'])
+
+            # ---- KPI / Şube kartları / Grid alt toplamları (FİLTRESİZ, tüm veri) ----
+            # KPI'lar her zaman tüm tablo üzerinden hesaplanır; aktif filtrelerden
+            # bağımsızdır. Aşağıda filtreli KPI'lar da üretilir, ancak response'da
+            # kullanıcıya her zaman unfiltered (tüm veriler) gösterilir.
+            unfiltered_toplam_stok = sum(r['toplam'] for r in all_rows)
+            unfiltered_toplam_deger = sum(r['toplam_deger'] for r in all_rows)
+            unfiltered_kpi = {
+                'toplam_urun': len(all_rows),
+                'toplam_stok': unfiltered_toplam_stok,
+                'toplam_deger': unfiltered_toplam_deger,
+                'ortalama_birim_deger': (unfiltered_toplam_deger / unfiltered_toplam_stok)
+                    if unfiltered_toplam_stok > 0 else 0.0,
+                'marka_sayisi': len({r['marka'] for r in all_rows if r['marka']}),
+                'tur_sayisi': len({r['malzeme_turu'] for r in all_rows if r['malzeme_turu']}),
             }
-            
-        except Exception as e:
-            logger.error(f"get_ambar_deger_raporu hatası: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
+            unfiltered_sube_stok = {'seyhan': 0.0, 'yuregir': 0.0, 'mersin': 0.0}
+            unfiltered_sube_deger = {'seyhan': 0.0, 'yuregir': 0.0, 'mersin': 0.0}
+            # Şube değeri: her satırda ilgili şubenin stokunu o satırın SON BİRİM NET
+            # birim fiyatıyla çarpıp topluyoruz (yani şubeye özgü birim fiyat üzerinden).
+            # Tek bir ağırlıklı-ortalama birim fiyatı şubelere dağıtılmaz; bu, view'da
+            # her satır için yalnızca tek bir SON BİRİM NET olduğundan satır-bazlı doğru
+            # yaklaşımdır ve SQL SUM(şube * SON BİRİM NET) ile bire bir örtüşür.
+            for r in all_rows:
+                birim = r['son_birim_net']
+                for k in ('seyhan', 'yuregir', 'mersin'):
+                    unfiltered_sube_stok[k] += r[k]
+                    unfiltered_sube_deger[k] += r[k] * birim
+            unfiltered_sube_deger_toplam = sum(unfiltered_sube_deger.values())
+            unfiltered_subeler = []
+            for kod, ad, key in (('SEYHAN', 'Seyhan', 'seyhan'),
+                                 ('YUREGIR', 'Yüreğir', 'yuregir'),
+                                 ('MERSIN', 'Mersin', 'mersin')):
+                unfiltered_subeler.append({
+                    'kod': kod,
+                    'ad': ad,
+                    'stok': unfiltered_sube_stok[key],
+                    'deger': unfiltered_sube_deger[key],
+                    'pay': (unfiltered_sube_deger[key] / unfiltered_sube_deger_toplam * 100.0)
+                        if unfiltered_sube_deger_toplam > 0 else 0.0,
+                })
+            unfiltered_grid_toplam = {
+                'seyhan': unfiltered_sube_stok['seyhan'],
+                'yuregir': unfiltered_sube_stok['yuregir'],
+                'mersin': unfiltered_sube_stok['mersin'],
+                'toplam': unfiltered_toplam_stok,
+                'deger': unfiltered_toplam_deger,
+            }
+
+            # ---- Stok durumu filtresi (TOPLAM kolonuna göre) ----
+            stok_durumu_n = (stok_durumu or 'hepsi').strip().lower()
+            if stok_durumu_n not in ('hepsi', 'stokta_var', 'stok_bitmis'):
+                stok_durumu_n = 'hepsi'
+
+            # ---- Filtreleme ----
+            filtered = []
+            for r in all_rows:
+                if arama_n:
+                    blob = f"{r['malzeme_kodu']} {r['aciklamasi']}".lower()
+                    if arama_n not in blob:
+                        continue
+                if tur_n and r['malzeme_turu'] != tur_n:
+                    continue
+                if marka_n and r['marka'] != marka_n:
+                    continue
+                if sube_keys and not any(r[k] > 0 for k in sube_keys):
+                    continue
+                if stok_durumu_n == 'stokta_var' and (r['toplam'] or 0) <= 0:
+                    continue
+                if stok_durumu_n == 'stok_bitmis' and (r['toplam'] or 0) > 0:
+                    continue
+                filtered.append(r)
+
+            # ---- Sıralama ----
+            sort_key_map = {
+                'malzeme_kodu': lambda x: (x['malzeme_kodu'] or '').lower(),
+                'aciklamasi': lambda x: (x['aciklamasi'] or '').lower(),
+                'malzeme_turu': lambda x: (x['malzeme_turu'] or '').lower(),
+                'marka': lambda x: (x['marka'] or '').lower(),
+                'seyhan': lambda x: x['seyhan'],
+                'yuregir': lambda x: x['yuregir'],
+                'mersin': lambda x: x['mersin'],
+                'toplam': lambda x: x['toplam'],
+                'son_alim_tarihi': lambda x: str(x['son_alim_tarihi'] or ''),
+                'son_birim_net': lambda x: x['son_birim_net'],
+                'maliyet': lambda x: x['toplam_deger'],
+                'deger': lambda x: x['toplam_deger'],
+            }
+            sirala_n = (sirala or 'deger').strip().lower()
+            if sirala_n not in sort_key_map:
+                sirala_n = 'deger'
+            yon_n = (yon or 'desc').strip().lower()
+            if yon_n not in ('asc', 'desc'):
+                yon_n = 'desc'
+            filtered.sort(key=sort_key_map[sirala_n], reverse=(yon_n == 'desc'))
+
+            # ---- Kırpma ----
+            total_filtered = len(filtered)
+            try:
+                cap = int(max_records) if max_records else None
+                if cap is not None and cap <= 0:
+                    cap = None
+            except (TypeError, ValueError):
+                cap = None
+            if cap is not None and total_filtered > cap:
+                rows_out = filtered[:cap]
+                truncated = True
+            else:
+                rows_out = filtered
+                truncated = False
+
+            # ---- KPI (filtrelenmiş tüm satırlar üzerinden) ----
+            toplam_stok = sum(r['toplam'] for r in filtered)
+            toplam_deger = sum(r['toplam_deger'] for r in filtered)
+            kpi = {
+                'toplam_urun': total_filtered,
+                'toplam_stok': toplam_stok,
+                'toplam_deger': toplam_deger,
+                'ortalama_birim_deger': (toplam_deger / toplam_stok) if toplam_stok > 0 else 0.0,
+                'marka_sayisi': len({r['marka'] for r in filtered if r['marka']}),
+                'tur_sayisi': len({r['malzeme_turu'] for r in filtered if r['malzeme_turu']}),
+            }
+
+            # ---- Şube kartları (stok + değer + pay) ----
+            sube_stok = {'seyhan': 0.0, 'yuregir': 0.0, 'mersin': 0.0}
+            sube_deger = {'seyhan': 0.0, 'yuregir': 0.0, 'mersin': 0.0}
+            for r in filtered:
+                birim = r['son_birim_net']
+                for k in ('seyhan', 'yuregir', 'mersin'):
+                    sube_stok[k] += r[k]
+                    sube_deger[k] += r[k] * birim
+            sube_deger_toplam = sum(sube_deger.values())
+            sube_kartlari = []
+            for kod, ad, key in (('SEYHAN', 'Seyhan', 'seyhan'),
+                                 ('YUREGIR', 'Yüreğir', 'yuregir'),
+                                 ('MERSIN', 'Mersin', 'mersin')):
+                sube_kartlari.append({
+                    'kod': kod,
+                    'ad': ad,
+                    'stok': sube_stok[key],
+                    'deger': sube_deger[key],
+                    'pay': (sube_deger[key] / sube_deger_toplam * 100.0)
+                        if sube_deger_toplam > 0 else 0.0,
+                })
+
+            # ---- Grid alt toplamları ----
+            # grid_toplam: ekranda görünen (kırpılmış) satırların toplamı.
+            # Bu sayede sayfa boyutu / pagination / sort değiştiğinde tfoot
+            # daima o anki sayfadaki satırları yansıtır.
+            page_seyhan = sum(r['seyhan'] for r in rows_out)
+            page_yuregir = sum(r['yuregir'] for r in rows_out)
+            page_mersin = sum(r['mersin'] for r in rows_out)
+            page_toplam = sum(r['toplam'] for r in rows_out)
+            page_deger = sum(r['toplam_deger'] for r in rows_out)
+            grid_toplam = {
+                'seyhan': page_seyhan,
+                'yuregir': page_yuregir,
+                'mersin': page_mersin,
+                'toplam': page_toplam,
+                'deger': page_deger,
+            }
+            # grid_toplam_filtered: filtreli TÜM satırlar (footer / özet amaçlı)
+            grid_toplam_filtered = {
+                'seyhan': sube_stok['seyhan'],
+                'yuregir': sube_stok['yuregir'],
+                'mersin': sube_stok['mersin'],
+                'toplam': toplam_stok,
+                'deger': toplam_deger,
+            }
+
+            # ---- Marka / Tür ilk 20 (tüm veri üzerinden, filtrelerden bağımsız) ----
+            # Yeni Marka/Tür İlk 20 panelinin veri kaynağı; DETAYLI view'ından
+            # Python'da türetilir, 160 satırlık STOK_MALIYET view'ına bağlı değildir.
+            def _aggregate_top(group_field):
+                agg = {}
+                for r in all_rows:
+                    ad = (r[group_field] or '').strip() or '(Belirtilmemiş)'
+                    if ad not in agg:
+                        agg[ad] = {'ad': ad, 'stok': 0.0, 'deger': 0.0}
+                    agg[ad]['stok'] += r['toplam']
+                    agg[ad]['deger'] += r['toplam_deger']
+                items = sorted(
+                    agg.values(),
+                    key=lambda x: x['deger'],
+                    reverse=True,
+                )[:20]
+                return items
+
+            top_markalar_raw = _aggregate_top('marka')
+            top_turler_raw = _aggregate_top('malzeme_turu')
+
+            total_deger = unfiltered_toplam_deger
+            max_marka = top_markalar_raw[0]['deger'] if top_markalar_raw else 0.0
+            max_tur = top_turler_raw[0]['deger'] if top_turler_raw else 0.0
+
+            def _build_top_list(items, max_deger):
+                out = []
+                for it in items:
+                    deger = it['deger']
+                    out.append({
+                        'ad': it['ad'],
+                        'stok': it['stok'],
+                        'deger': deger,
+                        'pay': (deger / total_deger * 100.0) if total_deger > 0 else 0.0,
+                        'bar_pct': (deger / max_deger * 100.0) if max_deger > 0 else 0.0,
+                    })
+                return out
+
+            top_markalar = _build_top_list(top_markalar_raw, max_marka)
+            top_turler = _build_top_list(top_turler_raw, max_tur)
+
+            top_markalar_toplam = {
+                'stok': sum(m['stok'] for m in top_markalar),
+                'deger': sum(m['deger'] for m in top_markalar),
+                'pay': sum(m['pay'] for m in top_markalar),
+            }
+            top_turler_toplam = {
+                'stok': sum(t['stok'] for t in top_turler),
+                'deger': sum(t['deger'] for t in top_turler),
+                'pay': sum(t['pay'] for t in top_turler),
+            }
+
             return {
-                'data': [],
-                'ozet': {
-                    'toplam_kayit': 0,
-                    'toplam_maliyet': 0,
-                    'toplam_satis_degeri': 0,
-                    'toplam_kar': 0,
-                    'kar_orani': 0,
-                },
-                'tur_gruplu': {'maliyet': {}, 'satis': {}},
-                'marka_gruplu': {'maliyet': {}, 'satis': {}}
+                'rows': rows_out,
+                # KPI / şube kartları her zaman tüm veri üzerinden hesaplanır —
+                # aktif filtrelerden etkilenmez.
+                'kpi': unfiltered_kpi,
+                'subeler': unfiltered_subeler,
+                # grid_toplam artık sayfadaki (görünür) satırların toplamıdır.
+                # Pagination / sayfa boyutu / sort değiştiğinde tfoot dinamik
+                # olarak yeni sayfanın toplamını yansıtır.
+                'grid_toplam': grid_toplam,
+                # Filtreli değerler de ayrıca döndürülür (footer / debug amaçlı)
+                'kpi_filtered': kpi,
+                'subeler_filtered': sube_kartlari,
+                'grid_toplam_filtered': grid_toplam_filtered,
+                'malzeme_turleri': sorted(tum_turler),
+                'markalar': sorted(tum_markalar),
+                'total_filtered': total_filtered,
+                'truncated': truncated,
+                # Yeni: Marka / Tür ilk 20 panelleri için (tüm veri)
+                'top_markalar': top_markalar,
+                'top_turler': top_turler,
+                'top_markalar_toplam': top_markalar_toplam,
+                'top_turler_toplam': top_turler_toplam,
             }
+
+        except Exception as e:
+            logger.error(f"get_ambar_deger_raporu hatası: {e}", exc_info=True)
+            return empty
 
 
 
@@ -9516,6 +9603,348 @@ class MSSQLService:
         except Exception as e:
             logger.error(f"get_next_fis_no error: {e}")
             return ""
+
+    def get_stok_maliyet_dashboard(self):
+        """[GO3].[dbo].[STOK_MALIYET] view'ından özet grid verisini getirir (~160 satır).
+
+        Satırlar marka ASC sıralı döner; arama ve yeniden sıralama şablonda
+        client-side yapılır. Ek olarak maliyete göre en yüksek 10 marka
+        (mini bar paneli için) ve genel toplamlar hesaplanır.
+
+        .. deprecated::
+            2026-07-03: ``/ambar-deger-raporu/`` sayfası artık sadece
+            ``STOK_MALIYET_DETAYLI`` view'ından besleniyor. Bu fonksiyon
+            sayfadan çağrılmıyor; geriye dönük uyumluluk için bırakıldı.
+            ``get_ambar_deger_raporu()`` üzerinden ``top_markalar`` /
+            ``top_turler`` kullanılmalıdır.
+
+        Dönüş:
+            rows           : [{'marka','malzeme_turu','stok','maliyet','pay'}]
+            toplam_stok    : tüm satırların stok toplamı
+            toplam_maliyet : tüm satırların maliyet toplamı
+            marka_sayisi   : benzersiz marka sayısı
+            tur_sayisi     : benzersiz malzeme türü sayısı
+            top_markalar   : [{'marka','stok','maliyet','pay','bar_pct'}] (ilk 10)
+            pivot_marka    : [{'ad','stok','maliyet','pay','alt_sayi',
+                               'detaylar': [{'ad','stok','maliyet','pay'}]}]
+                             (marka A-Z; pay üst satırda genel toplam içindeki,
+                              alt satırlarda grubun içindeki pay)
+            pivot_tur      : aynı yapı, malzeme türü -> markalar
+        """
+        empty = {
+            'rows': [],
+            'toplam_stok': 0.0,
+            'toplam_maliyet': 0.0,
+            'marka_sayisi': 0,
+            'tur_sayisi': 0,
+            'top_markalar': [],
+            'pivot_marka': [],
+            'pivot_tur': [],
+        }
+
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+
+            query = """
+                SELECT [MARKA],
+                       [MALZEME TÜRÜ],
+                       [TOPLAM STOK MİKTARI],
+                       [TOPLAM STOK MALİYETİ]
+                FROM [GO3].[dbo].[STOK_MALIYET]
+            """
+            cursor.execute(query)
+            raw = cursor.fetchall()
+            conn.close()
+
+            def _to_float(val):
+                if val is None or val == '':
+                    return 0.0
+                try:
+                    return float(val)
+                except (TypeError, ValueError):
+                    return 0.0
+
+            def _to_str(val):
+                if val is None:
+                    return ''
+                try:
+                    return self.safe_decode_string(val)
+                except Exception:
+                    return str(val)
+
+            rows = []
+            toplam_stok = 0.0
+            toplam_maliyet = 0.0
+            marka_set = set()
+            tur_set = set()
+
+            for row in raw:
+                marka = _to_str(row[0])
+                malzeme_turu = _to_str(row[1])
+                stok = _to_float(row[2])
+                maliyet = _to_float(row[3])
+                rows.append({
+                    'marka': marka,
+                    'malzeme_turu': malzeme_turu,
+                    'stok': stok,
+                    'maliyet': maliyet,
+                })
+                toplam_stok += stok
+                toplam_maliyet += maliyet
+                if marka:
+                    marka_set.add(marka)
+                if malzeme_turu:
+                    tur_set.add(malzeme_turu)
+
+            for r in rows:
+                r['pay'] = (r['maliyet'] / toplam_maliyet * 100.0) if toplam_maliyet > 0 else 0.0
+
+            rows.sort(key=lambda r: ((r['marka'] or '').lower(), (r['malzeme_turu'] or '').lower()))
+
+            # Top 10 marka (maliyete göre) — mini bar paneli için
+            marka_agg = {}
+            for r in rows:
+                key = r['marka'] or '(Belirtilmemiş)'
+                if key not in marka_agg:
+                    marka_agg[key] = {'marka': key, 'stok': 0.0, 'maliyet': 0.0}
+                marka_agg[key]['stok'] += r['stok']
+                marka_agg[key]['maliyet'] += r['maliyet']
+
+            top_markalar = sorted(
+                marka_agg.values(), key=lambda m: m['maliyet'], reverse=True)[:10]
+            max_maliyet = top_markalar[0]['maliyet'] if top_markalar else 0.0
+            for m in top_markalar:
+                m['pay'] = (m['maliyet'] / toplam_maliyet * 100.0) if toplam_maliyet > 0 else 0.0
+                m['bar_pct'] = (m['maliyet'] / max_maliyet * 100.0) if max_maliyet > 0 else 0.0
+
+            # Pivot gruplamaları: marka -> türler ve tür -> markalar
+            def _build_pivot(group_field, detail_field):
+                groups = {}
+                for r in rows:
+                    g_key = r[group_field] or '(Belirtilmemiş)'
+                    d_key = r[detail_field] or '(Belirtilmemiş)'
+                    grp = groups.setdefault(g_key, {
+                        'ad': g_key, 'stok': 0.0, 'maliyet': 0.0, '_alt': {}})
+                    grp['stok'] += r['stok']
+                    grp['maliyet'] += r['maliyet']
+                    alt = grp['_alt'].setdefault(d_key, {
+                        'ad': d_key, 'stok': 0.0, 'maliyet': 0.0})
+                    alt['stok'] += r['stok']
+                    alt['maliyet'] += r['maliyet']
+
+                pivot = []
+                for grp in sorted(groups.values(), key=lambda g: g['ad'].lower()):
+                    detaylar = sorted(
+                        grp.pop('_alt').values(),
+                        key=lambda d: d['maliyet'], reverse=True)
+                    for d in detaylar:
+                        d['pay'] = (d['maliyet'] / grp['maliyet'] * 100.0) if grp['maliyet'] > 0 else 0.0
+                    grp['pay'] = (grp['maliyet'] / toplam_maliyet * 100.0) if toplam_maliyet > 0 else 0.0
+                    grp['alt_sayi'] = len(detaylar)
+                    grp['detaylar'] = detaylar
+                    pivot.append(grp)
+                return pivot
+
+            pivot_marka = _build_pivot('marka', 'malzeme_turu')
+            pivot_tur = _build_pivot('malzeme_turu', 'marka')
+
+            return {
+                'rows': rows,
+                'toplam_stok': toplam_stok,
+                'toplam_maliyet': toplam_maliyet,
+                'marka_sayisi': len(marka_set),
+                'tur_sayisi': len(tur_set),
+                'top_markalar': top_markalar,
+                'pivot_marka': pivot_marka,
+                'pivot_tur': pivot_tur,
+            }
+
+        except Exception as e:
+            logger.error(f"get_stok_maliyet_dashboard error: {e}", exc_info=True)
+            return empty
+
+    def get_stok_maliyet_treemap_data(self, filtre_marka=None, filtre_tur=None):
+        """[GO3].[dbo].[STOK_MALIYET] view'ından treemap için hiyerarşik veri üretir.
+
+        .. deprecated::
+            2026-07-03: ``/ambar-deger-raporu/`` sayfası artık sadece
+            ``STOK_MALIYET_DETAYLI`` view'ından besleniyor. Repo içinde
+            başka çağıranı yok; ileride silinebilir.
+
+        Sonuç yapısı:
+            {
+                'children': [
+                    {
+                        'marka': str,
+                        'maliyet': float,
+                        'stok': float,
+                        'maliyet_pay': float,
+                        'stok_pay': float,
+                        'children': [
+                            {'tur': str, 'maliyet': float, 'stok': float,
+                             'maliyet_pay': float, 'stok_pay': float},
+                            ...
+                        ]
+                    },
+                    ...
+                ],
+                'total_maliyet': float,
+                'total_stok': float,
+            }
+
+        Markalar maliyete göre azalan sıralı, türler de kendi markaları içinde
+        maliyete göre azalan sıralı döner. ``filtre_marka`` ve ``filtre_tur`` ile
+        veri önceden filtrelenebilir.
+        """
+        empty = {
+            'children': [],
+            'total_maliyet': 0.0,
+            'total_stok': 0.0,
+        }
+        try:
+            def _treemap_size_class(pay):
+                if pay >= 35:
+                    return 3
+                if pay >= 14:
+                    return 2
+                return 1
+
+            def _treemap_color(pay):
+                if pay >= 30:
+                    return '#0f172a'
+                if pay >= 18:
+                    return '#1e293b'
+                if pay >= 10:
+                    return '#334155'
+                if pay >= 5:
+                    return '#475569'
+                return '#64748b'
+
+            def _treemap_tur_color(pay):
+                if pay >= 45:
+                    return '#d4a017'
+                if pay >= 25:
+                    return '#e0b53a'
+                if pay >= 12:
+                    return '#c08a0f'
+                return '#8a6a08'
+
+            conn = self.get_connection()
+            cursor = conn.cursor()
+
+            query = """
+                SELECT [MARKA],
+                       [MALZEME TÜRÜ],
+                       [TOPLAM STOK MİKTARI],
+                       [TOPLAM STOK MALİYETİ]
+                FROM [GO3].[dbo].[STOK_MALIYET]
+            """
+
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            conn.close()
+
+            def _to_float(val):
+                if val is None or val == '':
+                    return 0.0
+                try:
+                    return float(val)
+                except (TypeError, ValueError):
+                    return 0.0
+
+            def _to_str(val):
+                if val is None:
+                    return ''
+                try:
+                    return self.safe_decode_string(val)
+                except Exception:
+                    return str(val)
+
+            filtre_marka_norm = (filtre_marka or '').strip()
+            filtre_tur_norm = (filtre_tur or '').strip()
+
+            data_rows = []
+            for row in rows:
+                marka = _to_str(row[0])
+                malzeme_turu = _to_str(row[1])
+                if filtre_marka_norm and marka != filtre_marka_norm:
+                    continue
+                if filtre_tur_norm and malzeme_turu != filtre_tur_norm:
+                    continue
+                data_rows.append({
+                    'marka': marka,
+                    'malzeme_turu': malzeme_turu,
+                    'stok': _to_float(row[2]),
+                    'maliyet': _to_float(row[3]),
+                })
+
+            marka_map = {}
+            total_maliyet = 0.0
+            total_stok = 0.0
+            for r in data_rows:
+                marka_key = r['marka'] or '(Belirtilmemiş)'
+                tur_key = r['malzeme_turu'] or '(Belirtilmemiş)'
+                if marka_key not in marka_map:
+                    marka_map[marka_key] = {
+                        'marka': marka_key,
+                        'stok': 0.0,
+                        'maliyet': 0.0,
+                        'turler': {},
+                    }
+                marka_map[marka_key]['stok'] += r['stok']
+                marka_map[marka_key]['maliyet'] += r['maliyet']
+                if tur_key not in marka_map[marka_key]['turler']:
+                    marka_map[marka_key]['turler'][tur_key] = {
+                        'tur': tur_key,
+                        'stok': 0.0,
+                        'maliyet': 0.0,
+                    }
+                marka_map[marka_key]['turler'][tur_key]['stok'] += r['stok']
+                marka_map[marka_key]['turler'][tur_key]['maliyet'] += r['maliyet']
+
+                total_maliyet += r['maliyet']
+                total_stok += r['stok']
+
+            children = []
+            for marka_key, m in marka_map.items():
+                tur_children = []
+                for tur_key, t in m['turler'].items():
+                    tur_pay = (t['maliyet'] / m['maliyet'] * 100.0) if m['maliyet'] > 0 else 0.0
+                    tur_children.append({
+                        'tur': t['tur'],
+                        'maliyet': t['maliyet'],
+                        'stok': t['stok'],
+                        'maliyet_pay': tur_pay,
+                        'stok_pay': (t['stok'] / m['stok'] * 100.0)
+                            if m['stok'] > 0 else 0.0,
+                        'size_class': _treemap_size_class(tur_pay),
+                        'tur_color': _treemap_tur_color(tur_pay),
+                    })
+                tur_children.sort(key=lambda x: x['maliyet'], reverse=True)
+                marka_pay = (m['maliyet'] / total_maliyet * 100.0) if total_maliyet > 0 else 0.0
+                children.append({
+                    'marka': m['marka'],
+                    'maliyet': m['maliyet'],
+                    'stok': m['stok'],
+                    'maliyet_pay': marka_pay,
+                    'stok_pay': (m['stok'] / total_stok * 100.0) if total_stok > 0 else 0.0,
+                    'size_class': _treemap_size_class(marka_pay),
+                    'marka_color': _treemap_color(marka_pay),
+                    'children': tur_children,
+                })
+
+            children.sort(key=lambda x: x['maliyet'], reverse=True)
+
+            return {
+                'children': children,
+                'total_maliyet': total_maliyet,
+                'total_stok': total_stok,
+            }
+
+        except Exception as e:
+            logger.error(f"get_stok_maliyet_treemap_data error: {e}", exc_info=True)
+            return empty
 
 
 

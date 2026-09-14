@@ -94,6 +94,8 @@ urlpatterns = [
     path('stok-listesi/', views.stok_listesi, name='stok_listesi'),
     path('fiyat-analizi/', views.fiyat_analizi,
          name='fiyat_analizi'),  # FIYATANALIZ tablosu
+    path('fiyat-analizi/pdf/', views.export_fiyat_analizi_pdf,
+         name='fiyat_analizi_pdf_export'),
     # MALZEME_STOK_PERFORMANS tablosu - detaylı analiz
     path('stok-detayli-analiz/', views.stok_detayli_analiz,
          name='stok_detayli_analiz'),

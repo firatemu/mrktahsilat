@@ -1,460 +1,664 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load currency_filters %}
 {% load number_format %}
 
 {% block title %}Ambar Değer Raporu - MRK OTOMOTİV Sistemi{% endblock %}
 
 {% block extra_css %}
 <style>
-    .summary-card {
-        border: none;
-        border-radius: 15px;
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
-        transition: all 0.3s ease;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
+    /* ============ AMBAR DEĞER RAPORU — PREMIUM (petrol / teal / amber) ============ */
+    :root {
+        --adr-petrol-900: #062A2B;
+        --adr-petrol-800: #0B3B3C;
+        --adr-petrol-700: #0F4C4C;
+        --adr-teal-700: #0F766E;
+        --adr-teal-600: #0D9488;
+        --adr-teal-500: #14B8A6;
+        --adr-teal-100: #CCFBF1;
+        --adr-teal-50: #F0FDFA;
+        --adr-amber-600: #D97706;
+        --adr-amber-500: #F59E0B;
+        --adr-amber-400: #FBBF24;
+        --adr-amber-100: #FEF3C7;
+        --adr-ink: #0F172A;
+        --adr-slate: #475569;
+        --adr-muted: #94A3B8;
+        --adr-line: rgba(15, 76, 76, 0.14);
+        --adr-card-shadow: 0 10px 30px rgba(6, 42, 43, 0.10);
+    }
+    .adr-page { padding: 1.25rem 0 2.5rem; color: var(--adr-ink); }
+
+    /* ---------- Hero ---------- */
+    .adr-hero {
+        position: relative;
+        border-radius: 18px;
+        padding: 1.9rem 2.1rem;
+        background: linear-gradient(118deg, var(--adr-petrol-900) 0%, var(--adr-petrol-700) 52%, var(--adr-teal-700) 100%);
+        color: #fff;
+        overflow: hidden;
+        box-shadow: 0 20px 45px rgba(6, 42, 43, 0.35);
+    }
+    .adr-hero::before {
+        content: "";
+        position: absolute; inset: 0;
+        background:
+            radial-gradient(circle at 88% -20%, rgba(251, 191, 36, 0.22), transparent 45%),
+            radial-gradient(circle at 8% 120%, rgba(20, 184, 166, 0.25), transparent 50%);
+        pointer-events: none;
+    }
+    .adr-hero .hero-kicker {
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em;
+        text-transform: uppercase; color: var(--adr-amber-400);
+        margin-bottom: 0.4rem; position: relative;
+    }
+    .adr-hero h1 {
+        font-size: 1.7rem; font-weight: 800; margin: 0; letter-spacing: 0.01em;
+        position: relative;
+    }
+    .adr-hero .hero-sub {
+        margin: 0.45rem 0 0; color: rgba(255, 255, 255, 0.78);
+        font-size: 0.93rem; position: relative;
+    }
+    .adr-hero .hero-actions { display: flex; flex-wrap: wrap; gap: 0.55rem; position: relative; }
+    .adr-btn-excel {
+        display: inline-flex; align-items: center; gap: 0.45rem;
+        border-radius: 999px; padding: 0.58rem 1.2rem; font-weight: 700;
+        font-size: 0.88rem; text-decoration: none; transition: all 0.18s ease;
+        border: 1px solid transparent;
+    }
+    .adr-btn-excel.detay {
+        background: linear-gradient(135deg, var(--adr-amber-500), var(--adr-amber-400));
+        color: #3B2300; box-shadow: 0 8px 20px rgba(245, 158, 11, 0.35);
+    }
+    .adr-btn-excel.detay:hover { transform: translateY(-2px); color: #3B2300; box-shadow: 0 12px 26px rgba(245, 158, 11, 0.45); }
+    .adr-btn-excel.ozet {
+        background: rgba(255, 255, 255, 0.10); color: #fff;
+        border-color: rgba(255, 255, 255, 0.30); backdrop-filter: blur(6px);
+    }
+    .adr-btn-excel.ozet:hover { background: rgba(255, 255, 255, 0.22); color: #fff; transform: translateY(-2px); }
+
+    /* ---------- KPI şeridi ---------- */
+    .adr-kpi-grid {
+        display: grid; gap: 0.9rem; margin-top: 1.15rem;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+    .adr-kpi {
+        background: #fff; border: 1px solid var(--adr-line); border-radius: 14px;
+        padding: 0.95rem 1.05rem; box-shadow: var(--adr-card-shadow);
+        position: relative; overflow: hidden;
+    }
+    .adr-kpi::after {
+        content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+        background: linear-gradient(180deg, var(--adr-teal-500), var(--adr-teal-700));
+    }
+    .adr-kpi.amber::after { background: linear-gradient(180deg, var(--adr-amber-400), var(--adr-amber-600)); }
+    .adr-kpi .kpi-label {
+        font-size: 0.68rem; font-weight: 700; letter-spacing: 0.09em;
+        text-transform: uppercase; color: var(--adr-slate); margin-bottom: 0.3rem;
+        display: flex; align-items: center; gap: 0.35rem;
+    }
+    .adr-kpi .kpi-label i { color: var(--adr-teal-600); }
+    .adr-kpi.amber .kpi-label i { color: var(--adr-amber-500); }
+    .adr-kpi .kpi-value { font-size: 1.28rem; font-weight: 800; color: var(--adr-petrol-800); line-height: 1.15; }
+    .adr-kpi .kpi-hint { font-size: 0.72rem; color: var(--adr-muted); margin-top: 0.2rem; }
+    .adr-kpi .kpi-eyebrow {
+        display: inline-block; font-size: 0.6rem; font-weight: 800;
+        letter-spacing: 0.12em; text-transform: uppercase;
+        color: var(--adr-teal-700);
+        background: var(--adr-teal-100);
+        padding: 1px 6px; border-radius: 4px;
+        margin-bottom: 0.3rem;
+    }
+    .adr-kpi.amber .kpi-eyebrow { color: #92400E; background: var(--adr-amber-100); }
+    .adr-kpi-note {
+        font-size: 0.74rem; color: var(--adr-muted);
+        margin-top: 0.4rem; padding-left: 0.2rem;
+        display: flex; align-items: center; gap: 0.35rem;
+    }
+    .adr-kpi-note i { color: var(--adr-teal-600); }
+
+    /* ---------- Şube kartları ---------- */
+    .adr-sube-grid { display: grid; gap: 0.9rem; margin-top: 0.9rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .adr-sube {
+        border-radius: 14px; padding: 1.05rem 1.2rem; color: #fff;
+        background: linear-gradient(130deg, var(--adr-petrol-800) 0%, var(--adr-teal-700) 100%);
+        box-shadow: var(--adr-card-shadow); position: relative; overflow: hidden;
+    }
+    .adr-sube::before {
+        content: ""; position: absolute; inset: 0;
+        background: radial-gradient(circle at 90% 0%, rgba(251, 191, 36, 0.18), transparent 55%);
+        pointer-events: none;
+    }
+    .adr-sube .sube-ad {
+        font-size: 0.78rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+        color: var(--adr-teal-100); display: flex; align-items: center; gap: 0.45rem;
+    }
+    .adr-sube .sube-deger { font-size: 1.35rem; font-weight: 800; margin-top: 0.35rem; position: relative; }
+    .adr-sube .sube-stok { font-size: 0.8rem; color: rgba(255, 255, 255, 0.75); margin-top: 0.1rem; position: relative; }
+    .adr-sube .sube-bar { height: 7px; border-radius: 99px; background: rgba(255, 255, 255, 0.18); margin-top: 0.7rem; overflow: hidden; position: relative; }
+    .adr-sube .sube-bar > span {
+        display: block; height: 100%; border-radius: 99px;
+        background: linear-gradient(90deg, var(--adr-amber-500), var(--adr-amber-400));
+    }
+    .adr-sube .sube-pay { font-size: 0.74rem; color: var(--adr-amber-400); font-weight: 700; margin-top: 0.35rem; position: relative; }
+
+    /* ---------- Kart / bölüm ortak ---------- */
+    .adr-card {
+        background: #fff; border: 1px solid var(--adr-line); border-radius: 16px;
+        box-shadow: var(--adr-card-shadow); overflow: hidden;
+    }
+    .adr-card-head {
+        display: flex; align-items: center; justify-content: space-between; gap: 0.8rem;
+        flex-wrap: wrap; padding: 0.95rem 1.2rem; border-bottom: 1px solid var(--adr-line);
+        background: linear-gradient(180deg, var(--adr-teal-50), #ffffff);
+    }
+    .adr-card-head h2 {
+        font-size: 1.0rem; font-weight: 800; margin: 0; color: var(--adr-petrol-800);
+        display: flex; align-items: center; gap: 0.5rem;
+    }
+    .adr-card-head h2 i { color: var(--adr-teal-600); }
+    .adr-card-head .head-note { font-size: 0.75rem; color: var(--adr-muted); }
+    .adr-section-gap { margin-top: 1.4rem; }
+
+    /* ---------- Tablolar ---------- */
+    .adr-table-scroll { overflow: auto; }
+    .adr-table-scroll.detay { max-height: 640px; }
+    .adr-table-scroll.ilkyirmi { max-height: 520px; }
+    table.adr-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.83rem; margin: 0; }
+    table.adr-table thead th {
+        position: sticky; top: 0; z-index: 5;
+        background: var(--adr-petrol-800); color: #fff;
+        font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+        padding: 0.55rem 0.7rem; white-space: nowrap; border-bottom: 2px solid var(--adr-teal-500);
+    }
+    table.adr-table thead th a {
+        color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;
+    }
+    table.adr-table thead th a:hover { color: var(--adr-amber-400); }
+    table.adr-table thead th.sorted a { color: var(--adr-amber-400); }
+    table.adr-table thead th.sortable { cursor: pointer; user-select: none; }
+    table.adr-table thead th.sortable:hover { color: var(--adr-amber-400); }
+    table.adr-table tbody td {
+        padding: 0.45rem 0.7rem; border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+        vertical-align: middle; white-space: nowrap;
+    }
+    table.adr-table tbody tr:nth-child(even) { background: rgba(240, 253, 250, 0.55); }
+    table.adr-table tbody tr:hover { background: var(--adr-teal-100); }
+    table.adr-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+    table.adr-table .money { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--adr-petrol-700); }
+    table.adr-table .dim { color: var(--adr-muted); font-weight: 400; }
+    table.adr-table .cell-kod { font-weight: 700; color: var(--adr-petrol-800); }
+    table.adr-table .cell-aciklama { max-width: 340px; overflow: hidden; text-overflow: ellipsis; }
+    table.adr-table tfoot td {
+        position: sticky; bottom: 0; z-index: 5;
+        background: var(--adr-amber-100); color: #78350F; font-weight: 800;
+        padding: 0.55rem 0.7rem; border-top: 2px solid var(--adr-amber-500); white-space: nowrap;
+    }
+    .adr-badge-tur {
+        display: inline-block; padding: 0.12rem 0.5rem; border-radius: 999px;
+        background: var(--adr-teal-50); color: var(--adr-teal-700);
+        border: 1px solid rgba(15, 118, 110, 0.25); font-size: 0.72rem; font-weight: 600;
     }
 
-    .summary-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    /* ---------- Bölüm B: filtre barı ---------- */
+    .adr-filterbar { padding: 0.9rem 1.2rem; border-bottom: 1px solid var(--adr-line); background: #fff; }
+    .adr-filterbar .fb-row { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: flex-end; }
+    .adr-filterbar label {
+        display: block; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em;
+        text-transform: uppercase; color: var(--adr-slate); margin-bottom: 0.22rem;
+    }
+    .adr-filterbar .form-control, .adr-filterbar .form-select {
+        border: 1px solid var(--adr-line); border-radius: 10px; font-size: 0.84rem;
+        padding: 0.42rem 0.7rem;
+    }
+    .adr-filterbar .form-control:focus, .adr-filterbar .form-select:focus {
+        border-color: var(--adr-teal-500); box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
+    }
+    .adr-btn-filtre {
+        border: none; border-radius: 10px; padding: 0.48rem 1.1rem; font-weight: 700;
+        font-size: 0.84rem; color: #fff; cursor: pointer;
+        background: linear-gradient(135deg, var(--adr-teal-700), var(--adr-teal-500));
+    }
+    .adr-btn-filtre:hover { filter: brightness(1.08); }
+    .adr-btn-temizle {
+        display: inline-flex; align-items: center; gap: 0.3rem;
+        border: 1px solid var(--adr-line); border-radius: 10px; padding: 0.44rem 0.9rem;
+        font-weight: 600; font-size: 0.82rem; color: var(--adr-slate);
+        background: #fff; text-decoration: none;
+    }
+    .adr-btn-temizle:hover { color: var(--adr-petrol-700); border-color: var(--adr-teal-500); }
+    .adr-chips { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.7rem; }
+    .adr-chip {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        padding: 0.32rem 0.85rem; border-radius: 999px; font-size: 0.78rem; font-weight: 700;
+        text-decoration: none; border: 1.5px solid var(--adr-line); color: var(--adr-slate);
+        background: #fff; transition: all 0.15s ease;
+    }
+    .adr-chip:hover { border-color: var(--adr-teal-500); color: var(--adr-teal-700); }
+    .adr-chip.aktif {
+        background: linear-gradient(135deg, var(--adr-petrol-800), var(--adr-teal-700));
+        border-color: var(--adr-teal-700); color: #fff;
+    }
+    .adr-chip.aktif:hover { color: var(--adr-amber-400); }
+
+    /* ---------- Footer bar ---------- */
+    .adr-footerbar {
+        margin-top: 1.4rem; border-radius: 14px; padding: 0.85rem 1.3rem;
+        background: var(--adr-petrol-800); color: rgba(255, 255, 255, 0.85);
+        display: flex; flex-wrap: wrap; gap: 0.5rem 1.8rem; align-items: center;
+        font-size: 0.8rem; box-shadow: var(--adr-card-shadow);
+    }
+    .adr-footerbar b { color: var(--adr-amber-400); }
+    .adr-footerbar .fb-item { display: inline-flex; align-items: center; gap: 0.4rem; }
+    .adr-footerbar i { color: var(--adr-teal-500); }
+
+    .adr-truncate-note {
+        padding: 0.5rem 1.2rem; font-size: 0.76rem; color: #92400E;
+        background: var(--adr-amber-100); border-top: 1px solid rgba(217, 119, 6, 0.25);
     }
 
-    .summary-card h3 {
-        color: white;
-        font-weight: 600;
+    /* ---------- Responsive ---------- */
+    @media (max-width: 1200px) {
+        .adr-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
-
-    .summary-card .value {
-        font-size: 2rem;
-        font-weight: bold;
-    }
-
-    .stat-card {
-        border: none;
-        border-radius: 12px;
-        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
-        transition: all 0.3s ease;
-        margin-bottom: 15px;
-    }
-
-    .stat-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
-    }
-
-    .stat-card.maliyet {
-        background: linear-gradient(135deg, #ee5a6f 0%, #f093fb 100%);
-        color: white;
-    }
-
-    .stat-card.satis {
-        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        color: white;
-    }
-
-    .table-container {
-        max-height: 600px;
-        overflow-y: auto;
-        border: 1px solid #dee2e6;
-        border-radius: 10px;
-    }
-
-    .table-container table {
-        margin-bottom: 0;
-    }
-
-    .table-container thead th {
-        position: sticky;
-        top: 0;
-        background-color: #f8f9fa;
-        z-index: 10;
-        border-bottom: 2px solid #dee2e6;
-    }
-
-    .badge-custom {
-        padding: 6px 12px;
-        border-radius: 8px;
-        font-size: 0.85rem;
-        font-weight: 600;
-    }
-
-    .chart-container {
-        margin-top: 20px;
+    @media (max-width: 768px) {
+        .adr-hero { padding: 1.3rem 1.2rem; }
+        .adr-hero h1 { font-size: 1.3rem; }
+        .adr-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .adr-sube-grid { grid-template-columns: 1fr; }
+        .adr-table-scroll.detay { max-height: 520px; }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="main-content">
-    <div class="container-fluid">
-        <!-- Page Header -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h2 class="h3 mb-1">
-                            <i class="bi bi-calculator text-primary me-2"></i>Ambar Değer Raporu
-                        </h2>
-                        <p class="text-muted mb-0">Ürün değerlerinin maliyet ve satış bazlı analizi</p>
-                    </div>
+<div class="adr-page container-fluid">
+
+    <!-- ================= HERO ================= -->
+    <div class="adr-hero d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <span class="hero-kicker"><i class="bi bi-box-seam"></i> STOK &amp; DEĞER</span>
+            <h1>Ambar Değer Raporu</h1>
+            <p class="hero-sub">
+                {{ total_filtered|numberformat_int }} ürün ·
+                {{ kpi.toplam_deger|currency_format_decimal }} toplam stok maliyeti ·
+                Seyhan / Yüreğir / Mersin şube kırılımı
+            </p>
+        </div>
+        <div class="hero-actions">
+            <a href="{{ export_detay_url }}" class="adr-btn-excel detay">
+                <i class="bi bi-file-earmark-excel"></i> Detay Excel
+            </a>
+            <a href="{{ export_ozet_url }}" class="adr-btn-excel ozet">
+                <i class="bi bi-file-earmark-spreadsheet"></i> Özet Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- ================= KPI ŞERİDİ ================= -->
+    <div class="adr-kpi-grid">
+        <div class="adr-kpi">
+            <div class="kpi-eyebrow">GENEL TOPLAM</div>
+            <div class="kpi-label"><i class="bi bi-upc-scan"></i> Toplam Ürün</div>
+            <div class="kpi-value">{{ kpi.toplam_urun|numberformat_int }}</div>
+            <div class="kpi-hint">tüm kayıtlar</div>
+        </div>
+        <div class="adr-kpi">
+            <div class="kpi-eyebrow">GENEL TOPLAM</div>
+            <div class="kpi-label"><i class="bi bi-boxes"></i> Toplam Stok</div>
+            <div class="kpi-value">{{ kpi.toplam_stok|numberformat_int }}</div>
+            <div class="kpi-hint">tüm şubeler dahil</div>
+        </div>
+        <div class="adr-kpi amber">
+            <div class="kpi-eyebrow">GENEL TOPLAM</div>
+            <div class="kpi-label"><i class="bi bi-cash-stack"></i> Toplam Stok Maliyeti</div>
+            <div class="kpi-value">{{ kpi.toplam_deger|currency_format_decimal }}</div>
+            <div class="kpi-hint">son birim net üzerinden</div>
+        </div>
+        <div class="adr-kpi amber">
+            <div class="kpi-eyebrow">GENEL TOPLAM</div>
+            <div class="kpi-label"><i class="bi bi-calculator"></i> Ort. Birim Maliyet</div>
+            <div class="kpi-value">{{ kpi.ortalama_birim_deger|currency_format_decimal }}</div>
+            <div class="kpi-hint">tüm zamanlar verisi</div>
+        </div>
+        <div class="adr-kpi">
+            <div class="kpi-eyebrow">GENEL TOPLAM</div>
+            <div class="kpi-label"><i class="bi bi-award"></i> Marka Sayısı</div>
+            <div class="kpi-value">{{ kpi.marka_sayisi|numberformat_int }}</div>
+            <div class="kpi-hint">tüm markalar</div>
+        </div>
+        <div class="adr-kpi">
+            <div class="kpi-eyebrow">GENEL TOPLAM</div>
+            <div class="kpi-label"><i class="bi bi-tags"></i> Tür Sayısı</div>
+            <div class="kpi-value">{{ kpi.tur_sayisi|numberformat_int }}</div>
+            <div class="kpi-hint">tüm türler</div>
+        </div>
+    </div>
+    <div class="adr-kpi-note">
+        <i class="bi bi-info-circle"></i>
+        KPI'lar tüm veriler üzerinden hesaplanır — aktif filtrelerden etkilenmez.
+    </div>
+
+    <!-- ================= ŞUBE MALİYET KARTLARI ================= -->
+    <div class="adr-sube-grid">
+        {% for sube in sube_kartlari %}
+        <div class="adr-sube">
+            <div class="sube-ad"><i class="bi bi-geo-alt-fill"></i> {{ sube.ad }}</div>
+            <div class="sube-deger">{{ sube.deger|currency_format_decimal }}</div>
+            <div class="sube-stok">{{ sube.stok|numberformat_int }} adet stok</div>
+            <div class="sube-bar"><span style="width: {{ sube.pay|floatformat:'1u' }}%"></span></div>
+            <div class="sube-pay">Toplam maliyet içindeki pay: %{{ sube.pay|floatformat:1 }}</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- ================= BÖLÜM A: MARKA / TÜR İLK 20 ================= -->
+    <div class="row g-4 adr-section-gap">
+        <div class="col-12 col-lg-6">
+            <div class="adr-card h-100 d-flex flex-column">
+                <div class="adr-card-head">
+                    <h2><i class="bi bi-award"></i> Marka Bazlı Özet — İlk 20</h2>
+                    <span class="head-note">{{ top_markalar|length }} marka · DETAYLI'dan türetildi</span>
+                </div>
+                <div class="adr-table-scroll ilkyirmi flex-grow-1">
+                    <table class="adr-table" id="topMarkaTablo">
+                        <thead>
+                            <tr>
+                                <th>Marka</th>
+                                <th class="num">Stok</th>
+                                <th class="num">Değer</th>
+                                <th class="num">Pay %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in top_markalar %}
+                            <tr>
+                                <td class="cell-kod">{{ m.ad|default:"—" }}</td>
+                                <td class="num" data-v="{{ m.stok|floatformat:'2u' }}">{{ m.stok|numberformat_int }}</td>
+                                <td class="money" data-v="{{ m.deger|floatformat:'4u' }}">{{ m.deger|currency_format_decimal }}</td>
+                                <td class="num" data-v="{{ m.pay|floatformat:'4u' }}">%{{ m.pay|floatformat:2 }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-center py-4 dim">Marka verisi bulunamadı.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td>TOPLAM — ilk {{ top_markalar|length }} marka</td>
+                                <td class="num">{{ top_markalar_toplam.stok|numberformat_int }}</td>
+                                <td class="num">{{ top_markalar_toplam.deger|currency_format_decimal }}</td>
+                                <td class="num">%{{ top_markalar_toplam.pay|floatformat:2 }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
                 </div>
             </div>
         </div>
-
-        <!-- Filtreler -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header bg-light">
-                        <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Filtreleme</h5>
-                    </div>
-                    <div class="card-body">
-                        <form method="get" action="" class="row g-3">
-                            <div class="col-md-4">
-                                <label for="malzeme_kodu" class="form-label">Ürün Kodu</label>
-                                <input type="text" class="form-control" id="malzeme_kodu" name="malzeme_kodu" 
-                                       value="{{ malzeme_kodu_filter }}" placeholder="Ürün kodu ara...">
-                            </div>
-                            <div class="col-md-4">
-                                <label for="marka" class="form-label">Marka</label>
-                                <select class="form-select" id="marka" name="marka">
-                                    <option value="">Tümü</option>
-                                    {% for m in markalar %}
-                                    <option value="{{ m }}" {% if marka_filter == m %}selected{% endif %}>{{ m }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label for="malzeme_turu" class="form-label">Malzeme Türü</label>
-                                <select class="form-select" id="malzeme_turu" name="malzeme_turu">
-                                    <option value="">Tümü</option>
-                                    {% for tur in malzeme_turleri %}
-                                    <option value="{{ tur }}" {% if malzeme_turu_filter == tur %}selected{% endif %}>{{ tur }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label for="maliyet_filter" class="form-label">Maliyet Değeri</label>
-                                <select class="form-select" id="maliyet_filter" name="maliyet_filter">
-                                    <option value="">Hepsi</option>
-                                    <option value="sifirdan_buyuk" {% if maliyet_filter == 'sifirdan_buyuk' %}selected{% endif %}>0'dan Büyük Olanlar</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label for="satis_filter" class="form-label">Satış Değeri</label>
-                                <select class="form-select" id="satis_filter" name="satis_filter">
-                                    <option value="">Hepsi</option>
-                                    <option value="sifirdan_buyuk" {% if satis_filter == 'sifirdan_buyuk' %}selected{% endif %}>0'dan Büyük Olanlar</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">&nbsp;</label>
-                                <div class="d-grid gap-2">
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="bi bi-search me-2"></i>Filtrele
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="col-md-12">
-                                <a href="{% url 'tahsilat:ambar_deger_raporu' %}" class="btn btn-secondary">
-                                    <i class="bi bi-x-circle me-2"></i>Temizle
-                                </a>
-                            </div>
-                        </form>
-                    </div>
+        <div class="col-12 col-lg-6">
+            <div class="adr-card h-100 d-flex flex-column">
+                <div class="adr-card-head">
+                    <h2><i class="bi bi-tags"></i> Tür Bazlı Özet — İlk 20</h2>
+                    <span class="head-note">{{ top_turler|length }} tür · DETAYLI'dan türetildi</span>
                 </div>
-            </div>
-        </div>
-
-        <!-- Özet Kartları -->
-        <div class="row mb-4">
-            <div class="col-md-12 mb-3">
-                <div class="card summary-card">
-                    <div class="card-body">
-                        <h3 class="mb-0">Toplam Özet</h3>
-                        <div class="row mt-3">
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <div class="mb-2">Toplam Kayıt</div>
-                                    <div class="value">{{ ozet.toplam_kayit|numberformat_int}}</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <div class="mb-2">Toplam Maliyet</div>
-                                    <div class="value">{{ ozet.toplam_maliyet|numberformat}} ₺</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <div class="mb-2">Toplam Satış Değeri</div>
-                                    <div class="value">{{ ozet.toplam_satis_degeri|numberformat}} ₺</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <div class="mb-2">Toplam Kar</div>
-                                    <div class="value">{{ ozet.toplam_kar|numberformat}} ₺</div>
-                                    <small>(%{{ ozet.kar_orani|numberformat}})</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Malzeme Türü Gruplandırması -->
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0"><i class="bi bi-tags me-2"></i>Malzeme Türü - Maliyet Dağılımı</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Malzeme Türü</th>
-                                        <th class="text-end">Maliyet</th>
-                                        <th class="text-end">Oran</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for tur, deger in tur_gruplu.maliyet.items %}
-                                    <tr>
-                                        <td><strong>{{ tur }}</strong></td>
-                                        <td class="text-end">{{ deger|numberformat}} ₺</td>
-                                        <td class="text-end">
-                                            <span class="badge bg-primary">
-                                                {% widthratio deger ozet.toplam_maliyet 100 %}%
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    {% empty %}
-                                    <tr>
-                                        <td colspan="3" class="text-center text-muted">Veri bulunamadı</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="mb-0"><i class="bi bi-tags me-2"></i>Malzeme Türü - Satış Değeri Dağılımı</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Malzeme Türü</th>
-                                        <th class="text-end">Satış Değeri</th>
-                                        <th class="text-end">Oran</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for tur, deger in tur_gruplu.satis.items %}
-                                    <tr>
-                                        <td><strong>{{ tur }}</strong></td>
-                                        <td class="text-end">{{ deger|numberformat}} ₺</td>
-                                        <td class="text-end">
-                                            <span class="badge bg-success">
-                                                {% widthratio deger ozet.toplam_satis_degeri 100 %}%
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    {% empty %}
-                                    <tr>
-                                        <td colspan="3" class="text-center text-muted">Veri bulunamadı</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Marka Gruplandırması -->
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header bg-danger text-white">
-                        <h5 class="mb-0"><i class="bi bi-badge-tm me-2"></i>Marka - Maliyet Dağılımı</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Marka</th>
-                                        <th class="text-end">Maliyet</th>
-                                        <th class="text-end">Oran</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for marka, deger in marka_gruplu.maliyet.items %}
-                                    <tr>
-                                        <td><strong>{{ marka }}</strong></td>
-                                        <td class="text-end">{{ deger|numberformat}} ₺</td>
-                                        <td class="text-end">
-                                            <span class="badge bg-danger">
-                                                {% widthratio deger ozet.toplam_maliyet 100 %}%
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    {% empty %}
-                                    <tr>
-                                        <td colspan="3" class="text-center text-muted">Veri bulunamadı</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="mb-0"><i class="bi bi-badge-tm me-2"></i>Marka - Satış Değeri Dağılımı</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Marka</th>
-                                        <th class="text-end">Satış Değeri</th>
-                                        <th class="text-end">Oran</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for marka, deger in marka_gruplu.satis.items %}
-                                    <tr>
-                                        <td><strong>{{ marka }}</strong></td>
-                                        <td class="text-end">{{ deger|numberformat}} ₺</td>
-                                        <td class="text-end">
-                                            <span class="badge bg-info">
-                                                {% widthratio deger ozet.toplam_satis_degeri 100 %}%
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    {% empty %}
-                                    <tr>
-                                        <td colspan="3" class="text-center text-muted">Veri bulunamadı</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Detaylı Liste -->
-        <div class="row">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header bg-dark text-white">
-                        <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Detaylı Ürün Listesi</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-container">
-                            <table class="table table-hover table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>Malzeme Kodu</th>
-                                        <th>Açıklaması</th>
-                                        <th>Marka</th>
-                                        <th>Malzeme Türü</th>
-                                        <th class="text-end">Toplam</th>
-                                        <th class="text-end">Tanımlı Alış Fiyatı</th>
-                                        <th class="text-end">Tanımlı Satış Fiyatı</th>
-                                        <th class="text-end">Maliyet Değeri</th>
-                                        <th class="text-end">Satış Değeri</th>
-                                        <th class="text-end">Kar</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for item in data %}
-                                    <tr>
-                                        <td><code>{{ item.malzeme_kodu }}</code></td>
-                                        <td>{{ item.aciklamasi|truncatewords:5 }}</td>
-                                        <td><span class="badge bg-info">{{ item.marka }}</span></td>
-                                        <td><span class="badge bg-secondary">{{ item.malzeme_turu }}</span></td>
-                                        <td class="text-end">{{ item.toplam|numberformat}}</td>
-                                        <td class="text-end">{{ item.tanimli_alis_fiyati|numberformat}} ₺</td>
-                                        <td class="text-end">{{ item.tanimli_satis_fiyati|numberformat}} ₺</td>
-                                        <td class="text-end fw-bold text-danger">{{ item.maliyet_degeri|numberformat}} ₺</td>
-                                        <td class="text-end fw-bold text-success">{{ item.satis_degeri|numberformat}} ₺</td>
-                                        <td class="text-end">
-                                            {% if item.kar_tutar > 0 %}
-                                                <span class="badge bg-success">+{{ item.kar_tutar|numberformat}} ₺</span>
-                                            {% else %}
-                                                <span class="badge bg-danger">{{ item.kar_tutar|numberformat}} ₺</span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    {% empty %}
-                                    <tr>
-                                        <td colspan="10" class="text-center text-muted py-4">
-                                            <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-                                            <p class="mt-2">Henüz veri bulunmuyor</p>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                                <tfoot>
-                                    <tr class="table-active">
-                                        <th colspan="7" class="text-end">TOPLAM:</th>
-                                        <th class="text-end">{{ ozet.toplam_maliyet|numberformat}} ₺</th>
-                                        <th class="text-end">{{ ozet.toplam_satis_degeri|numberformat}} ₺</th>
-                                        <th class="text-end">
-                                            <span class="badge bg-primary">{{ ozet.toplam_kar|numberformat}} ₺</span>
-                                        </th>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                    </div>
+                <div class="adr-table-scroll ilkyirmi flex-grow-1">
+                    <table class="adr-table" id="topTurTablo">
+                        <thead>
+                            <tr>
+                                <th>Malzeme Türü</th>
+                                <th class="num">Stok</th>
+                                <th class="num">Değer</th>
+                                <th class="num">Pay %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for t in top_turler %}
+                            <tr>
+                                <td class="cell-kod">{{ t.ad|default:"—" }}</td>
+                                <td class="num" data-v="{{ t.stok|floatformat:'2u' }}">{{ t.stok|numberformat_int }}</td>
+                                <td class="money" data-v="{{ t.deger|floatformat:'4u' }}">{{ t.deger|currency_format_decimal }}</td>
+                                <td class="num" data-v="{{ t.pay|floatformat:'4u' }}">%{{ t.pay|floatformat:2 }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-center py-4 dim">Tür verisi bulunamadı.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td>TOPLAM — ilk {{ top_turler|length }} tür</td>
+                                <td class="num">{{ top_turler_toplam.stok|numberformat_int }}</td>
+                                <td class="num">{{ top_turler_toplam.deger|currency_format_decimal }}</td>
+                                <td class="num">%{{ top_turler_toplam.pay|floatformat:2 }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- ================= BÖLÜM B: DETAY GRID ================= -->
+    <div class="adr-card adr-section-gap">
+        <div class="adr-card-head">
+            <h2><i class="bi bi-list-columns-reverse"></i> Stok Detayı</h2>
+            <span class="head-note">
+                {{ gosterilen|numberformat_int }} / {{ total_filtered|numberformat_int }} satır ·
+                STOK_MALIYET_DETAYLI
+            </span>
+        </div>
+
+        <!-- Filtre barı -->
+        <div class="adr-filterbar">
+            <form method="get" id="detayFiltreForm">
+                {% for s in filtreler.subeler %}
+                <input type="hidden" name="sube" value="{{ s }}">
+                {% endfor %}
+                <input type="hidden" name="sirala" id="inpSirala" value="{{ filtreler.sirala }}">
+                <input type="hidden" name="yon" id="inpYon" value="{{ filtreler.yon }}">
+                <div class="fb-row">
+                    <div style="flex: 2 1 220px;">
+                        <label for="inpArama">Arama</label>
+                        <input type="text" class="form-control" id="inpArama" name="arama"
+                               value="{{ filtreler.arama|default:'' }}"
+                               placeholder="Malzeme kodu veya açıklama...">
+                    </div>
+                    <div style="flex: 1 1 170px;">
+                        <label for="selTur">Malzeme Türü</label>
+                        <select class="form-select" id="selTur" name="malzeme_turu">
+                            <option value="">Tümü</option>
+                            {% for t in malzeme_turleri %}
+                            <option value="{{ t }}" {% if filtreler.malzeme_turu == t %}selected{% endif %}>{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div style="flex: 1 1 170px;">
+                        <label for="selMarka">Marka</label>
+                        <select class="form-select" id="selMarka" name="marka">
+                            <option value="">Tümü</option>
+                            {% for m in markalar %}
+                            <option value="{{ m }}" {% if filtreler.marka == m %}selected{% endif %}>{{ m }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div style="flex: 1 1 190px;">
+                        <label for="selStokDurumu">Stok Durumu</label>
+                        <select class="form-select" id="selStokDurumu" name="stok_durumu">
+                            <option value="hepsi" {% if filtreler.stok_durumu == 'hepsi' %}selected{% endif %}>Hepsi (Tüm Stoklar)</option>
+                            <option value="stokta_var" {% if filtreler.stok_durumu == 'stokta_var' %}selected{% endif %}>Stoğu Olanlar</option>
+                            <option value="stok_bitmis" {% if filtreler.stok_durumu == 'stok_bitmis' %}selected{% endif %}>Stoğu Olmayanlar</option>
+                        </select>
+                    </div>
+                    <div style="flex: 0 1 130px;">
+                        <label for="selSayfa">Sayfa Boyutu</label>
+                        <select class="form-select" id="selSayfa" name="sayfa_boyutu">
+                            {% for sb in sayfa_boyutu_secenekleri %}
+                            <option value="{{ sb }}" {% if filtreler.sayfa_boyutu_raw == sb %}selected{% endif %}>
+                                {% if sb == 'tumu' %}Tümü{% else %}{{ sb }}{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="adr-btn-filtre"><i class="bi bi-funnel"></i> Filtrele</button>
+                        <a href="{% url 'tahsilat:ambar_deger_raporu' %}" class="adr-btn-temizle">
+                            <i class="bi bi-x-circle"></i> Temizle
+                        </a>
+                    </div>
+                </div>
+            </form>
+            <div class="adr-chips">
+                {% for chip in sube_chips %}
+                <a href="?{{ chip.qs }}" class="adr-chip {% if chip.aktif %}aktif{% endif %}">
+                    {% if chip.kod %}<i class="bi bi-geo-alt"></i>{% else %}<i class="bi bi-collection"></i>{% endif %}
+                    {{ chip.label }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Detay tablo -->
+        <div class="adr-table-scroll detay">
+            <table class="adr-table">
+                <thead>
+                    <tr>
+                        {% for col in detay_kolonlar %}
+                        <th class="{% if col.tip != 'text' %}num{% endif %} {% if col.aktif %}sorted{% endif %}">
+                            <a href="?{{ col.sort_qs }}" title="{{ col.label }} sırala">
+                                {{ col.label }}
+                                {% if col.aktif %}
+                                    <i class="bi {% if col.yon == 'asc' %}bi-caret-up-fill{% else %}bi-caret-down-fill{% endif %}"></i>
+                                {% else %}
+                                    <i class="bi bi-arrow-down-up" style="opacity: 0.45;"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td class="cell-kod">{{ r.malzeme_kodu }}</td>
+                        <td class="cell-aciklama" title="{{ r.aciklamasi }}">{{ r.aciklamasi }}</td>
+                        <td><span class="adr-badge-tur">{{ r.malzeme_turu|default:"—" }}</span></td>
+                        <td>{{ r.marka|default:"—" }}</td>
+                        <td class="num {% if not r.seyhan %}dim{% endif %}" data-v="{{ r.seyhan|default:0|floatformat:'2u' }}">{{ r.seyhan|numberformat_int }}</td>
+                        <td class="num {% if not r.yuregir %}dim{% endif %}" data-v="{{ r.yuregir|default:0|floatformat:'2u' }}">{{ r.yuregir|numberformat_int }}</td>
+                        <td class="num {% if not r.mersin %}dim{% endif %}" data-v="{{ r.mersin|default:0|floatformat:'2u' }}">{{ r.mersin|numberformat_int }}</td>
+                        <td class="num" data-v="{{ r.toplam|default:0|floatformat:'2u' }}"><strong>{{ r.toplam|numberformat_int }}</strong></td>
+                        <td class="num">{% if r.son_alim_tarihi %}{{ r.son_alim_tarihi|date:"d.m.Y" }}{% else %}<span class="dim">—</span>{% endif %}</td>
+                        <td class="money" data-v="{{ r.son_birim_net|default:0|floatformat:'4u' }}">{{ r.son_birim_net|currency_format_decimal }}</td>
+                        <td class="money" data-v="{{ r.toplam_deger|default:0|floatformat:'4u' }}">{{ r.toplam_deger|currency_format_decimal }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="11" class="text-center py-5 dim">Filtrelere uyan kayıt bulunamadı.</td></tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr id="detayToplamRow">
+                        <td colspan="4">TOPLAM — <span id="dtLabel">{{ gosterilen|numberformat_int }} ürün</span></td>
+                        <td class="num" id="dtSeyhan">{{ grid_toplam.seyhan|numberformat_int }}</td>
+                        <td class="num" id="dtYuregir">{{ grid_toplam.yuregir|numberformat_int }}</td>
+                        <td class="num" id="dtMersin">{{ grid_toplam.mersin|numberformat_int }}</td>
+                        <td class="num" id="dtToplam">{{ grid_toplam.toplam|numberformat_int }}</td>
+                        <td id="dtSonAlim"></td>
+                        <td id="dtBirimNet"></td>
+                        <td class="num" id="dtDeger">{{ grid_toplam.deger|currency_format_decimal }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% if truncated %}
+        <div class="adr-truncate-note">
+            <i class="bi bi-info-circle"></i>
+            İlk {{ gosterilen|numberformat_int }} satır gösteriliyor (toplam {{ total_filtered|numberformat_int }}).
+            Tamamını görmek için sayfa boyutunu "Tümü" yapın veya Detay Excel'i indirin.
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ================= FOOTER ÖZET ÇUBUĞU ================= -->
+    <div class="adr-footerbar">
+        <span class="fb-item"><i class="bi bi-database"></i>
+            Kaynak: GO3 · STOK_MALIYET_DETAYLI</span>
+        <span class="fb-item"><i class="bi bi-list-ol"></i>
+            <b>{{ gosterilen|numberformat_int }}</b>&nbsp;/&nbsp;{{ total_filtered|numberformat_int }} kayıt görüntüleniyor</span>
+        <span class="fb-item"><i class="bi bi-funnel"></i> {{ filtre_ozeti }}</span>
+        <span class="fb-item"><i class="bi bi-cash-coin"></i>
+            KPI toplam değer (tüm veri): <b>{{ kpi.toplam_deger|currency_format_decimal }}</b></span>
+        <span class="fb-item"><i class="bi bi-funnel-fill"></i>
+            Filtreli toplam değer: <b>{{ kpi_filtered.toplam_deger|currency_format_decimal }}</b></span>
+    </div>
+
 </div>
-
-<script>
-    // Basit animasyon
-    document.addEventListener('DOMContentLoaded', function() {
-        const cards = document.querySelectorAll('.card');
-        cards.forEach((card, index) => {
-            card.style.animation = `fadeIn 0.5s ease ${index * 0.1}s`;
-            card.style.animationFillMode = 'backwards';
-        });
-    });
-</script>
-
-<style>
-    @keyframes fadeIn {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-</style>
 {% endblock %}
 
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    /* ---------- Sayı formatlama yardımcıları (TR) ---------- */
+    function fmtInt(n) {
+        return Math.round(n).toLocaleString('tr-TR');
+    }
+    function fmtMoney(n) {
+        return n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20BA';
+    }
+
+    /* ---------- Bölüm B: detay grid — sayfa-level tfoot recompute ---------- */
+    /* Sunucu tarafı zaten rows_out'tan grid_toplam hesapladığı için bu fonksiyon
+       yalnızca savunma amaçlıdır: ilk yüklemede + (gelecekte) client-side
+       değişikliklerde tfoot değerlerini görünür satırlardan yeniden hesaplar.
+       Pagination / sayfa değişikliği tamamen sunucu tarafında yapılır; burada
+       olan sadece hafif bir sağlık kontrolüdür. */
+    function recomputeDetayTfoot() {
+        var row = document.getElementById('detayToplamRow');
+        if (!row) { return; }
+        var detayScroll = document.querySelector('.adr-table-scroll.detay');
+        if (!detayScroll) { return; }
+        var table = detayScroll.querySelector('table.adr-table');
+        if (!table || !table.tBodies[0]) { return; }
+        var sums = { seyhan: 0, yuregir: 0, mersin: 0, toplam: 0, deger: 0 };
+        var count = 0;
+        var trs = Array.prototype.slice.call(table.tBodies[0].rows);
+        trs.forEach(function (tr) {
+            // colspan'lı "kayıt bulunamadı" satırını atla
+            if (tr.cells.length < 11) { return; }
+            if (tr.style.display === 'none') { return; }
+            sums.seyhan  += parseFloat(tr.cells[4].getAttribute('data-v')) || 0;
+            sums.yuregir += parseFloat(tr.cells[5].getAttribute('data-v')) || 0;
+            sums.mersin  += parseFloat(tr.cells[6].getAttribute('data-v')) || 0;
+            sums.toplam  += parseFloat(tr.cells[7].getAttribute('data-v')) || 0;
+            sums.deger   += parseFloat(tr.cells[10].getAttribute('data-v')) || 0;
+            count += 1;
+        });
+        var fmtInt2 = function (n) { return Math.round(n).toLocaleString('tr-TR'); };
+        var fmtMoney2 = function (n) {
+            return n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20BA';
+        };
+        var lab = document.getElementById('dtLabel');
+        if (lab) { lab.textContent = fmtInt2(count) + ' \u00FCr\u00FCn'; }
+        var dtS = document.getElementById('dtSeyhan');
+        var dtY = document.getElementById('dtYuregir');
+        var dtM = document.getElementById('dtMersin');
+        var dtT = document.getElementById('dtToplam');
+        var dtC = document.getElementById('dtDeger');
+        if (dtS) { dtS.textContent = fmtInt2(sums.seyhan); }
+        if (dtY) { dtY.textContent = fmtInt2(sums.yuregir); }
+        if (dtM) { dtM.textContent = fmtInt2(sums.mersin); }
+        if (dtT) { dtT.textContent = fmtInt2(sums.toplam); }
+        if (dtC) { dtC.textContent = fmtMoney2(sums.deger); }
+    }
+    recomputeDetayTfoot();
+
+    /* ---------- Bölüm B: sayfa boyutu değişince otomatik uygula ---------- */
+    var selSayfa = document.getElementById('selSayfa');
+    var detayForm = document.getElementById('detayFiltreForm');
+    if (selSayfa && detayForm) {
+        selSayfa.addEventListener('change', function () { detayForm.submit(); });
+    }
+})();
+</script>
+{% endblock %}

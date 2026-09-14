@@ -56,7 +56,7 @@
                             <h4 class="mb-1 text-primary">
                                 <i class="bi bi-sliders me-2"></i>Hedef Belirleme
                             </h4>
-                            <p class="text-muted mb-0">Marka + opsiyonel malzeme türü bazında ortak hedef setini tanımlayın, plasiyer tutarlarını tek ekranda yönetin.</p>
+                            <p class="text-muted mb-0">Marka (çoklu) + opsiyonel malzeme türü (çoklu) bazında ortak hedef setini tanımlayın, plasiyer tutarlarını tek ekranda yönetin.</p>
                         </div>
                         <form method="get" class="row g-2 align-items-end">
                             <div class="col-auto">
@@ -151,19 +151,21 @@
                         <div class="row g-3 mb-4">
                             <div class="col-md-4">
                                 <label class="form-label">Marka</label>
-                                <select name="marka" id="markaSelect" class="form-select" required>
-                                    <option value="">Marka seçin</option>
+                                <select name="marka" id="markaSelect" class="form-select" multiple size="6" required>
                                     {% for marka in markalar %}
-                                    <option value="{{ marka }}" {% if edit_group and edit_group.marka == marka %}selected{% endif %}>{{ marka }}</option>
+                                    <option value="{{ marka }}">{{ marka }}</option>
                                     {% endfor %}
                                 </select>
+                                <div class="multi-select-note mt-2">
+                                    `Ctrl` / `Cmd` ile birden fazla marka seçebilirsiniz. Seçilen markalar tek hedef kaydı olarak tutulur ve satış toplamı bu markaların birleşimi üzerinden hesaplanır.
+                                </div>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Malzeme Türü</label>
                                 <select name="malzeme_turu" id="malzemeTuruSelect" class="form-select" multiple size="6">
                                 </select>
                                 <div class="multi-select-note mt-2">
-                                    `Ctrl` / `Cmd` ile çoklu seçim yapabilirsiniz. Seçilen türler tek hedef kaydı olarak tutulur ve hesaplama bu türlerin toplamı üzerinden yapılır. Seçim yapılmazsa kayıt marka geneli olarak oluşturulur.
+                                    `Ctrl` / `Cmd` ile çoklu seçim yapabilirsiniz. Seçilen türler tek hedef kaydı olarak tutulur ve hesaplama bu türlerin toplamı üzerinden yapılır. Seçim yapılmazsa seçili markalar için tüm malzeme türleri dahil edilir.
                                 </div>
                             </div>
                             <div class="col-md-2">
@@ -244,7 +246,7 @@
                             <tbody>
                                 {% for group in grouped_targets %}
                                 <tr>
-                                    <td class="fw-semibold">{{ group.marka }}</td>
+                                    <td class="fw-semibold">{{ group.marka_etiketi|default:group.marka }}</td>
                                     <td><span class="scope-badge">{{ group.kapsam_etiketi }}</span></td>
                                     <td>{{ group.kademe_no }}</td>
                                     <td>%{{ group.hakedis_yuzde|floatformat:2 }}</td>
@@ -306,11 +308,34 @@ document.addEventListener('DOMContentLoaded', function () {
     const markaSelect = document.getElementById('markaSelect');
     const turSelect = document.getElementById('malzemeTuruSelect');
     const markaTurleri = JSON.parse(document.getElementById('markaTurleriData').textContent || '{}');
+    const selectedMarkalar = JSON.parse('{{ edit_group_markalar_json|escapejs }}');
     const selectedTypes = JSON.parse('{{ edit_group_malzeme_turleri_json|escapejs }}');
 
+    function getSelectedMarkalar() {
+        return Array.from(markaSelect.selectedOptions).map(function (option) {
+            return option.value;
+        }).filter(Boolean);
+    }
+
+    function renderMarkaOptions() {
+        Array.from(markaSelect.options).forEach(function (option) {
+            option.selected = selectedMarkalar.includes(option.value);
+        });
+    }
+
     function renderTurOptions() {
-        const marka = markaSelect.value;
-        const turler = markaTurleri[marka] || [];
+        const selectedMarkaList = getSelectedMarkalar();
+        const turSet = new Set();
+
+        selectedMarkaList.forEach(function (marka) {
+            (markaTurleri[marka] || []).forEach(function (tur) {
+                turSet.add(tur);
+            });
+        });
+
+        const turler = Array.from(turSet).sort(function (a, b) {
+            return a.localeCompare(b, 'tr');
+        });
 
         turSelect.innerHTML = '';
         turler.forEach(function (tur) {
@@ -328,6 +353,7 @@ document.addEventListener('DOMContentLoaded', function () {
         renderTurOptions();
     });
 
+    renderMarkaOptions();
     renderTurOptions();
 });
 </script>

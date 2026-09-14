@@ -1,21 +1,34 @@
 import json
 import os
 import requests
+import logging
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_exempt
+
+from reports.permissions import (
+    user_has_yapay_zeka_permission,
+    yapay_zeka_access_denied_response,
+)
+
+logger = logging.getLogger(__name__)
+
 
 @login_required
 def reports_chat_page(request):
+    if not user_has_yapay_zeka_permission(request.user):
+        return yapay_zeka_access_denied_response(request)
     return render(request, "reports/chat.html", {})
 
+
 @require_POST
-@csrf_exempt
 @login_required
 def n8n_chat_query(request):
+    if not user_has_yapay_zeka_permission(request.user):
+        return yapay_zeka_access_denied_response(request, api=True)
     try:
         payload = json.loads(request.body.decode("utf-8"))
     except Exception:
@@ -32,6 +45,7 @@ def n8n_chat_query(request):
         return JsonResponse({"error": "Server is not configured"}, status=500)
 
     try:
+        timeout = getattr(settings, 'N8N_WEBHOOK_TIMEOUT', 20)
         r = requests.post(
             webhook_url,
             json={
@@ -45,9 +59,10 @@ def n8n_chat_query(request):
                 "X-MRK-INTEGRATION-KEY": integration_key,
                 "Content-Type": "application/json",
             },
-            timeout=60,
+            timeout=timeout,
         )
     except requests.RequestException as e:
+        logger.warning("n8n request failed for user=%s: %s", request.user.pk, e)
         return JsonResponse({"error": "n8n request failed", "details": str(e)}, status=502)
 
     try:

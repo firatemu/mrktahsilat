@@ -29,6 +29,13 @@ from datetime import date, datetime, timedelta
 from django.conf import settings
 from .mssql_service import mssql_service, MSSQLService
 from .models import UploadedImage, TahsilatEvrak, GiderMasraf, KullaniciYetki, CariGeckme, Mesaj, KullaniciDurumu, LogoTransfer, SystemSettings, PlasiyerPrim, HakedisHedef
+from .authentication import resolve_login_username
+from .services.mssql.common import normalize_turkish_lookup_text
+from .services.navigation import (
+    get_post_login_redirect_url,
+    has_menu_permission as shared_has_menu_permission,
+    redirect_to_first_accessible_page,
+)
 from django.core.paginator import Paginator
 
 logger = logging.getLogger('tahsilat')
@@ -54,9 +61,12 @@ def login_view(request):
     # Sadece başarılı login sonrası redirect yapıyoruz.
 
     if request.method == 'POST':
-        username = request.POST.get('username')
+        username = (request.POST.get('username') or '').strip()
         password = request.POST.get('password')
-        user = authenticate(request, username=username, password=password)
+        resolved_username = resolve_login_username(username)
+        user = authenticate(request, username=resolved_username, password=password)
+        if user is None and resolved_username != username:
+            user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
             # Session'ı explicit olarak kaydet - bazı Android cihazlarda cookie'nin gönderilmesi için gerekli
@@ -66,53 +76,8 @@ def login_view(request):
 
             # Bazı Android cihazlarda redirect sırasında cookie gönderilmediği için
             # doğrudan hedef sayfayı render ediyoruz (redirect yapmadan)
-            from .models import KullaniciYetki
-            
-            # Kullanıcının yetkili olduğu ilk sayfayı belirle
-            target_view = None
-            redirect_url = '/'
-            
             next_url = request.GET.get('next') or request.POST.get('next')
-            if next_url and next_url.startswith('/') and not next_url.startswith('//'):
-                redirect_url = next_url
-            elif user.username.upper() == 'FIRAT':
-                target_view = 'dashboard'
-                redirect_url = '/'
-            else:
-                user_permissions = KullaniciYetki.objects.filter(kullanici=user, erisim_izni=True)
-                if user_permissions.exists():
-                    # Yetkili olduğu ilk sayfayı bul (chat, dashboard gibi özel sayfalar hariç)
-                    menu_priority = ['dashboard', 'muhasebe', 'perakende', 'satislar', 'tahsilatlar', 'tahsilatlarim', 'gider_masraf', 'genel_gorunum', 'chat']
-                    first_permission = None
-                    for menu in menu_priority:
-                        perm = user_permissions.filter(menu_adi=menu).first()
-                        if perm:
-                            first_permission = perm
-                            break
-                    if not first_permission:
-                        first_permission = user_permissions.first()
-                    
-                    if first_permission.menu_adi == 'perakende':
-                        redirect_url = '/perakende/'
-                    elif first_permission.menu_adi == 'satislar':
-                        redirect_url = '/satislarim/'
-                    elif first_permission.menu_adi == 'tahsilatlar':
-                        redirect_url = '/tahsilat-raporlari/tahsilatlarim/'
-                    elif first_permission.menu_adi == 'muhasebe' or first_permission.menu_adi == 'yeni_tahsilat':
-                        redirect_url = '/muhasebe/yeni-tahsilat/'
-                    elif first_permission.menu_adi == 'gider_masraf':
-                        redirect_url = '/gider-masraf/'
-                    elif first_permission.menu_adi == 'genel_gorunum':
-                        redirect_url = '/genel-gorunum/dashboard/'
-                    elif first_permission.menu_adi == 'dashboard':
-                        target_view = 'dashboard'
-                        redirect_url = '/'
-                    elif first_permission.menu_adi == 'chat':
-                        # Chat için dashboard'a yönlendir
-                        redirect_url = '/'
-                    else:
-                        # Diğer yetkiler için dashboard'a yönlendir
-                        redirect_url = '/'
+            redirect_url = get_post_login_redirect_url(user, next_url)
             
             # Cookie'yi manuel olarak set eden response oluştur
             # Login başarılı sayfasını göster ve JavaScript ile yönlendir
@@ -150,14 +115,12 @@ def login_view(request):
         'login_success': False
     })
 
-
 def check_session_view(request):
     """Session cookie'nin set edilip edilmediğini kontrol etmek için endpoint"""
     if request.user.is_authenticated:
         return JsonResponse({'authenticated': True, 'username': request.user.username})
     else:
         return JsonResponse({'authenticated': False}, status=401)
-
 
 def logout_view(request):
     """Logout helper for URL routing (fixed simple redirect)."""
@@ -166,7 +129,6 @@ def logout_view(request):
     except Exception:
         pass
     return redirect('tahsilat:login')
-
 
 @login_required
 def dashboard(request):
@@ -321,7 +283,6 @@ def dashboard(request):
 
     return render(request, 'tahsilat/dashboard.html', context)
 
-
 @login_required
 def tahsilatlarim(request):
     """Tahsilatlarım sayfası - Pagination ile"""
@@ -427,7 +388,6 @@ def tahsilatlarim(request):
 
     return render(request, 'tahsilat/tahsilatlarim.html', context)
 
-
 @login_required
 def raporlar(request):
     """Tahsilat raporları ana sayfası"""
@@ -441,7 +401,6 @@ def raporlar(request):
     }
 
     return render(request, 'tahsilat/raporlar.html', context)
-
 
 @login_required
 def yeni_tahsilat(request):
@@ -740,7 +699,6 @@ def yeni_tahsilat(request):
                         else:
                             logo_entegrasyon_mesaj = ' (Logo entegrasyonu kapalı olduğundan Logo\'ya kayıt yapılmadı.)'
 
-
                     # Başarı mesajı (evrak bilgisi ile)
                     if evrak_kaydedildi:
                         success_msg = f'Tahsilat başarıyla kaydedildi! (ID: {new_id}) - Evrak dosyası da sunucuya kaydedildi.{logo_entegrasyon_mesaj}'
@@ -809,12 +767,15 @@ def yeni_tahsilat(request):
         }
         edit_data_json = json.dumps(edit_dict)
 
+    # SEZEN: yeni tahsilat sayfasında tüm cari hesapları görebilir (muhasebe kapsamı)
+    cari_search_scope = 'muhasebe' if username_upper == 'SEZEN' else 'plasiyer'
+
     context = {
         'user': request.user,
         'user_data': user_data,
         'plasiyer': plasiyer,
         'cari_hesaplar': cari_hesaplar,
-        'cari_search_scope': 'plasiyer',
+        'cari_search_scope': cari_search_scope,
         'tahsilat_turleri': tahsilat_turleri,
         'kredi_karti_bankalari': kredi_karti_bankalari,
         'havale_bankalari': havale_bankalari,
@@ -831,7 +792,6 @@ def yeni_tahsilat(request):
 
     return render(request, 'tahsilat/yeni_tahsilat.html', context)
 
-
 @login_required
 @require_http_methods(["GET"])
 def get_next_fis_no_ajax(request):
@@ -842,7 +802,6 @@ def get_next_fis_no_ajax(request):
 
     next_fis_no = mssql_service.get_next_fis_no(tahsilat_turu)
     return JsonResponse({'success': True, 'fis_no': next_fis_no})
-
 
 @login_required
 @require_POST
@@ -858,7 +817,6 @@ def toggle_logo_integration_ajax(request):
     
     return JsonResponse({'success': True, 'enabled': new_value, 'message': 'Ayar güncellendi'})
 
-
 @login_required
 def ajax_search_cari_yeni_tahsilat(request):
 
@@ -868,7 +826,7 @@ def ajax_search_cari_yeni_tahsilat(request):
     if scope not in ('plasiyer', 'muhasebe'):
         scope = 'plasiyer'
     if scope == 'muhasebe':
-        allowed = request.user.username.upper() == 'FIRAT'
+        allowed = request.user.username.upper() in ('FIRAT', 'SEZEN')
         if not allowed:
             try:
                 yetki = KullaniciYetki.objects.get(
@@ -902,77 +860,26 @@ def ajax_search_cari_yeni_tahsilat(request):
         })
     return JsonResponse({'success': True, 'results': results})
 
-
 @login_required
 def muhasebe_tahsilat_listesi(request):
     """Muhasebe > Tahsilat Listesi - Kullanıcı bazlı filtreleme ile"""
-    # #region agent log
-    import json
-    log_data = {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'views.py:699', 'message': 'Function entry', 'data': {'user': request.user.username, 'authenticated': request.user.is_authenticated}, 'timestamp': int(timezone.now().timestamp() * 1000)}
-    try:
-        with open('/var/.cursor/debug.log', 'a', encoding='utf-8') as f:
-            f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-    except: pass
-    # #endregion
 
     # Alt menü yetki kontrolü
-    # #region agent log
-    log_data = {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'views.py:703', 'message': 'Before permission check', 'data': {'user': request.user.username}, 'timestamp': int(timezone.now().timestamp() * 1000)}
-    try:
-        with open('/var/.cursor/debug.log', 'a', encoding='utf-8') as f:
-            f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-    except: pass
-    # #endregion
     # FIRAT kullanıcısı süper kullanıcı - tüm sayfalara erişim yetkisi var
     if request.user.username.upper() != 'FIRAT':
         try:
             yetki = KullaniciYetki.objects.get(
                 kullanici=request.user, menu_adi='muhasebe_tahsilat_listesi')
-            # #region agent log
-            log_data = {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'views.py:706', 'message': 'Permission found', 'data': {'user': request.user.username, 'erisim_izni': yetki.erisim_izni}, 'timestamp': int(timezone.now().timestamp() * 1000)}
-            try:
-                with open('/var/.cursor/debug.log', 'a', encoding='utf-8') as f:
-                    f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-            except: pass
-            # #endregion
             if not yetki.erisim_izni:
-                # #region agent log
-                log_data = {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'views.py:707', 'message': 'Redirect: no permission', 'data': {'user': request.user.username}, 'timestamp': int(timezone.now().timestamp() * 1000)}
-                try:
-                    with open('/var/.cursor/debug.log', 'a', encoding='utf-8') as f:
-                        f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-                except: pass
-                # #endregion
                 return redirect('tahsilat:dashboard')
         except KullaniciYetki.DoesNotExist:
-            # #region agent log
-            log_data = {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'views.py:709', 'message': 'Permission not found', 'data': {'user': request.user.username, 'is_firat': request.user.username == 'FIRAT'}, 'timestamp': int(timezone.now().timestamp() * 1000)}
-            try:
-                with open('/var/.cursor/debug.log', 'a', encoding='utf-8') as f:
-                    f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-            except: pass
-            # #endregion
             # SEZEN kullanıcısı da erişebilir
             if request.user.username.upper() not in ['SEZEN']:
-                # #region agent log
-                log_data = {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'views.py:710', 'message': 'Redirect: not FIRAT or SEZEN', 'data': {'user': request.user.username}, 'timestamp': int(timezone.now().timestamp() * 1000)}
-                try:
-                    with open('/var/.cursor/debug.log', 'a', encoding='utf-8') as f:
-                        f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-                except: pass
-                # #endregion
                 return redirect('tahsilat:dashboard')
 
     user_data = request.session.get('mssql_user_data', {})
     plasiyer = user_data.get('plasiyer', request.user.username)
     current_user = request.user.username
-    # #region agent log
-    log_data = {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'D', 'location': 'views.py:712', 'message': 'After permission check, user data', 'data': {'user': current_user, 'has_user_data': bool(user_data), 'plasiyer': plasiyer}, 'timestamp': int(timezone.now().timestamp() * 1000)}
-    try:
-        with open('/var/.cursor/debug.log', 'a', encoding='utf-8') as f:
-            f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-    except: pass
-    # #endregion
 
     # Sayfa numarası ve sayfa başına kayıt
     try:
@@ -1086,13 +993,6 @@ def muhasebe_tahsilat_listesi(request):
             # Export hatasında normal sayfaya düş, kullanıcıya mesaj göstermek için context'e eklenebilir
 
     # Tahsilatları pagination ile al (kullanıcı bazlı filtreleme ile)
-    # #region agent log
-    log_data = {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'B', 'location': 'views.py:733', 'message': 'Before mssql_service call', 'data': {'page': page, 'kullanici': kullanici, 'tarih_filtresi': tarih_filtresi}, 'timestamp': int(timezone.now().timestamp() * 1000)}
-    try:
-        with open('/var/.cursor/debug.log', 'a', encoding='utf-8') as f:
-            f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-    except: pass
-    # #endregion
     try:
         tahsilatlar, pagination_info = mssql_service.get_tahsilat_list_paginated_gunluk_all(
         page=page,
@@ -1108,31 +1008,10 @@ def muhasebe_tahsilat_listesi(request):
         bitis_tarihi=bitis_tarihi,
         plasiyer_filter=plasiyer_filter
     )
-        # #region agent log
-        log_data = {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'B', 'location': 'views.py:742', 'message': 'After mssql_service call', 'data': {'tahsilat_count': len(tahsilatlar) if tahsilatlar else 0, 'has_pagination': bool(pagination_info)}, 'timestamp': int(timezone.now().timestamp() * 1000)}
-        try:
-            with open('/var/.cursor/debug.log', 'a', encoding='utf-8') as f:
-                f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-        except: pass
-        # #endregion
     except Exception as e:
-        # #region agent log
-        log_data = {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'B', 'location': 'views.py:742', 'message': 'Exception in mssql_service call', 'data': {'error': str(e), 'error_type': type(e).__name__}, 'timestamp': int(timezone.now().timestamp() * 1000)}
-        try:
-            with open('/var/.cursor/debug.log', 'a', encoding='utf-8') as f:
-                f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-        except: pass
-        # #endregion
         raise
 
     # Filtrelenmiş kayıtların toplam tutarını hesapla
-    # #region agent log
-    log_data = {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'B', 'location': 'views.py:745', 'message': 'Before total amount call', 'data': {}, 'timestamp': int(timezone.now().timestamp() * 1000)}
-    try:
-        with open('/var/.cursor/debug.log', 'a', encoding='utf-8') as f:
-            f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-    except: pass
-    # #endregion
     try:
         toplam_tutar = mssql_service.get_tahsilat_total_amount_gunluk_all(
         cari_kod=None,
@@ -1146,21 +1025,7 @@ def muhasebe_tahsilat_listesi(request):
         bitis_tarihi=bitis_tarihi,
         plasiyer_filter=plasiyer_filter
     )
-        # #region agent log
-        log_data = {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'B', 'location': 'views.py:752', 'message': 'After total amount call', 'data': {'toplam_tutar': float(toplam_tutar) if toplam_tutar else 0}, 'timestamp': int(timezone.now().timestamp() * 1000)}
-        try:
-            with open('/var/.cursor/debug.log', 'a', encoding='utf-8') as f:
-                f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-        except: pass
-        # #endregion
     except Exception as e:
-        # #region agent log
-        log_data = {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'B', 'location': 'views.py:752', 'message': 'Exception in total amount call', 'data': {'error': str(e), 'error_type': type(e).__name__}, 'timestamp': int(timezone.now().timestamp() * 1000)}
-        try:
-            with open('/var/.cursor/debug.log', 'a', encoding='utf-8') as f:
-                f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-        except: pass
-        # #endregion
         raise
 
     # Nakit tahsilat türünde TESLİM EDİLMEDİ durumundaki tutarların toplamını hesapla
@@ -1242,18 +1107,7 @@ def muhasebe_tahsilat_listesi(request):
         'plasiyerler': mssql_service.get_unique_plasiyerler(),
         'kullanicilar': mssql_service.get_unique_kullanicilar(),
     }
-    try:
-        result = render(request, 'tahsilat/muhasebe_tahsilat_listesi.html', context)
-        # #region agent log
-        log_data = {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'C', 'location': 'views.py:805', 'message': 'After render success', 'data': {'status_code': result.status_code if hasattr(result, 'status_code') else 'N/A'}, 'timestamp': int(timezone.now().timestamp() * 1000)}
-        try:
-            with open('/var/.cursor/debug.log', 'a', encoding='utf-8') as f:
-                f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-        except: pass
-        # #endregion
-        return result
-    except Exception as e:
-        raise
+    return render(request, 'tahsilat/muhasebe_tahsilat_listesi.html', context)
 @login_required
 def csrf_debug(request):
     """CSRF token debug için"""
@@ -1270,7 +1124,6 @@ def csrf_debug(request):
         'user': request.user.username,
         'method': request.method
     })
-
 
 @login_required
 def chat(request):
@@ -1301,7 +1154,6 @@ def chat(request):
     }
 
     return render(request, 'tahsilat/chat.html', context)
-
 
 @login_required
 def send_message(request):
@@ -1341,7 +1193,6 @@ def send_message(request):
     except Exception as e:
         logger.error(f"send_message error: {e}")
         return JsonResponse({'success': False, 'message': 'Sunucu hatası oluştu'})
-
 
 @login_required
 def get_messages(request):
@@ -1384,7 +1235,6 @@ def get_messages(request):
         logger.error(f"get_messages error: {e}")
         return JsonResponse({'success': False, 'message': 'Sunucu hatası oluştu'})
 
-
 @login_required
 def mark_messages_read(request):
     """Mesajları okundu olarak işaretle"""
@@ -1426,7 +1276,6 @@ def mark_messages_read(request):
         logger.error(f"mark_messages_read error: {e}")
         return JsonResponse({'success': False, 'message': 'Sunucu hatası oluştu'})
 
-
 @login_required
 def get_unread_counts(request):
     """Okunmamış mesaj sayılarını getir"""
@@ -1455,7 +1304,6 @@ def get_unread_counts(request):
     except Exception as e:
         logger.error(f"get_unread_counts error: {e}")
         return JsonResponse({'success': False, 'message': 'Sunucu hatası oluştu'})
-
 
 @login_required
 def clear_chat(request):
@@ -1495,7 +1343,6 @@ def clear_chat(request):
         logger.error(f"clear_chat error: {e}")
         return JsonResponse({'success': False, 'message': 'Sunucu hatası oluştu'})
 
-
 @login_required
 def update_user_status(request):
     """Kullanıcı durumunu güncelle"""
@@ -1514,7 +1361,6 @@ def update_user_status(request):
     except Exception as e:
         logger.error(f"update_user_status error: {e}")
         return JsonResponse({'success': False, 'message': 'Sunucu hatası oluştu'})
-
 
 @login_required
 def get_chat_users(request):
@@ -1558,7 +1404,6 @@ def get_chat_users(request):
         logger.error(f"get_chat_users error: {e}")
         return JsonResponse({'success': False, 'message': 'Sunucu hatası oluştu'})
 
-
 @login_required
 def get_chat_notifications(request):
     """Chat bildirimleri getir"""
@@ -1588,7 +1433,6 @@ def get_chat_notifications(request):
         logger.error(f"get_chat_notifications error: {e}")
         return JsonResponse({'success': False, 'message': 'Sunucu hatası oluştu'})
 
-
 @login_required
 def mark_notification_read(request):
     """Bildirimi okundu olarak işaretle"""
@@ -1610,7 +1454,6 @@ def mark_notification_read(request):
     except Exception as e:
         logger.error(f"mark_notification_read error: {e}")
         return JsonResponse({'success': False, 'message': 'Sunucu hatası oluştu'})
-
 
 @login_required
 def search_messages(request):
@@ -1663,7 +1506,6 @@ def search_messages(request):
         logger.error(f"search_messages error: {e}")
         return JsonResponse({'success': False, 'message': 'Sunucu hatası oluştu'})
 
-
 @login_required
 def get_user_statuses(request):
     """Tüm kullanıcıların durumunu getir"""
@@ -1691,7 +1533,6 @@ def get_user_statuses(request):
     except Exception as e:
         logger.error(f"get_user_statuses error: {e}")
         return JsonResponse({'success': False, 'message': 'Sunucu hatası oluştu'})
-
 
 @login_required
 def get_message_history(request):
@@ -1750,7 +1591,6 @@ def get_message_history(request):
         logger.error(f"get_message_history error: {e}")
         return JsonResponse({'success': False, 'message': 'Sunucu hatası oluştu'})
 
-
 @login_required
 def update_teslim_durumu(request):
     """Seçili tahsilat kayıtlarının teslim durumunu günceller"""
@@ -1806,7 +1646,6 @@ def update_teslim_durumu(request):
         logger.error(f"update_teslim_durumu error: {e}")
         return JsonResponse({'success': False, 'message': 'Sunucu hatası oluştu'})
 
-
 @login_required
 def update_logo_durumu(request):
     """Seçili tahsilat kayıtlarının Logo durumunu günceller"""
@@ -1854,7 +1693,6 @@ def update_logo_durumu(request):
     except Exception as e:
         logger.error(f"update_logo_durumu error: {e}")
         return JsonResponse({'success': False, 'message': f'Sunucu hatası: {str(e)}'})
-
 
 @login_required
 def muhasebe_yeni_tahsilat(request):
@@ -2182,7 +2020,6 @@ def muhasebe_tahsilat_duzenle(request, tahsilat_id):
     }
     return render(request, 'tahsilat/yeni_tahsilat.html', context)
 
-
 @login_required
 def cari_ekstre(request):
     """Cari Ekstre sayfası - CARIBAKIYE tablosundan veri listeler"""
@@ -2227,7 +2064,6 @@ def cari_ekstre(request):
         messages.error(
             request, 'Cari ekstre verilerini getirirken bir hata oluştu.')
         return redirect('tahsilat:dashboard')
-
 
 @login_required
 def genel_ekstre(request):
@@ -2530,7 +2366,6 @@ def genel_ekstre(request):
         }
         return render(request, 'tahsilat/genel_ekstre.html', context)
 
-
 def fatura_detay_ajax(request, fatura_id):
     """AJAX ile fatura detaylarını getirir"""
     if not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -2556,9 +2391,7 @@ def fatura_detay_ajax(request, fatura_id):
     except Exception as e:
         return JsonResponse({'error': 'Detaylar yüklenirken hata oluştu'}, status=500)
 
-
 # Test fonksiyonu güvenlik nedeniyle kaldırıldı
-
 
 @login_required
 def genel_gorunum(request):
@@ -2598,7 +2431,6 @@ def genel_gorunum(request):
 
     # Default olarak dashboard sayfasına yönlendir
     return redirect('tahsilat:genel_dashboard')
-
 
 @login_required
 def genel_dashboard(request):
@@ -2731,7 +2563,6 @@ def genel_dashboard(request):
         }
         return render(request, 'tahsilat/genel_dashboard.html', context)
 
-
 @login_required
 def genel_tahsilatlar(request):
     """Genel Görünüm - Tahsilatlar"""
@@ -2788,11 +2619,11 @@ def genel_tahsilatlar(request):
         tum_plasiyerler = mssql_service.get_plasiyer_list_from_fatura()
         if not tum_plasiyerler:
             tum_plasiyerler = ['EYÜP', 'ALİ', 'MERT', 'ATAKAN',
-                               'AZİZ', 'YİĞİT', 'SÜLEYMAN', 'GÖRKEM', 'CAN', 'HASAN', 'NECATİ']
+                               'AZİZ', 'YİĞİT', 'SÜLEYMAN', 'CAN', 'BAKIR', 'HALİL']
     except Exception as e:
         logger.error('Plasiyer listesi alınırken hata: %s', e)
         tum_plasiyerler = ['EYÜP', 'ALİ', 'MERT', 'ATAKAN',
-                           'AZİZ', 'YİĞİT', 'SÜLEYMAN', 'GÖRKEM', 'CAN', 'HASAN', 'NECATİ']
+                           'AZİZ', 'YİĞİT', 'SÜLEYMAN', 'CAN', 'BAKIR', 'HALİL']
 
     if load_list_tab:
         try:
@@ -3227,7 +3058,6 @@ def genel_alimlar(request):
 
     return render(request, 'tahsilat/genel_alimlar.html', context)
 
-
 @login_required
 def genel_satislar(request):
     """Genel Görünüm - Satışlar"""
@@ -3485,7 +3315,6 @@ def genel_satislar(request):
 
     return render(request, 'tahsilat/genel_satislar.html', context)
 
-
 @login_required
 def genel_cari_analiz(request):
     """Genel Görünüm - Cari Genel Analiz"""
@@ -3683,7 +3512,6 @@ def genel_cari_analiz(request):
 
     return render(request, 'tahsilat/genel_cari_analiz.html', context)
 
-
 def _build_cari_aylik_ozet_data(baslangic_tarihi, bitis_tarihi):
     """Cari aylık özet için ay listesi ve satır verilerini üretir. (baslangic_tarihi, bitis_tarihi) YYYY-MM-DD formatında."""
     from datetime import datetime
@@ -3764,7 +3592,6 @@ def _build_cari_aylik_ozet_data(baslangic_tarihi, bitis_tarihi):
         rows.append(row)
     return aylar, rows
 
-
 @login_required
 def genel_cari_aylik_ozet(request):
     """Genel Görünüm - Cari Aylık Özet: ay ay satış/tahsilat + güncel bakiye."""
@@ -3842,7 +3669,6 @@ def genel_cari_aylik_ozet(request):
     }
     return render(request, 'tahsilat/genel_cari_aylik_ozet.html', context)
 
-
 @login_required
 @require_http_methods(["POST"])
 def tahsilat_sil_ajax(request):
@@ -3869,7 +3695,6 @@ def tahsilat_sil_ajax(request):
             'success': False,
             'error': f'Sunucu hatası: {str(e)}'
         })
-
 
 @login_required
 def stok_listesi(request):
@@ -3941,7 +3766,6 @@ def stok_listesi(request):
     }
 
     return render(request, 'tahsilat/stok_listesi.html', context)
-
 
 @login_required
 def stok_yonetimi(request):
@@ -4018,7 +3842,6 @@ def stok_yonetimi(request):
 
     return render(request, 'tahsilat/stok_yonetimi.html', context)
 
-
 def _parse_om_decimal_param(val):
     if val is None or str(val).strip() == '':
         return None
@@ -4027,9 +3850,7 @@ def _parse_om_decimal_param(val):
     except ValueError:
         return None
 
-
 OM_MAX_IN_LIST = 500  # SQL IN parametre sınırına yaklaşmamak için
-
 
 def _om_getlist_capped(request, key, cap=OM_MAX_IN_LIST):
     raw = request.GET.getlist(key)
@@ -4043,7 +3864,6 @@ def _om_getlist_capped(request, key, cap=OM_MAX_IN_LIST):
         if len(out) >= cap:
             break
     return out
-
 
 def _ortalama_maliyet_filter_pairs(
     uygula, per_page,
@@ -4069,7 +3889,6 @@ def _ortalama_maliyet_filter_pairs(
         pairs.append(('toplam_miktar_max', str(toplam_miktar_max)))
     return urlencode(pairs)
 
-
 def _ortalama_maliyet_url_pairs(
     uygula, sort_by, sort_dir, per_page,
     fatura_list, malzeme_tur_list, kod_list, marka_list,
@@ -4083,23 +3902,14 @@ def _ortalama_maliyet_url_pairs(
     sort_part = urlencode([('sort', sort_by), ('dir', sort_dir)])
     return f'{base}&{sort_part}' if base else sort_part
 
-
 def _user_can_access_ortalama_maliyet(user):
     """Ambar raporu gibi: ayrı yetki veya Stok Listesi yetkisi; FIRAT her zaman."""
     if not user.is_authenticated:
         return False
-    if user.username.upper() == 'FIRAT':
-        return True
-    for menu_adi in ('ortalama_maliyet', 'stok_listesi'):
-        try:
-            y = KullaniciYetki.objects.get(
-                kullanici=user, menu_adi=menu_adi)
-            if y.erisim_izni:
-                return True
-        except KullaniciYetki.DoesNotExist:
-            continue
-    return False
-
+    return any(
+        shared_has_menu_permission(user, menu_adi)
+        for menu_adi in ('ortalama_maliyet', 'stok_listesi')
+    )
 
 @login_required
 def ortalama_maliyet(request):
@@ -4255,10 +4065,12 @@ def ortalama_maliyet(request):
     }
     return render(request, 'tahsilat/ortalama_maliyet.html', context)
 
-
 @login_required
 def fiyat_analizi(request):
     """Fiyat Analizi sayfası - FIYATANALIZ tablosundan veri listeler"""
+    if not _has_menu_access(request.user, 'fiyat_analizi'):
+        return redirect('tahsilat:dashboard')
+
     # Excel export kontrolü
     if request.GET.get('export') == 'excel':
         return export_fiyat_analizi_excel(request)
@@ -4267,52 +4079,29 @@ def fiyat_analizi(request):
     user_data = request.session.get('mssql_user_data', {})
     plasiyer = user_data.get('plasiyer', request.user.username)
 
-    # Filtreleme parametreleri
-    arama = request.GET.get('arama', '')
-    malzeme_turu = request.GET.get('malzeme_turu', '')
-    marka = request.GET.get('marka', '')
-    stok_durumu = request.GET.get('stok_durumu', '')
-    
+    filters = _parse_fiyat_analizi_filters(request)
+    arama = filters['arama']
+    malzeme_turu = filters['malzeme_turu']
+    marka = filters['marka']
+    stok_durumu = filters['stok_durumu']
+    has_filters = bool(arama or malzeme_turu or marka or stok_durumu)
+
     # FIYATANALIZ tablosundan fiyat analizi verilerini al
     fiyat_analizi_list = mssql_service.get_fiyat_analizi_list(
         search_term=arama if arama else None,
         malzeme_turu=malzeme_turu if malzeme_turu else None,
         marka=marka if marka else None,
         stok_durumu=stok_durumu if stok_durumu else None,
-        max_records=10000  # HEPsİ seçeneği için maksimum limit
+        max_records=10000
     )
-    
-    # Sayfalama sistemi
-    has_filters = bool(arama or malzeme_turu or marka or stok_durumu)
-    per_page_param = request.GET.get('per_page', '100')
 
-    # HEPsİ seçeneği kontrolü
-    if per_page_param == 'all' or has_filters:
-        # Filtreleme varsa veya HEPsİ seçilmişse tüm sonuçları göster
-        page_obj = fiyat_analizi_list
-        paginator = None
-        per_page = 'all' if per_page_param == 'all' else len(
-            fiyat_analizi_list)
-    else:
-        # Sayfa başına gösterim sayısı (varsayılan 100)
-        try:
-            per_page = int(per_page_param)
-        except (ValueError, TypeError):
-            per_page = 100
+    page_obj, paginator, per_page = _apply_fiyat_analizi_pagination(
+        fiyat_analizi_list, request, has_filters
+    )
 
-        if len(fiyat_analizi_list) == 0:
-            page_obj = fiyat_analizi_list
-            paginator = None
-        else:
-            paginator = Paginator(fiyat_analizi_list, per_page)
-            page_number = request.GET.get('page', 1)
-            try:
-                page_obj = paginator.get_page(page_number)
-            except:
-                page_obj = paginator.get_page(1)
-
-    # Filtreleme için gerekli listeler (FIYATANALIZ tablosundan)
+    # Filtreleme için gerekli listeler ve istatistikler (FIYATANALIZ tablosundan)
     filter_options = mssql_service.get_fiyat_analizi_filter_options()
+    fiyat_stats = mssql_service.get_fiyat_analizi_stats()
 
     context = {
         'user': request.user,
@@ -4328,9 +4117,363 @@ def fiyat_analizi(request):
         'has_filters': has_filters,
         'paginator': paginator,
         'per_page': per_page,
+        'fiyat_stats': fiyat_stats,
     }
 
-    return render(request, 'tahsilat/stok_listesi.html', context)
+    return render(request, 'tahsilat/fiyat_analizi.html', context)
+
+def _parse_fiyat_analizi_filters(request):
+    """Fiyat analizi için request.GET parametrelerini temiz string olarak döndürür."""
+    def _clean(key):
+        value = request.GET.get(key, '')
+        return value.strip() if isinstance(value, str) else ''
+
+    return {
+        'arama': _clean('arama'),
+        'malzeme_turu': _clean('malzeme_turu'),
+        'marka': _clean('marka'),
+        'stok_durumu': _clean('stok_durumu'),
+    }
+
+def _apply_fiyat_analizi_pagination(rows, request, has_filters):
+    """Fiyat analizi listesi için sayfalama uygular ve (page_obj, paginator, per_page) döndürür."""
+    per_page_param = request.GET.get('per_page', '100')
+
+    if per_page_param == 'all' or has_filters:
+        return rows, None, ('all' if per_page_param == 'all' else len(rows))
+
+    try:
+        per_page = int(per_page_param)
+    except (ValueError, TypeError):
+        per_page = 100
+
+    if not rows:
+        return rows, None, per_page
+
+    paginator = Paginator(rows, per_page)
+    page_number = request.GET.get('page', 1)
+    try:
+        page_obj = paginator.get_page(page_number)
+    except Exception:
+        page_obj = paginator.get_page(1)
+    return page_obj, paginator, per_page
+
+@login_required
+def export_fiyat_analizi_excel(request):
+    """Fiyat Analizi sayfası için Excel rapor üretir."""
+    if not _has_menu_access(request.user, 'fiyat_analizi'):
+        return redirect('tahsilat:dashboard')
+
+    import io
+    import xlsxwriter
+    from datetime import datetime
+
+    mssql_service = MSSQLService()
+    filters = _parse_fiyat_analizi_filters(request)
+    arama = filters['arama']
+    malzeme_turu = filters['malzeme_turu']
+    marka = filters['marka']
+    stok_durumu = filters['stok_durumu']
+
+    rows = mssql_service.get_fiyat_analizi_list(
+        search_term=arama if arama else None,
+        malzeme_turu=malzeme_turu if malzeme_turu else None,
+        marka=marka if marka else None,
+        stok_durumu=stok_durumu if stok_durumu else None,
+        max_records=10000
+    )
+
+    output = io.BytesIO()
+    workbook = xlsxwriter.Workbook(output)
+    worksheet = workbook.add_worksheet('Fiyat Analizi')
+
+    header_format = workbook.add_format({
+        'bold': True,
+        'bg_color': '#2E7D32',
+        'color': '#FFFFFF',
+        'border': 1,
+        'align': 'center',
+        'valign': 'vcenter',
+        'font_size': 11,
+    })
+
+    title_format = workbook.add_format({
+        'bold': True,
+        'font_size': 14,
+        'align': 'center',
+    })
+
+    date_format = workbook.add_format({
+        'align': 'center',
+        'font_size': 10,
+    })
+
+    cell_format = workbook.add_format({
+        'border': 1,
+        'valign': 'vcenter',
+        'font_size': 10,
+    })
+
+    money_format = workbook.add_format({
+        'border': 1,
+        'valign': 'vcenter',
+        'font_size': 10,
+        'num_format': '#,##0.00',
+    })
+
+    pct_format = workbook.add_format({
+        'border': 1,
+        'valign': 'vcenter',
+        'font_size': 10,
+        'num_format': '0.00',
+    })
+
+    stock_pos_format = workbook.add_format({
+        'border': 1,
+        'valign': 'vcenter',
+        'font_size': 10,
+        'bg_color': '#C8E6C9',
+        'num_format': '#,##0',
+    })
+
+    stock_neg_format = workbook.add_format({
+        'border': 1,
+        'valign': 'vcenter',
+        'font_size': 10,
+        'bg_color': '#FFCDD2',
+        'num_format': '#,##0',
+    })
+
+    worksheet.merge_range('A1:J1', 'FİYAT ANALİZ RAPORU', title_format)
+    tarih_str = datetime.now().strftime('%d.%m.%Y %H:%M')
+    worksheet.merge_range('A2:J2', f'Rapor Tarihi: {tarih_str}', date_format)
+
+    if arama or malzeme_turu or marka or stok_durumu:
+        filter_parts = []
+        if arama:
+            filter_parts.append(f"Arama: {arama}")
+        if malzeme_turu:
+            filter_parts.append(f"Malzeme Türü: {malzeme_turu}")
+        if marka:
+            filter_parts.append(f"Marka: {marka}")
+        if stok_durumu:
+            label = 'Stokta Var' if stok_durumu == 'stokta_var' else 'Stoğu Biten'
+            filter_parts.append(f"Stok Durumu: {label}")
+        worksheet.merge_range('A3:J3', ' | '.join(filter_parts), date_format)
+
+    headers = [
+        'Malzeme Kodu', 'Açıklaması', 'Malzeme Türü', 'Marka',
+        'Stok (TOPLAM)', 'Alış Fiyatı', 'Satış Fiyatı',
+        'Son Alış Net', 'Karlılık (%)', 'Grup Kodu'
+    ]
+
+    for col, header in enumerate(headers):
+        worksheet.write(4, col, header, header_format)
+
+    worksheet.set_column(0, 0, 18)
+    worksheet.set_column(1, 1, 40)
+    worksheet.set_column(2, 3, 18)
+    worksheet.set_column(4, 4, 14)
+    worksheet.set_column(5, 8, 16)
+    worksheet.set_column(9, 9, 12)
+
+    row_idx = 5
+    for row in rows:
+        toplam = row.get('TOPLAM') or 0
+        alis = row.get('TANIMLI_ALIS_FIYATI') or 0
+        satis = row.get('TANIMLI_SATIS_FIYATI') or 0
+        son_alis = row.get('SON_ALIS_BIRIM_NET') or 0
+        karlilik = row.get('KARLILIK_ORANI') or 0
+
+        worksheet.write(row_idx, 0, row.get('MALZEME_KODU', ''), cell_format)
+        worksheet.write(row_idx, 1, row.get('ACIKLAMASI', ''), cell_format)
+        worksheet.write(row_idx, 2, row.get('MALZEME_TURU', ''), cell_format)
+        worksheet.write(row_idx, 3, row.get('MARKA', ''), cell_format)
+
+        stock_fmt = stock_pos_format if toplam > 0 else stock_neg_format
+        worksheet.write(row_idx, 4, toplam, stock_fmt)
+        worksheet.write(row_idx, 5, alis, money_format)
+        worksheet.write(row_idx, 6, satis, money_format)
+        worksheet.write(row_idx, 7, son_alis, money_format)
+        worksheet.write(row_idx, 8, karlilik, pct_format)
+        worksheet.write(row_idx, 9, row.get('GRUP_KODU', ''), cell_format)
+
+        row_idx += 1
+
+    worksheet.merge_range(
+        f'A{row_idx + 1}:J{row_idx + 1}',
+        f'Toplam Kayıt: {len(rows)}',
+        date_format
+    )
+
+    workbook.close()
+    output.seek(0)
+
+    filename = f"fiyat_analizi_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+@login_required
+def export_fiyat_analizi_pdf(request):
+    """Fiyat Analizi sayfası için ReportLab ile PDF rapor üretir."""
+    if not _has_menu_access(request.user, 'fiyat_analizi'):
+        return redirect('tahsilat:dashboard')
+
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import cm
+    from reportlab.lib.enums import TA_CENTER
+
+    try:
+        register_pdf_fonts()
+
+        filters = _parse_fiyat_analizi_filters(request)
+        fiyat_rows = mssql_service.get_fiyat_analizi_list(
+            search_term=filters['arama'] or None,
+            malzeme_turu=filters['malzeme_turu'] or None,
+            marka=filters['marka'] or None,
+            stok_durumu=filters['stok_durumu'] or None,
+            max_records=10000,
+        )
+
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=landscape(A4),
+            rightMargin=1 * cm,
+            leftMargin=1 * cm,
+            topMargin=1 * cm,
+            bottomMargin=1 * cm,
+        )
+
+        styles = getSampleStyleSheet()
+        for style in styles.byName.values():
+            style.fontName = 'DejaVuSans'
+
+        title_style = ParagraphStyle(
+            'FiyatAnaliziTitle',
+            parent=styles['Heading1'],
+            fontName='DejaVuSans-Bold',
+            fontSize=16,
+            alignment=TA_CENTER,
+            spaceAfter=12,
+        )
+        summary_style = ParagraphStyle(
+            'FiyatAnaliziSummary',
+            parent=styles['Normal'],
+            fontName='DejaVuSans',
+            fontSize=10,
+            spaceAfter=4,
+        )
+
+        story = []
+        story.append(Paragraph("Fiyat Analizi Raporu", title_style))
+        generated_at = datetime.now().strftime('%d.%m.%Y %H:%M')
+        story.append(Paragraph(
+            f"<b>Oluşturma Tarihi:</b> {generated_at}",
+            summary_style,
+        ))
+
+        toplam_urun = len(fiyat_rows)
+        karlilik_degerleri = [
+            float(row.get('KARLILIK_ORANI') or 0) for row in fiyat_rows
+        ]
+        ortalama_karlilik = (
+            sum(karlilik_degerleri) / len(karlilik_degerleri)
+            if karlilik_degerleri else 0.0
+        )
+
+        story.append(Paragraph(
+            f"<b>Toplam Ürün:</b> {toplam_urun} &nbsp;&nbsp; "
+            f"<b>Ortalama Karlılık:</b> %{ortalama_karlilik:.2f}",
+            summary_style,
+        ))
+
+        aktif_filtreler = []
+        if filters['arama']:
+            aktif_filtreler.append(f"Arama: {filters['arama']}")
+        if filters['malzeme_turu']:
+            aktif_filtreler.append(f"Tür: {filters['malzeme_turu']}")
+        if filters['marka']:
+            aktif_filtreler.append(f"Marka: {filters['marka']}")
+        if filters['stok_durumu']:
+            stok_etiketi = {
+                'stokta_olan': 'Stokta Olan',
+                'stokta_olmayan': 'Stokta Olmayan',
+            }.get(filters['stok_durumu'], filters['stok_durumu'])
+            aktif_filtreler.append(f"Stok: {stok_etiketi}")
+        if aktif_filtreler:
+            story.append(Paragraph(
+                f"<b>Filtreler:</b> {' | '.join(aktif_filtreler)}",
+                summary_style,
+            ))
+
+        story.append(Spacer(1, 14))
+
+        table_data = [[
+            'Malzeme Kodu', 'Açıklama', 'Tür', 'Marka', 'Stok',
+            'Alış', 'Satış', 'Karlılık %',
+        ]]
+        for row in fiyat_rows:
+            table_data.append([
+                row.get('MALZEME_KODU', '') or '',
+                row.get('ACIKLAMASI', '') or '',
+                row.get('MALZEME_TURU', '') or '',
+                row.get('MARKA', '') or '',
+                f"{float(row.get('TOPLAM') or 0):,.2f}",
+                f"{float(row.get('TANIMLI_ALIS_FIYATI') or 0):,.2f} ₺",
+                f"{float(row.get('TANIMLI_SATIS_FIYATI') or 0):,.2f} ₺",
+                f"{float(row.get('KARLILIK_ORANI') or 0):.2f} %",
+            ])
+
+        if len(table_data) == 1:
+            story.append(Paragraph(
+                "Filtreye uygun ürün bulunamadı.",
+                summary_style,
+            ))
+        else:
+            table = Table(
+                table_data,
+                colWidths=[
+                    3.2 * cm, 7.5 * cm, 3.5 * cm, 3.5 * cm,
+                    2.0 * cm, 3.0 * cm, 3.0 * cm, 2.5 * cm,
+                ],
+                repeatRows=1,
+            )
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f3a5f')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'DejaVuSans-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('FONTNAME', (0, 1), (-1, -1), 'DejaVuSans'),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('ALIGN', (4, 1), (-1, -1), 'RIGHT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#bdc3c7')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1),
+                 [colors.white, colors.HexColor('#f4f6f8')]),
+            ]))
+            story.append(table)
+
+        doc.build(story)
+        buffer.seek(0)
+
+        response = HttpResponse(buffer.read(), content_type='application/pdf')
+        filename = f'fiyat_analizi_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf'
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    except Exception as e:
+        logger.error(f"Fiyat analizi PDF export hatası: {e}")
+        return HttpResponse("PDF oluşturulurken hata oluştu.", status=500)
 @login_required
 def cari_analiz(request):
     """Cari Analiz sayfası - TUMCARIHARETLER tablosundan analiz"""
@@ -4527,7 +4670,6 @@ def cari_analiz(request):
 
     return render(request, 'tahsilat/cari_analiz.html', context)
 
-
 @login_required
 def cari_vade_analizi(request):
     """Carinin ödeme vade alışkanlığı analiz sayfası"""
@@ -4597,7 +4739,6 @@ def cari_vade_analizi(request):
         messages.error(request, f"Vade analizi hatası: {str(e)}")
         return redirect('tahsilat:dashboard')
 
-
 def _get_filtered_cari_gecikme_queryset(plasiyer_list=None, bolge_list=None, min_gecikme_gun=None, max_gecikme_gun=None):
     """
     Filters CariGeckme queryset with optional plasiyer and bolge selections.
@@ -4618,13 +4759,11 @@ def _get_filtered_cari_gecikme_queryset(plasiyer_list=None, bolge_list=None, min
 
     return queryset.order_by('-gecikme_tutari')
 
-
 def _safe_float(value):
     try:
         return float(value or 0)
     except (TypeError, ValueError):
         return 0.0
-
 
 def _parse_date_filter(value):
     raw_value = str(value or '').strip()
@@ -4634,7 +4773,6 @@ def _parse_date_filter(value):
         return datetime.strptime(raw_value, '%Y-%m-%d').date()
     except ValueError:
         return None
-
 
 def _build_cari_bakiyeler_context(request, rows, error_message=None):
     prepared_rows = []
@@ -4687,7 +4825,6 @@ def _build_cari_bakiyeler_context(request, rows, error_message=None):
         'error_message': error_message,
     }
 
-
 def _export_cari_bakiyeler_excel(cari_rows):
     import pandas as pd
 
@@ -4731,7 +4868,6 @@ def _export_cari_bakiyeler_excel(cari_rows):
         f'attachment; filename="cari_bakiyeler_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx"'
     )
     return response
-
 
 def _build_cari_hareketler_context(request, cari_kod, hareketler_raw, baslangic_tarihi=None, bitis_tarihi=None, error_message=None):
     hareketler_kronolojik = sorted(
@@ -4802,7 +4938,6 @@ def _build_cari_hareketler_context(request, cari_kod, hareketler_raw, baslangic_
         'error_message': error_message,
     }
 
-
 @login_required
 def cari_bakiyeler(request):
     """Cari Bakiyeler sayfası - CARIHESAPEKSTRE tablosundan veri listeler"""
@@ -4839,7 +4974,6 @@ def cari_bakiyeler(request):
             error_message=f'Veriler getirilirken bir hata oluştu: {str(e)}',
         )
         return render(request, 'tahsilat/cari_bakiyeler.html', context)
-
 
 @login_required
 def cari_hareketler(request, cari_kod):
@@ -4891,7 +5025,6 @@ def cari_hareketler(request, cari_kod):
             error_message=f'Veriler getirilirken bir hata oluştu: {str(e)}',
         )
         return render(request, 'tahsilat/cari_hareketler.html', context)
-
 
 @login_required
 def cari_gecikmeleri(request):
@@ -5040,7 +5173,6 @@ def cari_gecikmeleri(request):
 
     return render(request, 'tahsilat/stok_satis_analiz.html', context)
 
-
 @login_required
 def cari_gecikmeleri_excel(request):
     """Cari Geçikmeleri Excel export"""
@@ -5106,7 +5238,6 @@ def cari_gecikmeleri_excel(request):
     )
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
-
 
 @login_required
 def satislarim(request):
@@ -5195,7 +5326,6 @@ def satislarim(request):
         }
     }
     return render(request, 'tahsilat/satislarim.html', context)
-
 
 @login_required
 def klasik_tahsilat_raporu(request):
@@ -5356,7 +5486,6 @@ def klasik_tahsilat_raporu(request):
     }
 
     return render(request, 'tahsilat/klasik_tahsilat_raporu.html', context)
-
 
 @login_required
 def muhasebe_gunluk_rapor(request):
@@ -5539,7 +5668,6 @@ def muhasebe_gunluk_rapor(request):
 
     return render(request, 'tahsilat/muhasebe_gunluk_rapor.html', context)
 
-
 @login_required
 def gider_masraf_listesi(request):
     """Gider Masraf Listesi - Ana sayfa"""
@@ -5583,7 +5711,6 @@ def gider_masraf_listesi(request):
         'gider_sayisi': len(gider_listesi)
     }
     return render(request, 'tahsilat/gider_masraf_listesi.html', context)
-
 
 @login_required
 def gider_masraf_ekle(request):
@@ -5660,7 +5787,6 @@ def gider_masraf_guncelle(request, gider_id):
     }
     return render(request, 'tahsilat/gider_masraf_guncelle.html', context)
 
-
 @login_required
 def gider_masraf_sil(request, gider_id):
     """Gider Masraf Sil"""
@@ -5682,7 +5808,6 @@ def gider_masraf_sil(request, gider_id):
         'gider': gider_data
     }
     return render(request, 'tahsilat/gider_masraf_listesi.html', context)
-
 
 @login_required
 def perakende(request):
@@ -5773,7 +5898,6 @@ def perakende(request):
     }
     return render(request, 'tahsilat/perakende.html', context)
 
-
 @login_required
 def logo_transfer(request):
     """Placeholder view for logo_transfer - to be implemented"""
@@ -5782,12 +5906,10 @@ def logo_transfer(request):
     }
     return render(request, 'tahsilat/placeholder.html', context)
 
-
 @login_required
 def logo_transfer_ajax(request):
     """Placeholder view for logo_transfer_ajax - to be implemented"""
     return JsonResponse({'success': False, 'message': 'Bu özellik henüz geliştirilmektedir.'})
-
 
 @login_required
 def yetkilendirme(request):
@@ -5943,7 +6065,6 @@ def yetkilendirme(request):
             'kullanici_yetkileri': {},
         })
 
-
 @login_required
 def sync_users(request):
     """Kullanıcıları senkronize et (placeholder)"""
@@ -5965,7 +6086,6 @@ def sync_users(request):
     except Exception as e:
         logger.error(f"Kullanıcı senkronizasyonu hatası: {e}")
         return JsonResponse({'success': False, 'message': f'Senkronizasyon hatası: {e}'})
-
 
 @login_required
 def get_plasiyer_regions(request):
@@ -6002,7 +6122,6 @@ def get_plasiyer_regions(request):
         logger.error(f"get_plasiyer_regions error: {e}")
         return JsonResponse({'success': False, 'message': 'Bölge verileri alınamadı'})
 
-
 @login_required
 def get_all_regions(request):
     """AJAX ile tüm bölgeleri getirir"""
@@ -6020,7 +6139,6 @@ def get_all_regions(request):
     except Exception as e:
         logger.error(f"get_all_regions error: {e}")
         return JsonResponse({'success': False, 'message': 'Bölge verileri alınamadı'})
-
 
 @login_required
 @require_http_methods(["GET"])
@@ -6095,7 +6213,6 @@ def turkish_number_format(value, decimal_places=2):
         return formatted
     except (ValueError, TypeError):
         return str(value)
-
 
 def generate_cari_ekstre_pdf(cari_bakiye_list, plasiyer, bolge_filter):
     """Cari ekstre için PDF oluşturur (basit tablo halinde)"""
@@ -6658,7 +6775,6 @@ def generate_genel_ekstre_pdf(cari_bakiye_list, plasiyer, bolge_filter, cari_tip
         logger.error(traceback.format_exc())
         return HttpResponse("PDF oluşturulurken hata oluştu.", status=500)
 
-
 def generate_genel_ekstre_excel(cari_bakiye_list, plasiyer, bolge_filter, cari_tipi):
     """Genel ekstre Excel oluşturur"""
     try:
@@ -6727,7 +6843,6 @@ def generate_genel_ekstre_excel(cari_bakiye_list, plasiyer, bolge_filter, cari_t
     except Exception as e:
         logger.error(f"Excel oluşturma hatası: {e}")
         return HttpResponse("Excel oluşturulurken hata oluştu.", status=500)
-
 
 def export_plasiyer_performans_excel(request):
     """Plasiyer Performans Tablosu Excel Export"""
@@ -6955,7 +7070,6 @@ def export_plasiyer_performans_pdf(request):
     except Exception as e:
         logger.error(f"Plasiyer performans PDF export hatası: {e}")
         return HttpResponse("PDF oluşturulurken hata oluştu.", status=500)
-
 
 def generate_muhasebe_gunluk_pdf(rapor_tarihi, satirlar, tahsilatlar_list, satislar_list, nakit_teslim_edilmedi_toplam):
     """Muhasebe Günlük Rapor PDF oluşturma fonksiyonu"""
@@ -7237,7 +7351,6 @@ def generate_muhasebe_gunluk_pdf(rapor_tarihi, satirlar, tahsilatlar_list, satis
         logger.error(traceback.format_exc())
         return HttpResponse(f"PDF oluşturulurken hata oluştu: {str(e)}", status=500)
 
-
 def generate_klasik_tahsilat_pdf(baslangic_tarihi, bitis_tarihi, plasiyer_listesi, plasiyer_verileri, 
                                   toplam_verileri, banka_listesi, banka_verileri, banka_toplam_verileri,
                                   nakit_teslim_edilmedi_toplam, nakit_teslim_edilmedi_by_user):
@@ -7437,7 +7550,6 @@ def generate_klasik_tahsilat_pdf(baslangic_tarihi, bitis_tarihi, plasiyer_listes
         logger.error(traceback.format_exc())
         return HttpResponse(f"PDF oluşturulurken hata oluştu: {str(e)}", status=500)
 
-
 def generate_klasik_tahsilat_excel(baslangic_tarihi, bitis_tarihi, plasiyer_listesi, plasiyer_verileri,
                                    toplam_verileri, banka_listesi, banka_verileri, banka_toplam_verileri,
                                    nakit_teslim_edilmedi_toplam, nakit_teslim_edilmedi_by_user):
@@ -7539,7 +7651,6 @@ def generate_klasik_tahsilat_excel(baslangic_tarihi, bitis_tarihi, plasiyer_list
         logger.error(traceback.format_exc())
         return HttpResponse(f"Excel oluşturulurken hata oluştu: {str(e)}", status=500)
 
-
 def _cek_senetler_resolve_main_tab(request):
     """Çek/senet sayfası ana sekme: ?tab= veya ?sekme= (proxy / yazım farkları için ikisi de okunur)."""
     import unicodedata
@@ -7552,7 +7663,6 @@ def _cek_senetler_resolve_main_tab(request):
         if s == 'yillik':
             return 'yillik'
     return 'liste'
-
 
 @login_required
 def cek_senetler(request):
@@ -8012,6 +8122,8 @@ def cek_senetler(request):
     _excel_q['export'] = 'excel'
     cek_liste_excel_url = reverse('tahsilat:cek_senetler') + '?' + _excel_q.urlencode()
 
+    import_result = request.session.pop('cek_senet_import_result', None)
+
     context = {
         'sayfa_baslik': 'Çek ve Senetler',
         'sayfa_ikon': 'bi-receipt',
@@ -8065,10 +8177,10 @@ def cek_senetler(request):
         'yillik_toplam_net': yillik_toplam_net,
         'active_main_tab': active_main_tab,
         'cek_liste_excel_url': cek_liste_excel_url,
+        'import_result': import_result,
     }
     
     return render(request, 'tahsilat/cek_senetler.html', context)
-
 
 @login_required
 def cek_senet_ekle(request):
@@ -8113,7 +8225,6 @@ def cek_senet_ekle(request):
             return redirect('tahsilat:cek_senetler')
     
     return redirect('tahsilat:cek_senetler')
-
 
 @login_required
 def cek_senet_guncelle(request, pk):
@@ -8176,7 +8287,6 @@ def cek_senet_guncelle(request, pk):
         messages.error(request, f'Güncelleme sırasında hata oluştu: {str(e)}')
         return redirect('tahsilat:cek_senetler')
 
-
 @login_required
 def cek_senet_sil(request, pk):
     """Çek/Senet Silme"""
@@ -8194,7 +8304,6 @@ def cek_senet_sil(request, pk):
         messages.error(request, f'Silme sırasında hata oluştu: {str(e)}')
     
     return redirect('tahsilat:cek_senetler')
-
 
 @login_required
 def get_cari_listesi_ajax(request):
@@ -8240,7 +8349,6 @@ def get_cari_listesi_ajax(request):
             'data': []
         })
 
-
 @login_required
 def download_cek_senetler_template(request):
     """Çek/Senetler Excel şablonunu indirir"""
@@ -8278,6 +8386,12 @@ def download_cek_senetler_template(request):
     })
     
     text_format = workbook.add_format({
+        'border': 1,
+        'align': 'left'
+    })
+
+    text_format_at = workbook.add_format({
+        'num_format': '@',
         'border': 1,
         'align': 'left'
     })
@@ -8324,17 +8438,24 @@ def download_cek_senetler_template(request):
                 worksheet.write(row, col, value, currency_format)
             elif col in [4, 5]:  # Tarih sütunları
                 worksheet.write(row, col, value, date_format)
+            elif col in [6, 9]:  # Cari Kod, Çek/Senet No — metin formatı
+                worksheet.write(row, col, value, text_format_at)
             elif col in [11]:  # Faiz oranı
                 worksheet.write(row, col, value, center_format)
             elif col in [12]:  # Taksit sayısı
                 worksheet.write(row, col, value, center_format)
             else:
                 worksheet.write(row, col, value, text_format)
+
+    # Cari Kod ve Çek/Senet No sütunlarına metin formatı (@) uygula
+    worksheet.set_column(6, 6, 15, text_format_at)
+    worksheet.set_column(9, 9, 15, text_format_at)
     
     # Sütun genişliklerini ayarla
     column_widths = [15, 10, 12, 15, 15, 15, 15, 30, 20, 15, 15, 12, 12, 25]
     for col, width in enumerate(column_widths):
-        worksheet.set_column(col, col, width)
+        if col not in (6, 9):
+            worksheet.set_column(col, col, width)
     
     # Notlar ve banka listesi ayrı sayfada: veri sayfasında yalnızca başlık + satırlar kalır (import yanlış satır okumasın)
     help_sheet = workbook.add_worksheet('Yardım')
@@ -8378,6 +8499,60 @@ def download_cek_senetler_template(request):
     
     return response
 
+def _normalize_excel_header(col):
+    """Excel başlık hücresini normalize eder."""
+    import pandas as pd
+    if pd.isna(col):
+        return ''
+    return str(col).strip()
+
+def _excel_header_key(s):
+    """Sütun eşleştirme anahtarı; yıldız toleranslı."""
+    import unicodedata
+    key = unicodedata.normalize('NFKC', str(s).strip().lower())
+    if key.endswith('*'):
+        key = key[:-1].rstrip()
+    return key
+
+def _excel_cell_str(val):
+    """Metin alanları için güvenli string (NaN, .0 suffix temizliği)."""
+    import pandas as pd
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return ''
+    if isinstance(val, str):
+        s = val.strip()
+        return '' if not s or s.lower() == 'nan' else s
+    if isinstance(val, int):
+        return str(val)
+    if isinstance(val, float):
+        if val == int(val):
+            return str(int(val))
+        return str(val)
+    s = str(val).strip()
+    if not s or s.lower() == 'nan':
+        return ''
+    if s.endswith('.0'):
+        try:
+            float(s)
+            if '.' not in s[:-2]:
+                return s[:-2]
+        except ValueError:
+            pass
+    return s
+
+def _row_has_data(row, cols):
+    """Satırda anlamlı veri var mı kontrol eder."""
+    import pandas as pd
+    for col in cols:
+        if col is None:
+            continue
+        val = row[col]
+        if val is None or (isinstance(val, float) and pd.isna(val)):
+            continue
+        if isinstance(val, str) and not val.strip():
+            continue
+        return True
+    return False
 
 @login_required
 def import_cek_senetler_excel(request):
@@ -8402,48 +8577,51 @@ def import_cek_senetler_excel(request):
             
             try:
                 # Yalnızca ilk sayfa (şablon: veri + ayrı Yardım sayfası; eski şablonda not satırları da atlanır)
-                df = pd.read_excel(excel_file, sheet_name=0)
+                df = pd.read_excel(excel_file, sheet_name=0, dtype=object)
                 logger.info(f'[EXCEL IMPORT] Excel okundu. Satır sayısı: {len(df)}, Sütunlar: {list(df.columns)}')
             except Exception as e:
                 logger.error(f'[EXCEL IMPORT] Pandas okuma hatası: {str(e)}', exc_info=True)
                 messages.error(request, f'Excel dosyası okunamadı. Dosya formatını kontrol ediniz.')
                 return redirect('tahsilat:cek_senetler')
             
-            def normalize_column_name(col):
-                return str(col).strip() if pd.notna(col) else ''
-            
-            df.columns = [normalize_column_name(col) for col in df.columns]
+            df.columns = [_normalize_excel_header(col) for col in df.columns]
             logger.info(f'[EXCEL IMPORT] Normalize edilmiş sütunlar: {list(df.columns)}')
             
             def nk(s):
                 return unicodedata.normalize('NFKC', str(s).strip().lower())
             
-            col_lookup = {nk(c): c for c in df.columns}
+            col_lookup = {_excel_header_key(c): c for c in df.columns}
             
             def get_col(*labels):
                 for lab in labels:
-                    key = nk(lab)
+                    key = _excel_header_key(lab)
                     if key in col_lookup:
                         return col_lookup[key]
                 return None
             
             required_columns = [
-                'Ödeme Türü*', 'Tip*', 'Tutar*', 'İşlem Tarihi*', 'Vade Tarihi*', 'Cari Kod*', 'Cari Ünvan*'
+                ('Ödeme Türü*', 'Ödeme Türü'),
+                ('Tip*', 'Tip'),
+                ('Tutar*', 'Tutar'),
+                ('İşlem Tarihi*', 'İşlem Tarihi'),
+                ('Vade Tarihi*', 'Vade Tarihi'),
+                ('Cari Kod*', 'Cari Kod'),
+                ('Cari Ünvan*', 'Cari Ünvan'),
             ]
-            missing_columns = [lab for lab in required_columns if get_col(lab) is None]
+            missing_columns = [labels[0] for labels in required_columns if get_col(*labels) is None]
             
             if missing_columns:
                 logger.warning(f'[EXCEL IMPORT] Eksik sütunlar: {missing_columns}, Mevcut sütunlar: {list(df.columns)}')
                 messages.error(request, f'Eksik sütunlar: {", ".join(missing_columns)}. Excel şablonunu kontrol ediniz.')
                 return redirect('tahsilat:cek_senetler')
             
-            col_odeme = get_col('Ödeme Türü*')
-            col_tip = get_col('Tip*')
-            col_tutar = get_col('Tutar*')
-            col_islem = get_col('İşlem Tarihi*')
-            col_vade = get_col('Vade Tarihi*')
-            col_cari_kod = get_col('Cari Kod*')
-            col_cari_unvan = get_col('Cari Ünvan*')
+            col_odeme = get_col('Ödeme Türü*', 'Ödeme Türü')
+            col_tip = get_col('Tip*', 'Tip')
+            col_tutar = get_col('Tutar*', 'Tutar')
+            col_islem = get_col('İşlem Tarihi*', 'İşlem Tarihi')
+            col_vade = get_col('Vade Tarihi*', 'Vade Tarihi')
+            col_cari_kod = get_col('Cari Kod*', 'Cari Kod')
+            col_cari_unvan = get_col('Cari Ünvan*', 'Cari Ünvan')
             col_durum = get_col('Durum')
             col_banka = get_col('Banka Adı')
             col_no = get_col('Çek/Senet No')
@@ -8451,6 +8629,12 @@ def import_cek_senetler_excel(request):
             col_faiz = get_col('Faiz Oranı (%)')
             col_taksit = get_col('Taksit Sayısı')
             col_aciklama = get_col('Açıklama')
+
+            data_cols = [
+                col_odeme, col_tip, col_tutar, col_islem, col_vade,
+                col_cari_kod, col_cari_unvan, col_durum, col_banka, col_no,
+                col_kredi_tur, col_faiz, col_taksit, col_aciklama,
+            ]
             
             def parse_odeme_turu_cell(cell):
                 """Geçerli ödeme türü hücresi -> model kodu; not/ boş satırlar için None."""
@@ -8498,13 +8682,32 @@ def import_cek_senetler_excel(request):
                 try:
                     row_num = index + 2
                     logger.debug(f'[EXCEL IMPORT] İşleniyor: Satır {row_num}')
-                    
-                    odeme_turu = parse_odeme_turu_cell(row[col_odeme])
-                    if odeme_turu is None:
+
+                    if not _row_has_data(row, data_cols):
                         skipped_count += 1
                         continue
+
+                    odeme_turu = parse_odeme_turu_cell(row[col_odeme])
+                    odeme_display = _excel_cell_str(row[col_odeme])
+                    cari_display = _excel_cell_str(row[col_cari_kod])
+                    if odeme_turu is None:
+                        error_count += 1
+                        errors.append({
+                            'row': row_num,
+                            'cari_kod': cari_display,
+                            'odeme_turu': odeme_display,
+                            'message': (
+                                f'Geçersiz ödeme türü: "{odeme_display}"'
+                                if odeme_display
+                                else 'Ödeme türü boş veya tanınmadı'
+                            ),
+                        })
+                        logger.warning(
+                            f'[EXCEL IMPORT] Satır {row_num}: geçersiz ödeme türü "{odeme_display}"'
+                        )
+                        continue
                     
-                    tip_raw = str(row[col_tip]).strip() if pd.notna(row[col_tip]) else ''
+                    tip_raw = _excel_cell_str(row[col_tip])
                     tip = tip_label_to_code.get(nk(tip_raw))
                     if tip is None and tip_raw:
                         tl = tip_raw.strip().lower()
@@ -8540,33 +8743,24 @@ def import_cek_senetler_excel(request):
                     except Exception as e:
                         raise ValueError(f'Tarih formatı hatası: {str(e)}')
                     
-                    cari_kod = str(row[col_cari_kod]).strip()
-                    cari_unvan = str(row[col_cari_unvan]).strip()
+                    cari_kod = _excel_cell_str(row[col_cari_kod])
+                    cari_unvan = _excel_cell_str(row[col_cari_unvan])
                     
                     if not cari_kod:
                         raise ValueError('Cari kod boş geçilemez')
                     if not cari_unvan:
                         raise ValueError('Cari ünvan boş geçilemez')
                     
-                    if col_durum and pd.notna(row[col_durum]):
-                        durum_raw = str(row[col_durum]).strip()
-                    else:
+                    durum_raw = _excel_cell_str(row[col_durum]) if col_durum else ''
+                    if not durum_raw:
                         durum_raw = 'Beklemede'
                     durum = durum_label_to_code.get(nk(durum_raw), 'beklemede')
                     if durum not in valid_durum_kodlari:
                         durum = 'beklemede'
                     
-                    banka_adi = ''
-                    if col_banka and pd.notna(row[col_banka]):
-                        banka_adi = str(row[col_banka]).strip()
-                    
-                    cek_senet_no = ''
-                    if col_no and pd.notna(row[col_no]):
-                        cek_senet_no = str(row[col_no]).strip()
-                    
-                    kredi_turu = ''
-                    if col_kredi_tur and pd.notna(row[col_kredi_tur]):
-                        kredi_turu = str(row[col_kredi_tur]).strip()
+                    banka_adi = _excel_cell_str(row[col_banka]) if col_banka else ''
+                    cek_senet_no = _excel_cell_str(row[col_no]) if col_no else ''
+                    kredi_turu = _excel_cell_str(row[col_kredi_tur]) if col_kredi_tur else ''
                     
                     faiz_orani = None
                     if col_faiz and pd.notna(row[col_faiz]):
@@ -8585,9 +8779,7 @@ def import_cek_senetler_excel(request):
                         except (ValueError, TypeError):
                             raise ValueError(f'Geçersiz taksit sayısı formatı: {row[col_taksit]}')
                     
-                    aciklama = ''
-                    if col_aciklama and pd.notna(row[col_aciklama]):
-                        aciklama = str(row[col_aciklama]).strip()
+                    aciklama = _excel_cell_str(row[col_aciklama]) if col_aciklama else ''
                     
                     if tip not in ('gelen', 'giden'):
                         raise ValueError(
@@ -8623,29 +8815,60 @@ def import_cek_senetler_excel(request):
                     
                 except ValueError as e:
                     error_count += 1
-                    error_msg = f'Satır {index + 2}: {str(e)}'
-                    errors.append(error_msg)
-                    logger.warning(f'[EXCEL IMPORT] {error_msg}')
+                    errors.append({
+                        'row': row_num,
+                        'cari_kod': _excel_cell_str(row[col_cari_kod]) if col_cari_kod else '',
+                        'odeme_turu': _excel_cell_str(row[col_odeme]) if col_odeme else '',
+                        'message': str(e),
+                    })
+                    logger.warning(f'[EXCEL IMPORT] Satır {row_num}: {str(e)}')
                 except Exception as e:
                     error_count += 1
-                    error_msg = f'Satır {index + 2}: {str(e)}'
-                    errors.append(error_msg)
-                    logger.error(f'[EXCEL IMPORT] {error_msg}', exc_info=True)
+                    errors.append({
+                        'row': row_num,
+                        'cari_kod': _excel_cell_str(row[col_cari_kod]) if col_cari_kod else '',
+                        'odeme_turu': _excel_cell_str(row[col_odeme]) if col_odeme else '',
+                        'message': str(e),
+                    })
+                    logger.error(f'[EXCEL IMPORT] Satır {row_num}: {str(e)}', exc_info=True)
             
             logger.info(
                 f'[EXCEL IMPORT] İşlem tamamlandı. Başarılı: {success_count}, Hatalı: {error_count}, Atlanan (boş/not): {skipped_count}'
             )
+
+            processed_rows = success_count + error_count
+            if success_count == 0 and error_count == 0:
+                status = 'empty'
+            elif error_count == 0 and success_count > 0:
+                status = 'success'
+            elif success_count == 0 and error_count > 0:
+                status = 'failed'
+            else:
+                status = 'partial'
+
+            request.session['cek_senet_import_result'] = {
+                'filename': excel_file.name,
+                'total_rows': len(df),
+                'processed_rows': processed_rows,
+                'success_count': success_count,
+                'error_count': error_count,
+                'skipped_count': skipped_count,
+                'errors': errors,
+                'status': status,
+            }
             
             # Sonuç mesajı
             if success_count > 0:
                 messages.success(request, f'{success_count} kayıt başarıyla eklendi.')
             
             if error_count > 0:
-                # İlk 5 hatayı göster, gerisini logda tut
-                display_errors = errors[:5]
-                if len(errors) > 5:
-                    display_errors.append(f'... ve {len(errors) - 5} hatası daha (loglarda)')
-                messages.warning(request, f'{error_count} kayıt eklenemedi. Hatalar: {"; ".join(display_errors)}')
+                messages.warning(
+                    request,
+                    f'{error_count} kayıt eklenemedi. Detaylar için sonuç penceresine bakın.'
+                )
+
+            if success_count == 0 and error_count == 0:
+                messages.warning(request, 'İşlenecek veri bulunamadı.')
             
             return redirect('tahsilat:cek_senetler')
             
@@ -8655,7 +8878,6 @@ def import_cek_senetler_excel(request):
             return redirect('tahsilat:cek_senetler')
     
     return redirect('tahsilat:cek_senetler')
-
 
 @login_required
 def change_cek_senet_status(request):
@@ -8717,7 +8939,6 @@ def change_cek_senet_status(request):
         'success': False,
         'error': 'Geçersiz istek'
     })
-
 
 @login_required
 def bulk_update_cek_senet_durum_by_vade(request):
@@ -8796,7 +9017,6 @@ def bulk_update_cek_senet_durum_by_vade(request):
         'success': False,
         'error': 'Geçersiz istek'
     })
-
 
 def export_stok_detayli_analiz_excel(request):
     """Stok Detaylı Analiz Excel Export"""
@@ -8895,10 +9115,364 @@ def export_stok_detayli_analiz_excel(request):
         logger.error(f"Excel export hatası: {e}")
         return HttpResponse(f"Excel oluşturulurken hata oluştu: {str(e)}", status=500)
 
+AMBAR_DETAY_KOLONLAR = [
+    {'key': 'malzeme_kodu', 'label': 'Malzeme Kodu', 'tip': 'text'},
+    {'key': 'aciklamasi', 'label': 'Açıklaması', 'tip': 'text'},
+    {'key': 'malzeme_turu', 'label': 'Malzeme Türü', 'tip': 'text'},
+    {'key': 'marka', 'label': 'Marka', 'tip': 'text'},
+    {'key': 'seyhan', 'label': 'Seyhan', 'tip': 'num'},
+    {'key': 'yuregir', 'label': 'Yüreğir', 'tip': 'num'},
+    {'key': 'mersin', 'label': 'Mersin', 'tip': 'num'},
+    {'key': 'toplam', 'label': 'Toplam', 'tip': 'num'},
+    {'key': 'son_alim_tarihi', 'label': 'Son Alım', 'tip': 'date'},
+    {'key': 'son_birim_net', 'label': 'Son Birim Net', 'tip': 'money'},
+    {'key': 'maliyet', 'label': 'Stok Maliyeti', 'tip': 'money'},
+]
+
+AMBAR_SUBE_SECENEKLERI = [
+    {'kod': 'SEYHAN', 'label': 'Seyhan'},
+    {'kod': 'YUREGIR', 'label': 'Yüreğir'},
+    {'kod': 'MERSIN', 'label': 'Mersin'},
+]
+
+
+def _parse_ambar_filters(request):
+    """Ambar değer raporu query parametrelerini temizler ve normalize eder."""
+    arama = (request.GET.get('arama') or '').strip()
+    malzeme_turu = (request.GET.get('malzeme_turu') or '').strip()
+    marka = (request.GET.get('marka') or '').strip()
+
+    # Şube chip'leri (çoklu değer; 'Tüm Stoklar' = parametre yok)
+    gecerli_subeler = {'SEYHAN', 'YUREGIR', 'MERSIN'}
+    subeler = []
+    for s in request.GET.getlist('sube'):
+        s_norm = (s or '').strip().upper().replace('Ü', 'U').replace('Ğ', 'G').replace('İ', 'I')
+        if s_norm in gecerli_subeler and s_norm not in subeler:
+            subeler.append(s_norm)
+
+    # Server-side sıralama (kolon başlığı tıklaması)
+    gecerli_sirala = {c['key'] for c in AMBAR_DETAY_KOLONLAR}
+    sirala = (request.GET.get('sirala') or 'maliyet').strip().lower()
+    if sirala not in gecerli_sirala:
+        sirala = 'maliyet'
+    yon = (request.GET.get('yon') or 'desc').strip().lower()
+    if yon not in ('asc', 'desc'):
+        yon = 'desc'
+
+    # Stok durumu filtresi (TOPLAM kolonuna göre)
+    stok_durumu = (request.GET.get('stok_durumu') or 'hepsi').strip().lower()
+    if stok_durumu not in ('hepsi', 'stokta_var', 'stok_bitmis'):
+        stok_durumu = 'hepsi'
+
+    # Sayfa boyutu: 100 / 500 / 1000 / tumu
+    sayfa_boyutu_raw = (request.GET.get('sayfa_boyutu') or '100').strip().lower()
+    if sayfa_boyutu_raw == 'tumu':
+        sayfa_boyutu = None
+    else:
+        try:
+            sayfa_boyutu = int(sayfa_boyutu_raw)
+            if sayfa_boyutu not in (100, 500, 1000):
+                sayfa_boyutu = 100
+        except (TypeError, ValueError):
+            sayfa_boyutu = 100
+        sayfa_boyutu_raw = str(sayfa_boyutu)
+
+    return {
+        'arama': arama or None,
+        'malzeme_turu': malzeme_turu or None,
+        'marka': marka or None,
+        'subeler': subeler,
+        'sirala': sirala,
+        'yon': yon,
+        'stok_durumu': stok_durumu,
+        'sayfa_boyutu': sayfa_boyutu,
+        'sayfa_boyutu_raw': sayfa_boyutu_raw,
+    }
+
+
+def _ambar_querystring(filtreler, **overrides):
+    """Aktif filtrelerden querystring üretir; overrides ile alan değiştirilebilir."""
+    from urllib.parse import urlencode
+    params = {
+        'arama': filtreler['arama'],
+        'malzeme_turu': filtreler['malzeme_turu'],
+        'marka': filtreler['marka'],
+        'sayfa_boyutu': filtreler['sayfa_boyutu_raw'],
+        'sirala': filtreler['sirala'],
+        'yon': filtreler['yon'],
+        'stok_durumu': filtreler.get('stok_durumu', 'hepsi'),
+    }
+    sube_list = overrides.pop('sube_list', None)
+    params.update(overrides)
+    # stok_durumu='hepsi' ise querystring'de yer almasın (varsayılan)
+    if params.get('stok_durumu') == 'hepsi' and 'stok_durumu' not in overrides:
+        params.pop('stok_durumu', None)
+    pairs = [(k, v) for k, v in params.items() if v not in (None, '')]
+    for s in (filtreler['subeler'] if sube_list is None else sube_list):
+        pairs.append(('sube', s))
+    return urlencode(pairs)
+
+
+def _ambar_filtre_ozeti(filtreler):
+    """Excel meta satırı ve footer için aktif filtre özet metni."""
+    parts = []
+    if filtreler['arama']:
+        parts.append(f"Arama: {filtreler['arama']}")
+    if filtreler['malzeme_turu']:
+        parts.append(f"Tür: {filtreler['malzeme_turu']}")
+    if filtreler['marka']:
+        parts.append(f"Marka: {filtreler['marka']}")
+    if filtreler['subeler']:
+        etiketler = {s['kod']: s['label'] for s in AMBAR_SUBE_SECENEKLERI}
+        parts.append("Şube: " + ", ".join(etiketler.get(s, s) for s in filtreler['subeler']))
+    sd = filtreler.get('stok_durumu', 'hepsi')
+    if sd == 'stokta_var':
+        parts.append("Stok: Stoğu olanlar")
+    elif sd == 'stok_bitmis':
+        parts.append("Stok: Stoğu olmayanlar")
+    return ' | '.join(parts) if parts else 'Filtre yok (tüm stoklar)'
+
+
+def _ambar_excel_formats(workbook):
+    """İki export için ortak xlsxwriter formatları (petrol/teal/amber palet)."""
+    return {
+        'title': workbook.add_format({
+            'bold': True, 'font_size': 14, 'bg_color': '#0B3B3C',
+            'font_color': '#FFFFFF', 'align': 'left', 'valign': 'vcenter',
+        }),
+        'meta': workbook.add_format({
+            'italic': True, 'font_size': 9, 'font_color': '#475569',
+            'align': 'left', 'valign': 'vcenter',
+        }),
+        'header': workbook.add_format({
+            'bold': True, 'bg_color': '#0F766E', 'font_color': '#FFFFFF',
+            'align': 'center', 'valign': 'vcenter', 'border': 1,
+            'text_wrap': True, 'font_size': 10,
+        }),
+        'text': workbook.add_format({'border': 1, 'valign': 'vcenter', 'font_size': 10}),
+        'num': workbook.add_format({
+            'border': 1, 'valign': 'vcenter', 'font_size': 10,
+            'num_format': '#,##0', 'align': 'right',
+        }),
+        'money': workbook.add_format({
+            'border': 1, 'valign': 'vcenter', 'font_size': 10,
+            'num_format': '#,##0.00 ₺', 'align': 'right',
+        }),
+        'pct': workbook.add_format({
+            'border': 1, 'valign': 'vcenter', 'font_size': 10,
+            'num_format': '0.00"%"', 'align': 'right',
+        }),
+        'date': workbook.add_format({
+            'border': 1, 'valign': 'vcenter', 'font_size': 10,
+            'num_format': 'dd.mm.yyyy', 'align': 'right',
+        }),
+        'total_text': workbook.add_format({
+            'bold': True, 'border': 1, 'valign': 'vcenter', 'font_size': 10,
+            'bg_color': '#FEF3C7', 'font_color': '#78350F',
+        }),
+        'total_num': workbook.add_format({
+            'bold': True, 'border': 1, 'valign': 'vcenter', 'font_size': 10,
+            'bg_color': '#FEF3C7', 'font_color': '#78350F',
+            'num_format': '#,##0', 'align': 'right',
+        }),
+        'total_money': workbook.add_format({
+            'bold': True, 'border': 1, 'valign': 'vcenter', 'font_size': 10,
+            'bg_color': '#FEF3C7', 'font_color': '#78350F',
+            'num_format': '#,##0.00 ₺', 'align': 'right',
+        }),
+    }
+
+
+def _ambar_detay_excel(rapor, filtreler):
+    """Detay grid Excel çıktısı (aktif filtreler, max 10.000 satır).
+
+    .. note::
+        Maliyet kolonu başlığı ``Toplam Stok Değeri`` olarak yazılır; değerler
+        artık ``STOK_MALIYET_DETAYLI.TOPLAM STOK DEĞERİ`` kolonundan gelir
+        (eski ``TOPLAM STOK MALİYETİ`` kolonu view'da yoktu).
+    """
+    buffer = io.BytesIO()
+    workbook = xlsxwriter.Workbook(buffer, {'in_memory': True})
+    ws = workbook.add_worksheet('Detay')
+    fmt = _ambar_excel_formats(workbook)
+
+    headers = ['Malzeme Kodu', 'Açıklaması', 'Malzeme Türü', 'Marka',
+               'Seyhan', 'Yüreğir', 'Mersin', 'Toplam',
+               'Son Alım Tarihi', 'Son Birim Net', 'Toplam Stok Değeri']
+    son_kolon = len(headers) - 1
+
+    ws.merge_range(0, 0, 0, son_kolon, 'AMBAR DEĞER RAPORU — DETAY', fmt['title'])
+    ws.set_row(0, 26)
+    meta = (f"{_ambar_filtre_ozeti(filtreler)} | "
+            f"Kayıt: {len(rapor['rows'])} / {rapor['total_filtered']} | "
+            f"Oluşturma: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+    ws.merge_range(1, 0, 1, son_kolon, meta, fmt['meta'])
+
+    header_row = 3
+    for c, h in enumerate(headers):
+        ws.write(header_row, c, h, fmt['header'])
+    ws.set_row(header_row, 26)
+
+    r_idx = header_row
+    for row in rapor['rows']:
+        r_idx += 1
+        ws.write_string(r_idx, 0, row['malzeme_kodu'] or '', fmt['text'])
+        ws.write_string(r_idx, 1, row['aciklamasi'] or '', fmt['text'])
+        ws.write_string(r_idx, 2, row['malzeme_turu'] or '', fmt['text'])
+        ws.write_string(r_idx, 3, row['marka'] or '', fmt['text'])
+        ws.write_number(r_idx, 4, row['seyhan'], fmt['num'])
+        ws.write_number(r_idx, 5, row['yuregir'], fmt['num'])
+        ws.write_number(r_idx, 6, row['mersin'], fmt['num'])
+        ws.write_number(r_idx, 7, row['toplam'], fmt['num'])
+        tarih = row['son_alim_tarihi']
+        if tarih:
+            try:
+                dt = tarih if hasattr(tarih, 'year') else datetime.fromisoformat(str(tarih))
+                ws.write_datetime(r_idx, 8, dt, fmt['date'])
+            except Exception:
+                ws.write_string(r_idx, 8, str(tarih), fmt['text'])
+        else:
+            ws.write_blank(r_idx, 8, None, fmt['text'])
+        ws.write_number(r_idx, 9, row['son_birim_net'], fmt['money'])
+        ws.write_number(r_idx, 10, row['toplam_deger'], fmt['money'])
+
+    # Alt toplam satırı (filtrelenmiş tüm veri üzerinden)
+    t = rapor['grid_toplam']
+    r_idx += 1
+    ws.merge_range(r_idx, 0, r_idx, 3, f"TOPLAM ({rapor['total_filtered']} ürün)", fmt['total_text'])
+    ws.write_number(r_idx, 4, t['seyhan'], fmt['total_num'])
+    ws.write_number(r_idx, 5, t['yuregir'], fmt['total_num'])
+    ws.write_number(r_idx, 6, t['mersin'], fmt['total_num'])
+    ws.write_number(r_idx, 7, t['toplam'], fmt['total_num'])
+    ws.write_blank(r_idx, 8, None, fmt['total_text'])
+    ws.write_blank(r_idx, 9, None, fmt['total_text'])
+    ws.write_number(r_idx, 10, t['deger'], fmt['total_money'])
+
+    genislikler = [18, 42, 20, 16, 10, 10, 10, 10, 14, 15, 19]
+    for c, w in enumerate(genislikler):
+        ws.set_column(c, c, w)
+    ws.freeze_panes(header_row + 1, 0)
+
+    workbook.close()
+    buffer.seek(0)
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    filename = f"ambar_deger_detay_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+def _ambar_ozet_excel(rapor):
+    """Marka + Tür ilk 20 özet Excel çıktısı (STOK_MALIYET_DETAYLI'dan türetilmiş)."""
+    buffer = io.BytesIO()
+    workbook = xlsxwriter.Workbook(buffer, {'in_memory': True})
+
+    fmt = _ambar_excel_formats(workbook)
+
+    top_markalar = rapor.get('top_markalar') or []
+    top_turler = rapor.get('top_turler') or []
+
+    headers = ['Sıra', 'Marka', 'Toplam Stok', 'Toplam Stok Değeri', 'Pay %']
+    son_kolon = len(headers) - 1
+
+    # Sayfa 1: Marka ilk 20
+    ws_m = workbook.add_worksheet('Marka İlk 20')
+    ws_m.merge_range(0, 0, 0, son_kolon, 'AMBAR DEĞER RAPORU — MARKA İLK 20', fmt['title'])
+    ws_m.set_row(0, 26)
+    meta_m = (f"Filtre yok (tam veri, {len(top_markalar)} marka) | "
+              f"Toplam değer: {rapor['kpi']['toplam_deger']:,.2f} ₺ | "
+              f"Oluşturma: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+    ws_m.merge_range(1, 0, 1, son_kolon, meta_m, fmt['meta'])
+
+    header_row = 3
+    for c, h in enumerate(headers):
+        ws_m.write(header_row, c, h, fmt['header'])
+    ws_m.set_row(header_row, 26)
+
+    r_idx = header_row
+    toplam_stok = 0.0
+    toplam_deger = 0.0
+    for i, row in enumerate(top_markalar, start=1):
+        r_idx += 1
+        ws_m.write_number(r_idx, 0, i, fmt['num'])
+        ws_m.write_string(r_idx, 1, row['ad'] or '', fmt['text'])
+        ws_m.write_number(r_idx, 2, row['stok'], fmt['num'])
+        ws_m.write_number(r_idx, 3, row['deger'], fmt['money'])
+        ws_m.write_number(r_idx, 4, row['pay'], fmt['pct'])
+        toplam_stok += row['stok']
+        toplam_deger += row['deger']
+
+    r_idx += 1
+    ws_m.merge_range(r_idx, 0, r_idx, 1, f"TOPLAM ({len(top_markalar)} marka)", fmt['total_text'])
+    ws_m.write_number(r_idx, 2, toplam_stok, fmt['total_num'])
+    ws_m.write_number(r_idx, 3, toplam_deger, fmt['total_money'])
+    ws_m.write_number(r_idx, 4, 100.0, fmt['total_num'])
+
+    for c, w in enumerate([6, 28, 16, 22, 10]):
+        ws_m.set_column(c, c, w)
+    ws_m.freeze_panes(header_row + 1, 0)
+
+    # Sayfa 2: Tür ilk 20
+    headers_t = ['Sıra', 'Malzeme Türü', 'Toplam Stok', 'Toplam Stok Değeri', 'Pay %']
+    son_kolon_t = len(headers_t) - 1
+    ws_t = workbook.add_worksheet('Tür İlk 20')
+    ws_t.merge_range(0, 0, 0, son_kolon_t, 'AMBAR DEĞER RAPORU — MALZEME TÜRÜ İLK 20', fmt['title'])
+    ws_t.set_row(0, 26)
+    meta_t = (f"Filtre yok (tam veri, {len(top_turler)} tür) | "
+              f"Toplam değer: {rapor['kpi']['toplam_deger']:,.2f} ₺ | "
+              f"Oluşturma: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+    ws_t.merge_range(1, 0, 1, son_kolon_t, meta_t, fmt['meta'])
+
+    header_row_t = 3
+    for c, h in enumerate(headers_t):
+        ws_t.write(header_row_t, c, h, fmt['header'])
+    ws_t.set_row(header_row_t, 26)
+
+    r_idx = header_row_t
+    toplam_stok_t = 0.0
+    toplam_deger_t = 0.0
+    for i, row in enumerate(top_turler, start=1):
+        r_idx += 1
+        ws_t.write_number(r_idx, 0, i, fmt['num'])
+        ws_t.write_string(r_idx, 1, row['ad'] or '', fmt['text'])
+        ws_t.write_number(r_idx, 2, row['stok'], fmt['num'])
+        ws_t.write_number(r_idx, 3, row['deger'], fmt['money'])
+        ws_t.write_number(r_idx, 4, row['pay'], fmt['pct'])
+        toplam_stok_t += row['stok']
+        toplam_deger_t += row['deger']
+
+    r_idx += 1
+    ws_t.merge_range(r_idx, 0, r_idx, 1, f"TOPLAM ({len(top_turler)} tür)", fmt['total_text'])
+    ws_t.write_number(r_idx, 2, toplam_stok_t, fmt['total_num'])
+    ws_t.write_number(r_idx, 3, toplam_deger_t, fmt['total_money'])
+    ws_t.write_number(r_idx, 4, 100.0, fmt['total_num'])
+
+    for c, w in enumerate([6, 28, 16, 22, 10]):
+        ws_t.set_column(c, c, w)
+    ws_t.freeze_panes(header_row_t + 1, 0)
+
+    workbook.close()
+    buffer.seek(0)
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    filename = f"ambar_deger_ozet_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
 
 @login_required
 def ambar_deger_raporu(request):
-    """Ambar Değer Raporu - FIYATANALIZ tablosundan ürün değerlerini hesaplar"""
+    """Ambar Değer Raporu — STOK_MALIYET_DETAYLI premium arayüz.
+
+    2026-07-03: ``STOK_MALIYET`` (160 satır) view'ına bağlı tüm bölümler
+    (özet grid, top 10, pivot'lar) kaldırıldı. Sayfa artık sadece
+    ``STOK_MALIYET_DETAYLI`` view'ından besleniyor; marka/tür ilk 20
+    panelleri aynı kaynaktan Python tarafında türetiliyor.
+    """
     # Yetki kontrolü
     from .models import KullaniciYetki
     try:
@@ -8911,76 +9485,143 @@ def ambar_deger_raporu(request):
         if request.user.username != 'FIRAT':
             messages.error(request, 'Bu sayfaya erişim yetkiniz bulunmamaktadır.')
             return redirect('tahsilat:dashboard')
-    
-    # Session'dan kullanıcı verilerini al
-    user_data = request.session.get('mssql_user_data', {})
-    if not user_data:
-        user_data = {}
-    
-    # Filtreleme parametreleri
-    malzeme_kodu_filter = request.GET.get('malzeme_kodu', '')
-    marka_filter = request.GET.get('marka', '')
-    malzeme_turu_filter = request.GET.get('malzeme_turu', '')
-    maliyet_filter = request.GET.get('maliyet_filter', '')
-    satis_filter = request.GET.get('satis_filter', '')
-    
-    # Verileri getir
-    try:
-        rapor_data = mssql_service.get_ambar_deger_raporu(
-            malzeme_kodu=malzeme_kodu_filter if malzeme_kodu_filter else None,
-            marka=marka_filter if marka_filter else None,
-            malzeme_turu=malzeme_turu_filter if malzeme_turu_filter else None,
-            maliyet_filter=maliyet_filter if maliyet_filter else None,
-            satis_filter=satis_filter if satis_filter else None
-        )
-        
-        context = {
-            'user': request.user,
-            'user_data': user_data,
-            'sayfa_baslik': 'Ambar Değer Raporu',
-            'sayfa_ikon': 'bi-calculator',
-            'data': rapor_data['data'],
-            'ozet': rapor_data['ozet'],
-            'tur_gruplu': rapor_data['tur_gruplu'],
-            'marka_gruplu': rapor_data['marka_gruplu'],
-            'malzeme_kodu_filter': malzeme_kodu_filter,
-            'marka_filter': marka_filter,
-            'malzeme_turu_filter': malzeme_turu_filter,
-            'maliyet_filter': maliyet_filter,
-            'satis_filter': satis_filter,
-            'malzeme_turleri': sorted(set([item['malzeme_turu'] for item in rapor_data['data'] if item['malzeme_turu']])),
-            'markalar': sorted(set([item['marka'] for item in rapor_data['data'] if item['marka']])),
-        }
-        
-        return render(request, 'tahsilat/ambar_deger_raporu.html', context)
-        
-    except Exception as e:
-        logger.error(f"Ambar değer raporu hatası: {e}")
-        messages.error(request, f'Rapor yüklenirken hata oluştu: {e}')
-        
-        # Hata durumunda boş context
-        context = {
-            'user': request.user,
-            'user_data': {},
-            'sayfa_baslik': 'Ambar Değer Raporu',
-            'sayfa_ikon': 'bi-calculator',
-            'data': [],
-            'ozet': {
-                'toplam_kayit': 0,
-                'toplam_maliyet': 0,
-                'toplam_satis_degeri': 0,
-                'toplam_kar': 0,
-                'kar_orani': 0,
-            },
-            'tur_gruplu': {'maliyet': {}, 'satis': {}},
-            'marka_gruplu': {'maliyet': {}, 'satis': {}},
-        }
-        
-        return render(request, 'tahsilat/ambar_deger_raporu.html', context)
 
+    filtreler = _parse_ambar_filters(request)
+    export = (request.GET.get('export') or '').strip().lower()
+
+    # --- Excel: Özet (Marka + Tür ilk 20) ---
+    # ``STOK_MALIYET`` 160 satırlık view'ı bu sayfadan çıkarıldı; özet Excel
+    # artık ``get_ambar_deger_raporu`` dönüşündeki ``top_markalar`` /
+    # ``top_turler`` panellerini kullanır.
+    if export == 'ozet':
+        try:
+            rapor_ozet = mssql_service.get_ambar_deger_raporu(
+                max_records=1,  # satır döndürmeye gerek yok, sadece top_* lazım
+            )
+            return _ambar_ozet_excel(rapor_ozet)
+        except Exception as e:
+            logger.error(f"Ambar özet Excel hatası: {e}", exc_info=True)
+            return HttpResponse(f"Excel oluşturulurken hata oluştu: {e}", status=500)
+
+    # --- Detay veri (Excel için 10K, sayfa için seçili sayfa boyutu) ---
+    max_records = 10000 if export == 'detay' else filtreler['sayfa_boyutu']
+    try:
+        rapor = mssql_service.get_ambar_deger_raporu(
+            arama=filtreler['arama'],
+            malzeme_turu=filtreler['malzeme_turu'],
+            marka=filtreler['marka'],
+            subeler=filtreler['subeler'],
+            sirala=filtreler['sirala'],
+            yon=filtreler['yon'],
+            stok_durumu=filtreler['stok_durumu'],
+            max_records=max_records,
+        )
+    except Exception as e:
+        logger.error(f"Ambar değer raporu hatası: {e}", exc_info=True)
+        if export == 'detay':
+            return HttpResponse(f"Excel oluşturulurken hata oluştu: {e}", status=500)
+        messages.error(request, f'Rapor yüklenirken hata oluştu: {e}')
+        rapor = {
+            'rows': [],
+            'kpi': {'toplam_urun': 0, 'toplam_stok': 0, 'toplam_deger': 0,
+                    'ortalama_birim_deger': 0, 'marka_sayisi': 0, 'tur_sayisi': 0},
+            'subeler': [],
+            'grid_toplam': {'seyhan': 0, 'yuregir': 0, 'mersin': 0, 'toplam': 0, 'deger': 0},
+            'kpi_filtered': {'toplam_urun': 0, 'toplam_stok': 0, 'toplam_deger': 0,
+                             'ortalama_birim_deger': 0, 'marka_sayisi': 0, 'tur_sayisi': 0},
+            'subeler_filtered': [],
+            'grid_toplam_filtered': {'seyhan': 0, 'yuregir': 0, 'mersin': 0, 'toplam': 0, 'deger': 0},
+            'malzeme_turleri': [], 'markalar': [],
+            'total_filtered': 0, 'truncated': False,
+            'top_markalar': [], 'top_turler': [],
+            'top_markalar_toplam': {'stok': 0.0, 'deger': 0.0, 'pay': 0.0},
+            'top_turler_toplam': {'stok': 0.0, 'deger': 0.0, 'pay': 0.0},
+        }
+
+    # --- Excel: Detay ---
+    if export == 'detay':
+        try:
+            return _ambar_detay_excel(rapor, filtreler)
+        except Exception as e:
+            logger.error(f"Ambar detay Excel hatası: {e}", exc_info=True)
+            return HttpResponse(f"Excel oluşturulurken hata oluştu: {e}", status=500)
+
+    # --- Detay grid kolon başlıkları: sıralama linkleri ---
+    detay_kolonlar = []
+    for col in AMBAR_DETAY_KOLONLAR:
+        aktif = (filtreler['sirala'] == col['key'])
+        if aktif:
+            sonraki_yon = 'asc' if filtreler['yon'] == 'desc' else 'desc'
+        else:
+            sonraki_yon = 'asc' if col['tip'] == 'text' else 'desc'
+        detay_kolonlar.append({
+            'key': col['key'],
+            'label': col['label'],
+            'tip': col['tip'],
+            'aktif': aktif,
+            'yon': filtreler['yon'] if aktif else '',
+            'sort_qs': _ambar_querystring(filtreler, sirala=col['key'], yon=sonraki_yon),
+        })
+
+    # --- Şube chip'leri (toggle linkleri) ---
+    sube_chips = [{
+        'kod': '',
+        'label': 'Tüm Stoklar',
+        'aktif': not filtreler['subeler'],
+        'qs': _ambar_querystring(filtreler, sube_list=[]),
+    }]
+    for sube in AMBAR_SUBE_SECENEKLERI:
+        secili = sube['kod'] in filtreler['subeler']
+        yeni_liste = [s for s in filtreler['subeler'] if s != sube['kod']] \
+            if secili else filtreler['subeler'] + [sube['kod']]
+        sube_chips.append({
+            'kod': sube['kod'],
+            'label': sube['label'],
+            'aktif': secili,
+            'qs': _ambar_querystring(filtreler, sube_list=yeni_liste),
+        })
+
+    aktif_qs = _ambar_querystring(filtreler)
+
+    context = {
+        'sayfa_baslik': 'Ambar Değer Raporu',
+        'rows': rapor['rows'],
+        'kpi': rapor['kpi'],
+        'kpi_filtered': rapor.get('kpi_filtered', rapor['kpi']),
+        'sube_kartlari': rapor['subeler'],
+        'grid_toplam': rapor['grid_toplam'],
+        'malzeme_turleri': rapor['malzeme_turleri'],
+        'markalar': rapor['markalar'],
+        'total_filtered': rapor['total_filtered'],
+        'truncated': rapor['truncated'],
+        'gosterilen': len(rapor['rows']),
+        # Yeni: Marka / Tür ilk 20 panelleri (STOK_MALIYET_DETAYLI'dan türetildi)
+        'top_markalar': rapor.get('top_markalar', []),
+        'top_turler': rapor.get('top_turler', []),
+        'top_markalar_toplam': rapor.get('top_markalar_toplam', {'stok': 0.0, 'deger': 0.0, 'pay': 0.0}),
+        'top_turler_toplam': rapor.get('top_turler_toplam', {'stok': 0.0, 'deger': 0.0, 'pay': 0.0}),
+        'filtreler': filtreler,
+        'filtre_ozeti': _ambar_filtre_ozeti(filtreler),
+        'detay_kolonlar': detay_kolonlar,
+        'sube_chips': sube_chips,
+        'aktif_qs': aktif_qs,
+        'export_detay_url': f"?{_ambar_querystring(filtreler, export='detay')}",
+        'export_ozet_url': "?export=ozet",
+        'sayfa_boyutu_secenekleri': ['100', '500', '1000', 'tumu'],
+    }
+    return render(request, 'tahsilat/ambar_deger_raporu.html', context)
 
 @login_required
 def kdv_raporu(request):
+    if request.user.username.upper() != 'FIRAT':
+        try:
+            yetki = KullaniciYetki.objects.get(
+                kullanici=request.user, menu_adi='kdv_raporu')
+            if not yetki.erisim_izni:
+                return redirect('tahsilat:dashboard')
+        except KullaniciYetki.DoesNotExist:
+            return redirect('tahsilat:dashboard')
+
     from datetime import datetime
     yil = request.GET.get('yil')
     try:
@@ -9043,51 +9684,36 @@ def kdv_raporu(request):
     }
     return render(request, 'tahsilat/kdv_raporu.html', context)
 
-
 # Minimal stubs for views referenced in urls.py but missing after edits
 @login_required
 def stok_detayli_analiz(request):
     """Placeholder for stok_detayli_analiz to avoid import errors."""
     return render(request, 'tahsilat/stok_detayli_analiz.html', {})
 
-
 @login_required
 def yonetici(request):
     """Placeholder admin page (originally removed)."""
     return redirect('tahsilat:dashboard')
-
 
 HEDEF_PLASIYER_ALANLARI = [
     {'key': 'ali', 'label': 'ALİ'},
     {'key': 'aziz', 'label': 'AZİZ'},
     {'key': 'can', 'label': 'CAN'},
     {'key': 'eyup', 'label': 'EYÜP'},
-    {'key': 'necati', 'label': 'NECATİ'},
-    {'key': 'hasan', 'label': 'HASAN'},
+    {'key': 'bakir', 'label': 'BAKIR'},
     {'key': 'yigit', 'label': 'YİĞİT'},
     {'key': 'atakan', 'label': 'ATAKAN'},
+    {'key': 'halil', 'label': 'HALİL'},
 ]
 
-
 def _has_menu_access(user, menu_name):
-    if not user or not user.is_authenticated:
-        return False
-    if user.is_superuser or user.username.upper() == 'FIRAT':
-        return True
-    return KullaniciYetki.objects.filter(
-        kullanici=user,
-        menu_adi=menu_name,
-        erisim_izni=True,
-    ).exists()
-
+    return shared_has_menu_permission(user, menu_name)
 
 def _normalize_target_text(value):
     return ' '.join(str(value or '').strip().split())
 
-
 def _normalize_target_key(value):
     return _normalize_target_text(value).upper()
-
 
 def _normalize_target_list(values):
     normalized = []
@@ -9100,7 +9726,6 @@ def _normalize_target_list(values):
         normalized.append(item)
         seen.add(key)
     return normalized
-
 
 def _deserialize_target_types(value):
     raw_value = _normalize_target_text(value)
@@ -9116,7 +9741,6 @@ def _deserialize_target_types(value):
 
     return [raw_value]
 
-
 def _serialize_target_types(values):
     normalized = _normalize_target_list(values)
     if not normalized:
@@ -9125,17 +9749,41 @@ def _serialize_target_types(values):
     normalized.sort(key=lambda item: item.upper())
     return json.dumps(normalized, ensure_ascii=False)
 
-
 def _target_type_label_from_value(value):
     turler = _deserialize_target_types(value)
     if not turler:
         return 'Marka Geneli'
     return ' + '.join(turler)
 
+def _target_marka_label_from_value(value):
+    markalar = _deserialize_target_types(value)
+    if not markalar:
+        return ''
+    if len(markalar) == 1:
+        return markalar[0]
+    return ' + '.join(markalar)
+
+def _target_scope_label(marka_value, malzeme_turu_value):
+    marka_label = _target_marka_label_from_value(marka_value)
+    tur_label = _target_type_label_from_value(malzeme_turu_value)
+    if tur_label == 'Marka Geneli':
+        return marka_label or 'Marka Geneli'
+    if marka_label:
+        return f'{marka_label} · {tur_label}'
+    return tur_label
+
+def _target_marka_keys(values):
+    return {_normalize_target_key(value) for value in _deserialize_target_types(values) if _normalize_target_key(value)}
+
+def _target_marka_values_overlap(left_value, right_value):
+    left_keys = _target_marka_keys(left_value)
+    right_keys = _target_marka_keys(right_value)
+    if not left_keys or not right_keys:
+        return True
+    return bool(left_keys & right_keys)
 
 def _target_type_keys(values):
     return {_normalize_target_key(value) for value in _deserialize_target_types(values) if _normalize_target_key(value)}
-
 
 def _target_type_values_overlap(left_value, right_value):
     left_keys = _target_type_keys(left_value)
@@ -9147,10 +9795,8 @@ def _target_type_values_overlap(left_value, right_value):
 
     return bool(left_keys & right_keys)
 
-
 def _build_target_sales_key(marka, malzeme_turu_value):
     return f"{_normalize_target_key(marka)}::{_normalize_target_key(malzeme_turu_value)}"
-
 
 def _build_excel_sheet_name(label, used_names):
     sanitized = ''.join(
@@ -9169,39 +9815,13 @@ def _build_excel_sheet_name(label, used_names):
     used_names.add(candidate)
     return candidate
 
-
 def _normalize_plasiyer_identity(value):
     raw_value = _normalize_target_text(value)
     if not raw_value:
         return ''
-
-    result = str(raw_value)
-    encoding_fix_map = {
-        'EYÃŒP': 'EYUP',
-        'EYÃœP': 'EYUP',
-        'Ãœ': 'U', 'ÃÌ': 'U', 'ÃŒ': 'U', 'Ã¼': 'u', 'Ü': 'U', 'ü': 'u',
-        'Ä±': 'i', 'Ä°': 'I', 'ı': 'i', 'İ': 'I',
-        'Ã§': 'c', 'Ã‡': 'C', 'ç': 'c', 'Ç': 'C',
-        'ÅŸ': 's', 'Åž': 'S', 'ş': 's', 'Ş': 'S',
-        'Ã¶': 'o', 'Ã–': 'O', 'ö': 'o', 'Ö': 'O',
-        'ÄŸ': 'g', 'Äž': 'G', 'ğ': 'g', 'Ğ': 'G',
-    }
-    for old, new in encoding_fix_map.items():
-        result = result.replace(old, new)
-
-    turkish_to_english = {
-        'Ü': 'U', 'ü': 'u',
-        'İ': 'I', 'ı': 'i',
-        'Ç': 'C', 'ç': 'c',
-        'Ş': 'S', 'ş': 's',
-        'Ö': 'O', 'ö': 'o',
-        'Ğ': 'G', 'ğ': 'g',
-    }
-    for turkish, english in turkish_to_english.items():
-        result = result.replace(turkish, english)
-
-    return _normalize_target_text(result).upper()
-
+    return _normalize_target_text(
+        normalize_turkish_lookup_text(raw_value)
+    ).upper()
 
 def _resolve_hedef_plasiyer_label(value):
     normalized = _normalize_plasiyer_identity(value)
@@ -9229,7 +9849,6 @@ def _resolve_hedef_plasiyer_label(value):
 
     return None
 
-
 def _resolve_current_hedef_plasiyer(request):
     user_data = request.session.get('mssql_user_data', {}) if hasattr(request, 'session') else {}
     candidates = [
@@ -9243,7 +9862,6 @@ def _resolve_current_hedef_plasiyer(request):
         if resolved:
             return resolved
     return None
-
 
 def _parse_decimal_input(value):
     raw = str(value or '').strip()
@@ -9265,7 +9883,6 @@ def _parse_decimal_input(value):
         return round(float(normalized), 2)
     except (TypeError, ValueError):
         return None
-
 
 def _get_hedef_period_context(request):
     today = timezone.now().date()
@@ -9292,7 +9909,6 @@ def _get_hedef_period_context(request):
     selected_month = max(1, min(12, selected_month))
     return selected_year, selected_month, years, months
 
-
 def _get_hakedis_target_group_filter(target):
     return {
         'donem_yil': target.donem_yil,
@@ -9301,7 +9917,6 @@ def _get_hakedis_target_group_filter(target):
         'malzeme_turu': target.malzeme_turu,
         'kademe_no': target.kademe_no,
     }
-
 
 def _build_hakedis_target_groups(queryset):
     grouped = {}
@@ -9313,12 +9928,15 @@ def _build_hakedis_target_groups(queryset):
             target.kademe_no,
         )
         if key not in grouped:
+            markalar = _deserialize_target_types(target.marka)
             grouped[key] = {
                 'edit_group_id': target.id,
                 'marka': target.marka,
+                'markalar': markalar,
+                'marka_etiketi': _target_marka_label_from_value(target.marka),
                 'malzeme_turu': target.malzeme_turu,
                 'malzeme_turleri': malzeme_turleri,
-                'kapsam_etiketi': _target_type_label_from_value(target.malzeme_turu),
+                'kapsam_etiketi': _target_scope_label(target.marka, target.malzeme_turu),
                 'kademe_no': target.kademe_no,
                 'hakedis_yuzde': float(target.hakedis_yuzde),
                 'aktif': bool(target.aktif),
@@ -9340,7 +9958,6 @@ def _build_hakedis_target_groups(queryset):
     )
     return grouped_list
 
-
 def _get_edit_group_payload(group_id):
     try:
         seed = HakedisHedef.objects.get(id=group_id)
@@ -9357,6 +9974,7 @@ def _get_edit_group_payload(group_id):
     payload = {
         'edit_group_id': seed.id,
         'marka': seed.marka,
+        'markalar': _deserialize_target_types(seed.marka),
         'malzeme_turu': seed.malzeme_turu,
         'malzeme_turleri': _deserialize_target_types(seed.malzeme_turu),
         'kademe_no': seed.kademe_no,
@@ -9366,12 +9984,10 @@ def _get_edit_group_payload(group_id):
     }
     return payload
 
-
 def _calculate_hakedis_tutar(gerceklesen_tutar, hakedis_yuzde, hedef_tutar):
     if gerceklesen_tutar < hedef_tutar or hedef_tutar <= 0:
         return 0.0
     return round(gerceklesen_tutar * (hakedis_yuzde / 100.0), 2)
-
 
 def _build_plasiyer_hedef_page_data(selected_year, selected_month, plasiyer_filter=None):
     target_queryset = HakedisHedef.objects.filter(
@@ -9393,6 +10009,7 @@ def _build_plasiyer_hedef_page_data(selected_year, selected_month, plasiyer_filt
         target_definitions.append({
             'target_key': target_key,
             'marka': target.marka,
+            'markalar': _deserialize_target_types(target.marka),
             'malzeme_turleri': _deserialize_target_types(target.malzeme_turu),
         })
 
@@ -9497,9 +10114,9 @@ def _build_plasiyer_hedef_page_data(selected_year, selected_month, plasiyer_filt
 
             group_payload = {
                 'plasiyer': plasiyer_label,
-                'marka': sample.marka,
+                'marka': _target_marka_label_from_value(sample.marka),
                 'malzeme_turu': sample.malzeme_turu,
-                'kapsam_etiketi': _target_type_label_from_value(sample.malzeme_turu),
+                'kapsam_etiketi': _target_scope_label(sample.marka, sample.malzeme_turu),
                 'gerceklesen': round(actual_total, 2),
                 'en_yuksek_hedef': round(max(float(target.hedef_tutar) for target in targets), 2),
                 'karsilanan_kademe': achieved_target.kademe_no if achieved_target else None,
@@ -9518,12 +10135,8 @@ def _build_plasiyer_hedef_page_data(selected_year, selected_month, plasiyer_filt
                 _normalize_target_key(sample.malzeme_turu),
             )
             if liste_key not in liste_gruplari_map:
-                baslik = sample.marka
-                if group_payload['kapsam_etiketi'] != 'Marka Geneli':
-                    baslik = f"{sample.marka} - {group_payload['kapsam_etiketi']}"
-
                 liste_gruplari_map[liste_key] = {
-                    'baslik': baslik,
+                    'baslik': group_payload['kapsam_etiketi'],
                     'marka': sample.marka,
                     'kapsam_etiketi': group_payload['kapsam_etiketi'],
                     'satirlar': [],
@@ -9576,7 +10189,6 @@ def _build_plasiyer_hedef_page_data(selected_year, selected_month, plasiyer_filt
         'hedef_tanimli_plasiyer': sum(1 for card in plasiyer_cards if card['toplam_grup_sayisi'] > 0),
         'toplam_hedef_grubu': sum(card['toplam_grup_sayisi'] for card in plasiyer_cards),
     }
-
 
 def _export_plasiyer_hedef_excel(liste_gruplari, selected_year, selected_month, filename_prefix):
     import pandas as pd
@@ -9643,7 +10255,6 @@ def _export_plasiyer_hedef_excel(liste_gruplari, selected_year, selected_month, 
     )
     return response
 
-
 @login_required
 def hedef_belirleme(request):
     if not _has_menu_access(request.user, 'hedef_belirleme'):
@@ -9669,7 +10280,8 @@ def hedef_belirleme(request):
             return redirect(f'{request.path}?yil={selected_year}&ay={selected_month}')
 
         if action == 'save_target_group':
-            marka = _normalize_target_text(request.POST.get('marka'))
+            markalar = _normalize_target_list(request.POST.getlist('marka'))
+            marka_value = _serialize_target_types(markalar)
             malzeme_turleri = _normalize_target_list(request.POST.getlist('malzeme_turu'))
             malzeme_turu_value = _serialize_target_types(malzeme_turleri)
             kademe_no_raw = request.POST.get('kademe_no')
@@ -9682,8 +10294,8 @@ def hedef_belirleme(request):
             except (TypeError, ValueError):
                 kademe_no = 1
 
-            if not marka:
-                messages.error(request, 'Marka seçimi zorunludur.')
+            if not markalar:
+                messages.error(request, 'En az bir marka seçimi zorunludur.')
                 return redirect(f'{request.path}?yil={selected_year}&ay={selected_month}')
 
             if hakedis_yuzde is None or hakedis_yuzde < 0:
@@ -9702,7 +10314,6 @@ def hedef_belirleme(request):
             existing_rows = HakedisHedef.objects.filter(
                 donem_yil=selected_year,
                 donem_ay=selected_month,
-                marka=marka,
                 kademe_no=kademe_no,
             )
             if current_group_filter:
@@ -9712,10 +10323,12 @@ def hedef_belirleme(request):
 
             conflict_labels = []
             seen_conflicts = set()
-            for conflict_type in existing_rows.values_list('malzeme_turu', flat=True).distinct():
+            for conflict_marka, conflict_type in existing_rows.values_list('marka', 'malzeme_turu').distinct():
+                if not _target_marka_values_overlap(marka_value, conflict_marka):
+                    continue
                 if not _target_type_values_overlap(malzeme_turu_value, conflict_type):
                     continue
-                label = _target_type_label_from_value(conflict_type)
+                label = _target_scope_label(conflict_marka, conflict_type)
                 label_key = _normalize_target_key(label)
                 if label_key in seen_conflicts:
                     continue
@@ -9726,9 +10339,9 @@ def hedef_belirleme(request):
 
                 messages.error(
                     request,
-                    'Bu dönem için aynı marka/kademe kapsamında çakışan hedef tanımı var: '
+                    'Bu dönem için aynı marka/malzeme/kademe kapsamında çakışan hedef tanımı var: '
                     + ', '.join(conflict_labels)
-                    + '. Aynı satışın iki kez sayılmaması için mevcut kaydı düzenleyin ya da farklı kademe/marka kullanın.'
+                    + '. Aynı satışın iki kez sayılmaması için mevcut kaydı düzenleyin ya da farklı kademe/kapsam kullanın.'
                 )
                 return redirect(f'{request.path}?yil={selected_year}&ay={selected_month}')
 
@@ -9745,7 +10358,7 @@ def hedef_belirleme(request):
                         donem_yil=selected_year,
                         donem_ay=selected_month,
                         kademe_no=kademe_no,
-                        marka=marka,
+                        marka=marka_value,
                         malzeme_turu=malzeme_turu_value,
                         hedef_tutar=tutar,
                         hakedis_yuzde=hakedis_yuzde,
@@ -9802,13 +10415,13 @@ def hedef_belirleme(request):
         'edit_group': edit_group,
         'edit_group_malzeme_turu': edit_group.get('malzeme_turu', '') if edit_group else '',
         'edit_group_malzeme_turleri_json': json.dumps(edit_group.get('malzeme_turleri', []) if edit_group else [], ensure_ascii=False),
+        'edit_group_markalar_json': json.dumps(edit_group.get('markalar', []) if edit_group else [], ensure_ascii=False),
         'toplam_hedef_grubu': len(grouped_targets),
         'toplam_hedef_satiri': target_queryset.count(),
         'aktif_hedef_satiri': target_queryset.filter(aktif=True).count(),
         'benzersiz_marka_sayisi': target_queryset.values('marka').distinct().count(),
     }
     return render(request, 'tahsilat/hedef_belirleme.html', context)
-
 
 @login_required
 def plasiyer_hedef_durumu(request):
@@ -9850,7 +10463,6 @@ def plasiyer_hedef_durumu(request):
         **page_data,
     }
     return render(request, 'tahsilat/plasiyer_hedef_durumu.html', context)
-
 
 @login_required
 def hedeflerim(request):
@@ -9924,13 +10536,16 @@ PLASIYER_PRIM_ORANLAR = {
 @login_required
 def plasiyer_prim_list(request):
     """Plasiyer Prim Hesaplama Sayfası - tüm plasiyerler tek tabloda"""
+    if not _has_menu_access(request.user, 'plasiyer_prim'):
+        return redirect('tahsilat:dashboard')
+
     from datetime import datetime, date
     import calendar
     from .mssql_service import MSSQLService
     from .models import PlasiyerPrim
 
     plasiyer_listesi = [
-        'ALİ', 'AZİZ', 'CAN', 'EYÜP', 'NECATİ', 'HASAN', 'YİĞİT', 'ATAKAN'
+        'ALİ', 'AZİZ', 'CAN', 'EYÜP', 'BAKIR', 'YİĞİT', 'ATAKAN', 'HALİL'
     ]
 
     current_year = 2026
@@ -10031,6 +10646,9 @@ def plasiyer_prim_list(request):
 @login_required
 def plasiyer_prim_hesapla(request):
     """AJAX ile tüm plasiyerler için prim hesaplama"""
+    if not _has_menu_access(request.user, 'plasiyer_prim'):
+        return JsonResponse({'success': False, 'error': 'Bu işlem için yetkiniz yok.'}, status=403)
+
     from django.http import JsonResponse
     from .models import PlasiyerPrim
     from .mssql_service import MSSQLService
@@ -10040,7 +10658,7 @@ def plasiyer_prim_hesapla(request):
     import traceback
 
     plasiyer_listesi = [
-        'ALİ', 'AZİZ', 'CAN', 'EYÜP', 'NECATİ', 'HASAN', 'YİĞİT', 'ATAKAN'
+        'ALİ', 'AZİZ', 'CAN', 'EYÜP', 'BAKIR', 'YİĞİT', 'ATAKAN', 'HALİL'
     ]
 
     if request.method != 'POST':
@@ -10106,6 +10724,9 @@ def plasiyer_prim_hesapla(request):
 @login_required
 def plasiyer_prim_kaydet(request):
     """Hesaplanan prim verilerini toplu kaydet (tüm plasiyerler)."""
+    if not _has_menu_access(request.user, 'plasiyer_prim'):
+        return JsonResponse({'success': False, 'error': 'Bu işlem için yetkiniz yok.'}, status=403)
+
     from django.http import JsonResponse
     from .models import PlasiyerPrim
     import json

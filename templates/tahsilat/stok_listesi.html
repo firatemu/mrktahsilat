@@ -187,7 +187,7 @@
                                 <select class="form-select" id="malzeme_turu" name="malzeme_turu">
                                     <option value="">Tüm Türler</option>
                                     {% for tur in malzeme_turleri %}
-                                    <option value="{{ tur }}" {% if malzeme_turu==tur %}selected{% endif %}>
+                                    <option value="{{ tur }}" {% if malzeme_turu == tur %}selected{% endif %}>
                                         {{ tur }}
                                     </option>
                                     {% endfor %}
@@ -201,7 +201,7 @@
                                 <select class="form-select" id="marka" name="marka">
                                     <option value="">Tüm Markalar</option>
                                     {% for mark in markalar %}
-                                    <option value="{{ mark }}" {% if marka==mark %}selected{% endif %}>
+                                    <option value="{{ mark }}" {% if marka == mark %}selected{% endif %}>
                                         {{ mark }}
                                     </option>
                                     {% endfor %}
@@ -214,10 +214,9 @@
                                 </label>
                                 <select class="form-select" id="stok_durumu" name="stok_durumu">
                                     <option value="">Hepsi</option>
-                                    <option value="stokta_olan" {% if stok_durumu=='stokta_olan' %}selected{% endif %}>
+                                    <option value="stokta_var" {% if stok_durumu == "stokta_var" %}selected{% endif %}>
                                         Stokta Olanlar</option>
-                                    <option value="stokta_olmayan" {% if stok_durumu=='stokta_olmayan' %}selected{%
-                                        endif %}>
+                                    <option value="stok_bitmis" {% if stok_durumu == "stok_bitmis" %}selected{% endif %}>
                                         Stokta Olmayanlar
                                     </option>
                                 </select>
@@ -400,16 +399,15 @@
                                         <small class="text-muted me-2">Sayfa başına:</small>
                                         <select class="form-select form-select-sm" style="width: auto;"
                                             onchange="changePerPage(this.value)">
-                                            <option value="100" {% if per_page|add:"0"==100 %}selected{% endif %}>100
+                                            <option value="100" {% if per_page|add:"0" == 100 %}selected{% endif %}>100
                                             </option>
-                                            <option value="200" {% if per_page|add:"0"==200 %}selected{% endif %}>200
+                                            <option value="200" {% if per_page|add:"0" == 200 %}selected{% endif %}>200
                                             </option>
-                                            <option value="500" {% if per_page|add:"0"==500 %}selected{% endif %}>500
+                                            <option value="500" {% if per_page|add:"0" == 500 %}selected{% endif %}>500
                                             </option>
-                                            <option value="1000" {% if per_page|add:"0"==1000 %}selected{% endif %}>1000
+                                            <option value="1000" {% if per_page|add:"0" == 1000 %}selected{% endif %}>1000
                                             </option>
-                                            <option value="all" {% if per_page|default:""=="all" or per_page|add:"0">
-                                                10000 %}selected{% endif %}>Hepsi</option>
+                                            <option value="all" {% if per_page|default:"" == "all" or per_page|add:"0" > 10000 %}selected{% endif %}>Hepsi</option>
                                         </select>
                                     </div>
                                 </div>

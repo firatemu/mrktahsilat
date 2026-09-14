@@ -1,8 +1,11 @@
 import json
+import logging
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 import os
+
+logger = logging.getLogger('tahsilat')
 
 
 def evrak_upload_path(instance, filename):
@@ -131,6 +134,7 @@ class KullaniciYetki(models.Model):
         ('genel_ekstre', 'Genel Görünüm > Ekstre'),
         ('genel_cari_analiz', 'Genel Görünüm > Cari Genel Analiz'),
         ('genel_cari_aylik_ozet', 'Genel Görünüm > Cari Aylık Özet'),
+        ('plasiyer_prim', 'Genel Görünüm > Plasiyer Prim'),
 
         # Hakediş Yönetimi Alt Menüleri
         ('plasiyer_hedef_durumu', 'Hakediş Yönetimi > Plasiyer Hedef Durumu'),
@@ -151,6 +155,9 @@ class KullaniciYetki(models.Model):
 
         # Mesajlaşma
         ('chat', 'Mesajlaşma'),
+
+        # Yapay Zeka
+        ('yapay_zeka', 'Yapay Zeka'),
 
         # LOGO Aktarım
         ('logo_transfer', 'LOGOYA AKTAR'),
@@ -201,7 +208,6 @@ class KullaniciYetki(models.Model):
                 ('gider_masraf', 'Gider Masraf'),
                 ('perakende', 'Perakende'),
                 ('klasik_tahsilat_raporu', 'Klasik Tahsilat Raporu'),
-                ('kdv_raporu', 'KDV Raporu'),
                 ('yetkilendirme', 'Yetkilendirme'),
                 ('cari_ekstre', 'Cari Ekstre'),
                 ('yeni_tahsilat', 'Yeni Tahsilat'),
@@ -210,7 +216,7 @@ class KullaniciYetki(models.Model):
                 ('cari_gecikmeleri', 'Cari Geçiklemeleri'),
             ],
             'Muhasebe Alt Menüleri': [
-                ('muhasebe_yeni_tahsilat', 'Yeni Tahsilat'),
+                ('muhasebe_yeni_tahsilat', 'Muhasebe > Yeni Tahsilat'),
                 ('muhasebe_tahsilat_listesi', 'Tahsilat Listesi'),
                 ('muhasebe_klasik_rapor', 'Klasik Rapor'),
                 ('kdv_raporu', 'KDV Raporu'),
@@ -225,6 +231,7 @@ class KullaniciYetki(models.Model):
                 ('genel_ekstre', 'Ekstre'),
                 ('genel_cari_analiz', 'Cari Genel Analiz'),
                 ('genel_cari_aylik_ozet', 'Cari Aylık Özet'),
+                ('plasiyer_prim', 'Plasiyer Prim'),
             ],
             'Hakediş Yönetimi Alt Menüleri': [
                 ('plasiyer_hedef_durumu', 'Plasiyer Hedef Durumu'),
@@ -245,6 +252,9 @@ class KullaniciYetki(models.Model):
             ],
             'Mesajlaşma': [
                 ('chat', 'Mesajlaşma'),
+            ],
+            'Yapay Zeka': [
+                ('yapay_zeka', 'Yapay Zeka'),
             ],
             'LOGO Aktarım': [
                 ('logo_transfer', 'LOGOYA AKTAR'),
@@ -532,7 +542,7 @@ class LogoTransfer(models.Model):
                     self.repcredit, capi_date, capi_hour, capi_min, capi_sec,
                     logo_time
                 ])
-                print(f"Birinci tablo INSERT sonucu: {new_logicalref}")
+                logger.debug("LG_002_05_CLFICHE insert logicalref=%s", new_logicalref)
                 if not new_logicalref:
                     raise Exception(
                         "Birinci tablo INSERT işlemi başarısız veya LOGICALREF alınamadı")
@@ -707,7 +717,7 @@ class LogoTransfer(models.Model):
                     '',                  # SPECODE2 = ''
                     ''                   # SERVREASONDEF = ''
                 ])
-                print(f"İkinci tablo INSERT sonucu: {result2}")
+                logger.debug("LG_002_05_CLFLINE insert result=%s", result2)
                 if not result2:
                     raise Exception("İkinci tablo INSERT işlemi başarısız")
             except Exception as e:
@@ -854,10 +864,10 @@ class PlasiyerPrim(models.Model):
         ('AZİZ', 'AZİZ'),
         ('CAN', 'CAN'),
         ('EYÜP', 'EYÜP'),
-        ('NECATİ', 'NECATİ'),
-        ('HASAN', 'HASAN'),
+        ('BAKIR', 'BAKIR'),
         ('YİĞİT', 'YİĞİT'),
         ('ATAKAN', 'ATAKAN'),
+        ('HALİL', 'HALİL'),
     ]
 
     plasiyer = models.CharField('Plasiyer', max_length=50, choices=PLASIYER_CHOICES)
@@ -896,7 +906,7 @@ class HakedisHedef(models.Model):
     donem_ay = models.PositiveSmallIntegerField('Dönem Ay')
     donem_yil = models.PositiveSmallIntegerField('Dönem Yıl')
     kademe_no = models.PositiveSmallIntegerField('Kademe No', default=1)
-    marka = models.CharField('Marka', max_length=100)
+    marka = models.CharField('Marka', max_length=500)
     malzeme_turu = models.CharField('Malzeme Türü', max_length=500, blank=True, default='')
     hedef_tutar = models.DecimalField('Hedef Tutar', max_digits=15, decimal_places=2)
     hakedis_yuzde = models.DecimalField('Hakediş Yüzdesi', max_digits=5, decimal_places=2)
@@ -928,11 +938,54 @@ class HakedisHedef(models.Model):
         return f'{self.plasiyer} - {self.marka} / {tur} / Kademe {self.kademe_no}'
 
     @property
+    def marka_etiketi(self):
+        markalar = self.get_markalar()
+        if not markalar:
+            return ''
+        if len(markalar) == 1:
+            return markalar[0]
+        return ' + '.join(markalar)
+
+    @property
     def kapsam_etiketi(self):
         turler = self.get_malzeme_turleri()
         if not turler:
             return 'Marka Geneli'
         return ' + '.join(turler)
+
+    def get_markalar(self):
+        raw_value = (self.marka or '').strip()
+        if not raw_value:
+            return []
+
+        try:
+            parsed = json.loads(raw_value)
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pass
+
+        return [raw_value]
+
+    def set_markalar(self, markalar):
+        normalized = []
+        seen = set()
+        for marka in markalar or []:
+            value = ' '.join(str(marka or '').strip().split())
+            if not value:
+                continue
+            upper_value = value.upper()
+            if upper_value in seen:
+                continue
+            normalized.append(value)
+            seen.add(upper_value)
+
+        if not normalized:
+            self.marka = ''
+            return
+
+        normalized.sort(key=lambda item: item.upper())
+        self.marka = json.dumps(normalized, ensure_ascii=False)
 
     def get_malzeme_turleri(self):
         raw_value = (self.malzeme_turu or '').strip()

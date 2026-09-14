@@ -1,0 +1,308 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load currency_filters %}
+{% load number_format %}
+
+{% block title %}Fiyat Analizi - MRK OTOMOTİV{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/pages/fiyat-analizi.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="fiyat-page" id="fiyatAnaliziPage">
+    <div class="container-fluid">
+
+        {# ---- Sayfa başlığı ---- #}
+        <div class="page-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div>
+                <h1><i class="bi bi-graph-up-arrow me-2"></i>Fiyat Analizi</h1>
+                <p>Karlılık dağılımı, marka karşılaştırması ve detaylı ürün tablosu.</p>
+            </div>
+            <div class="header-actions d-flex flex-wrap gap-2 no-print">
+                <a href="{% url 'tahsilat:stok_yonetimi' %}" class="btn">
+                    <i class="bi bi-arrow-left me-1"></i>Geri
+                </a>
+                <button type="button" class="btn btn-primary-ghost" onclick="window.location.reload()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Yenile
+                </button>
+            </div>
+        </div>
+
+        {# ---- KPI kartları ---- #}
+        <div class="row g-3 mt-1" id="fiyatKpiCards">
+            <div class="col-12 col-sm-6 col-xl-3">
+                <div class="kpi-card is-skeleton">
+                    <span class="kpi-icon icon-primary"><i class="bi bi-box-seam"></i></span>
+                    <div class="flex-grow-1">
+                        <div class="kpi-label">Toplam Ürün</div>
+                        <div class="kpi-value">{{ fiyat_stats.toplam_urun_sayisi|default:0|numberformat_int }}</div>
+                        <div class="kpi-trend"><i class="bi bi-graph-up"></i>FIYATANALIZ kayıtları</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-xl-3">
+                <div class="kpi-card is-skeleton">
+                    <span class="kpi-icon icon-success"><i class="bi bi-percent"></i></span>
+                    <div class="flex-grow-1">
+                        <div class="kpi-label">Ortalama Karlılık</div>
+                        <div class="kpi-value">{% if fiyat_stats %}{{ fiyat_stats.ortalama_karlilik|default:0|floatformat:1 }}%{% else %}—{% endif %}</div>
+                        <div class="kpi-trend"><i class="bi bi-bar-chart"></i>Tanımlı satış > 0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-xl-3">
+                <div class="kpi-card is-skeleton">
+                    <span class="kpi-icon icon-warning"><i class="bi bi-award"></i></span>
+                    <div class="flex-grow-1">
+                        <div class="kpi-label">Marka Sayısı</div>
+                        <div class="kpi-value">{{ fiyat_stats.toplam_marka_sayisi|default:0|numberformat_int }}</div>
+                        <div class="kpi-trend"><i class="bi bi-tags"></i>Distinct marka</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-xl-3">
+                <div class="kpi-card is-skeleton">
+                    <span class="kpi-icon icon-info"><i class="bi bi-diagram-3"></i></span>
+                    <div class="flex-grow-1">
+                        <div class="kpi-label">Tür Sayısı</div>
+                        <div class="kpi-value">{{ fiyat_stats.toplam_turu_sayisi|default:0|numberformat_int }}</div>
+                        <div class="kpi-trend"><i class="bi bi-collection"></i>Distinct tür</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# ---- Filtre barı ---- #}
+        <form id="fiyatFilterForm" method="GET" class="fiyat-filter-bar" autocomplete="off">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-4 col-xl-3">
+                    <label class="form-label" for="arama"><i class="bi bi-search me-1"></i>Arama</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" id="arama" name="arama" value="{{ arama|default:'' }}" class="form-control" placeholder="Ürün adı veya kodu">
+                    </div>
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label" for="malzeme_turu"><i class="bi bi-tags me-1"></i>Malzeme Türü</label>
+                    <select id="malzeme_turu" name="malzeme_turu" class="form-select">
+                        <option value="">Tüm türler</option>
+                        {% for tur in malzeme_turleri %}
+                        <option value="{{ tur }}" {% if malzeme_turu == tur %}selected{% endif %}>{{ tur }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label" for="marka"><i class="bi bi-award me-1"></i>Marka</label>
+                    <select id="marka" name="marka" class="form-select">
+                        <option value="">Tüm markalar</option>
+                        {% for mark in markalar %}
+                        <option value="{{ mark }}" {% if marka == mark %}selected{% endif %}>{{ mark }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6 col-md-2 col-xl-2">
+                    <label class="form-label" for="stok_durumu"><i class="bi bi-box-seam me-1"></i>Stok Durumu</label>
+                    <select id="stok_durumu" name="stok_durumu" class="form-select">
+                        <option value="">Tümü</option>
+                        <option value="stokta_var" {% if stok_durumu == "stokta_var" %}selected{% endif %}>Stokta Var</option>
+                        <option value="stok_bitmis" {% if stok_durumu == "stok_bitmis" %}selected{% endif %}>Stoğu Biten</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-12 col-xl-3 filter-actions">
+                    <div class="me-auto d-flex align-items-center gap-2">
+                        <span class="form-label mb-0 d-none d-xl-inline">Sayfa başına:</span>
+                        <div class="segmented-control" role="group" aria-label="Sayfa başına kayıt">
+                            <button type="button" class="seg-btn {% if per_page|stringformat:'s' == '100' or not per_page %}is-active{% endif %}" data-per-page="100">100</button>
+                            <button type="button" class="seg-btn {% if per_page|stringformat:'s' == '200' %}is-active{% endif %}" data-per-page="200">200</button>
+                            <button type="button" class="seg-btn {% if per_page|stringformat:'s' == '500' %}is-active{% endif %}" data-per-page="500">500</button>
+                            <button type="button" class="seg-btn {% if per_page|stringformat:'s' == '1000' %}is-active{% endif %}" data-per-page="1000">1000</button>
+                            <button type="button" class="seg-btn {% if per_page|stringformat:'s' == 'all' %}is-active{% endif %}" data-per-page="all">Tümü</button>
+                        </div>
+                    </div>
+                    <button type="button" id="fiyatFilterReset" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle me-1"></i>Temizle
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-funnel me-1"></i>Uygula
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        {# ---- Tablo alanı ---- #}
+        <div class="row g-3 mt-1">
+            <div class="col-12">
+                <div class="table-card">
+                    <div class="card-header">
+                        <h2><i class="bi bi-table"></i>Ürün Listesi</h2>
+                        <small class="text-muted">
+                            {% if paginator %}{{ paginator.count }} ürün{% else %}{{ fiyat_analizi_list|length }} ürün{% endif %}
+                        </small>
+                    </div>
+
+                    {# ---- Toolbar ---- #}
+                    <div class="fiyat-toolbar no-print" id="fiyatAnaliziToolbar">
+                        <div class="fiyat-col-toggle" id="fiyatColToggle">
+                            <button type="button" class="btn btn-outline-secondary col-toggle-trigger">
+                                <i class="bi bi-layout-three-columns"></i>Kolonlar
+                            </button>
+                            <div class="col-toggle-menu" role="menu"></div>
+                        </div>
+                        <div class="toolbar-search">
+                            <i class="bi bi-search"></i>
+                            <input id="fiyatToolbarSearch" type="text" class="form-control" placeholder="Tabloda hızlı ara…">
+                        </div>
+                        <div class="toolbar-spacer"></div>
+                        <a href="?{{ request.GET.urlencode }}&export=excel"
+                           data-fiyat-export="excel"
+                           class="btn btn-success">
+                            <i class="bi bi-file-earmark-excel"></i>Excel
+                        </a>
+                    </div>
+
+                    {# ---- Tablo ---- #}
+                    <div class="fiyat-table-wrap" id="fiyatAnaliziTableWrap">
+                        {% if fiyat_analizi_list %}
+                        <table class="fiyat-table" id="fiyatAnaliziTable">
+                            <thead>
+                                <tr>
+                                    <th class="is-sortable" data-col-index="0" data-col-key="kod">Kod <span class="sort-indicator">↕</span></th>
+                                    <th class="is-sortable" data-col-index="1" data-col-key="aciklama">Açıklama <span class="sort-indicator">↕</span></th>
+                                    <th class="is-sortable" data-col-index="2" data-col-key="tur">Tür <span class="sort-indicator">↕</span></th>
+                                    <th class="is-sortable" data-col-index="3" data-col-key="marka">Marka <span class="sort-indicator">↕</span></th>
+                                    <th class="is-sortable text-end" data-col-index="4" data-col-key="stok">Stok <span class="sort-indicator">↕</span></th>
+                                    <th class="is-sortable text-end" data-col-index="5" data-col-key="alis">Tanımlı Alış <span class="sort-indicator">↕</span></th>
+                                    <th class="is-sortable text-end" data-col-index="6" data-col-key="satis">Tanımlı Satış <span class="sort-indicator">↕</span></th>
+                                    <th class="is-sortable text-end" data-col-index="7" data-col-key="sonalis">Son Alış <span class="sort-indicator">↕</span></th>
+                                    <th class="is-sortable text-end" data-col-index="8" data-col-key="karlilik">Karlılık % <span class="sort-indicator">↕</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for analiz in fiyat_analizi_list %}
+                                <tr>
+                                    <td class="col-malzeme-kodu">{{ analiz.MALZEME_KODU|default:"" }}</td>
+                                    <td class="col-aciklama">
+                                        <strong>{{ analiz.ACIKLAMASI|default:"" }}</strong>
+                                        {% if analiz.GRUP_KODU %}<br><small>Grup: {{ analiz.GRUP_KODU }}</small>{% endif %}
+                                    </td>
+                                    <td class="col-tur">
+                                        {% if analiz.MALZEME_TURU %}
+                                        <span class="badge bg-secondary-subtle text-dark">{{ analiz.MALZEME_TURU }}</span>
+                                        {% else %}—{% endif %}
+                                    </td>
+                                    <td class="col-marka">{{ analiz.MARKA|default:"—" }}</td>
+                                    <td class="col-stok text-end" data-sort="{{ analiz.TOPLAM|default:0 }}">
+                                        {% if analiz.TOPLAM and analiz.TOPLAM > 0 %}
+                                        <span class="stok-var"><i class="bi bi-check-circle"></i>{{ analiz.TOPLAM|floatformat:0 }}</span>
+                                        {% else %}
+                                        <span class="stok-yok"><i class="bi bi-x-circle"></i>Bitti</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="col-fiyat text-end" data-sort="{{ analiz.TANIMLI_ALIS_FIYATI|default:0 }}">{{ analiz.TANIMLI_ALIS_FIYATI|currency_clean }}<small>Tanımlı</small></td>
+                                    <td class="col-fiyat text-end" data-sort="{{ analiz.TANIMLI_SATIS_FIYATI|default:0 }}">{{ analiz.TANIMLI_SATIS_FIYATI|currency_clean }}<small>Liste</small></td>
+                                    <td class="col-fiyat text-end" data-sort="{{ analiz.SON_ALIS_BIRIM_NET|default:0 }}">{{ analiz.SON_ALIS_BIRIM_NET|currency_clean }}<small>Son alış</small></td>
+                                    <td class="col-karlilik text-end" data-kar="{{ analiz.KARLILIK_ORANI|default:0 }}" data-sort="{{ analiz.KARLILIK_ORANI|default:0 }}">
+                                        {% with k=analiz.KARLILIK_ORANI|default:0 %}
+                                        {% if k > 0 %}<span class="karlilik-positive"><i class="bi bi-graph-up-arrow"></i>{{ k|floatformat:1 }}%</span>
+                                        {% elif k < 0 %}<span class="karlilik-negative"><i class="bi bi-graph-down-arrow"></i>{{ k|floatformat:1 }}%</span>
+                                        {% else %}<span class="karlilik-neutral"><i class="bi bi-dash"></i>0,0%</span>{% endif %}
+                                        {% endwith %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <div class="fiyat-empty-state">
+                            <i class="bi bi-search"></i>
+                            <h3>Fiyat analizi bulunamadı</h3>
+                            <p>Arama kriterlerinizi değiştirerek tekrar deneyin.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    {# ---- Pagination ---- #}
+                    {% if paginator and paginator.num_pages > 1 and per_page|stringformat:"s" != "all" %}
+                    <div class="fiyat-pagination no-print" id="fiyatPagination">
+                        <ul class="pagination mb-0">
+                            {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?{{ request.GET.urlencode }}&page={{ page_obj.previous_page_number }}"><i class="bi bi-chevron-left"></i></a>
+                            </li>
+                            {% else %}
+                            <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-left"></i></span></li>
+                            {% endif %}
+
+                            {% for num in paginator.page_range %}
+                                {% if page_obj.number == num %}
+                                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?{{ request.GET.urlencode }}&page={{ num }}">{{ num }}</a>
+                                </li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?{{ request.GET.urlencode }}&page={{ page_obj.next_page_number }}"><i class="bi bi-chevron-right"></i></a>
+                            </li>
+                            {% else %}
+                            <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-right"></i></span></li>
+                            {% endif %}
+                        </ul>
+                        <div class="pagination-summary">
+                            Sayfa {{ page_obj.number }} / {{ paginator.num_pages }} • Toplam {{ paginator.count }} ürün
+                        </div>
+                    </div>
+                    {% elif paginator %}
+                    <div class="fiyat-pagination no-print">
+                        <div class="pagination-summary">Toplam {{ paginator.count }} ürün</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        {# ---- Karlılık Heatmap (full width) ---- #}
+        <div class="row g-3 mt-1">
+            <div class="col-12">
+                <div class="heatmap-card">
+                    <div class="card-header">
+                        <h2><i class="bi bi-grid-3x3-gap"></i>Marka × Karlılık Heatmap</h2>
+                        <small class="text-muted">Satır: marka • Sütun: karlılık aralığı • Hücre: ürün sayısı</small>
+                    </div>
+                    <div class="card-body">
+                        <div id="fiyatHeatmap">
+                            <script id="fiyatHeatmapData" type="application/json">
+                            {
+                                "heatmap": [
+                                    {% for row in marka_karlilik_heatmap %}
+                                    {
+                                        "marka": "{{ row.marka|escapejs }}",
+                                        "cells": [{{ row.negatif|default:0 }}, {{ row.dusuk|default:0 }}, {{ row.orta|default:0 }}, {{ row.iyi|default:0 }}, {{ row.yuksek|default:0 }}]
+                                    }{% if not forloop.last %},{% endif %}
+                                    {% endfor %}
+                                ]
+                            }
+                            </script>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ---- Data island: JS başlangıç durumu ---- #}
+    <script id="fiyatAnaliziData" type="application/json">{
+        "hiddenColumns": [],
+        "sort": {"col": null, "dir": "none"}
+    }</script>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/pages/fiyat-analizi.js' %}"></script>
+{% endblock %}

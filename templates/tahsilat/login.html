@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="tr">
+{% load static %}
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,29 +12,28 @@
     {% endif %}
     <title>Giriş - MRK OTOMOTİV</title>
 
-    <link rel="icon" type="image/x-icon" href="/static/images/favicon.ico">
-    <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
-    <link rel="apple-touch-icon" href="/static/images/favicon.svg">
+    <link rel="icon" type="image/png" href="{% static 'images/mrk-logo.png' %}">
+    <link rel="apple-touch-icon" href="{% static 'images/mrk-logo.png' %}">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/brand-theme.css' %}">
 
     <style>
         :root {
-            --bg-main: #08111f;
-            --bg-panel: rgba(7, 18, 35, 0.72);
-            --bg-card: rgba(255, 255, 255, 0.96);
+            --bg-main: #07111e;
+            --bg-panel: rgba(13, 18, 25, 0.86);
+            --bg-card: rgba(255, 255, 255, 0.97);
             --bg-soft: #f5f7fb;
-            --text-main: #0f172a;
-            --text-muted: #5b6474;
-            --text-light: rgba(255, 255, 255, 0.78);
-            --border-soft: rgba(148, 163, 184, 0.24);
-            --accent: #c62828;
-            --accent-dark: #8e1d1d;
-            --accent-soft: rgba(198, 40, 40, 0.12);
-            --success-soft: rgba(40, 167, 69, 0.1);
-            --shadow-soft: 0 24px 60px rgba(2, 8, 23, 0.28);
+            --text-main: var(--brand-ink);
+            --text-muted: #5f6b7b;
+            --text-light: rgba(255, 255, 255, 0.8);
+            --border-soft: rgba(148, 163, 184, 0.22);
+            --accent: var(--brand-red);
+            --accent-dark: var(--brand-red-dark);
+            --accent-soft: var(--brand-red-soft);
+            --shadow-soft: 0 28px 70px rgba(2, 8, 23, 0.34);
         }
 
         * {
@@ -45,10 +45,11 @@
             min-height: 100vh;
             font-family: Inter, "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
             color: var(--text-main);
+            overflow-x: hidden;
             background:
-                radial-gradient(circle at top left, rgba(198, 40, 40, 0.24), transparent 32%),
-                radial-gradient(circle at bottom right, rgba(255, 255, 255, 0.08), transparent 24%),
-                linear-gradient(135deg, #08111f 0%, #0b1526 45%, #111827 100%);
+                radial-gradient(circle at top left, rgba(181, 49, 34, 0.2), transparent 28%),
+                radial-gradient(circle at 85% 15%, rgba(255, 255, 255, 0.08), transparent 18%),
+                linear-gradient(135deg, #07111e 0%, #111923 52%, #191d24 100%);
         }
 
         .login-shell {
@@ -56,7 +57,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 32px 20px;
+            padding: 24px 18px;
             position: relative;
             overflow: hidden;
         }
@@ -66,159 +67,410 @@
             position: absolute;
             inset: 0;
             background-image:
-                linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
             background-size: 56px 56px;
             mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
             pointer-events: none;
         }
 
+        .login-shell::after {
+            content: "";
+            position: absolute;
+            width: 520px;
+            height: 520px;
+            right: -140px;
+            bottom: -200px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(181, 49, 34, 0.18) 0%, transparent 68%);
+            pointer-events: none;
+        }
+
         .login-layout {
             width: 100%;
-            max-width: 1180px;
+            max-width: 1140px;
             display: grid;
-            grid-template-columns: minmax(0, 1.2fr) minmax(380px, 440px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 28px;
+            grid-template-columns: minmax(0, 1.08fr) minmax(360px, 410px);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            border-radius: 26px;
             overflow: hidden;
             box-shadow: var(--shadow-soft);
             position: relative;
             z-index: 1;
             backdrop-filter: blur(16px);
-            background: rgba(7, 18, 35, 0.38);
+            background: rgba(7, 18, 35, 0.34);
+        }
+
+        .brand-panel,
+        .form-panel,
+        .form-card {
+            min-width: 0;
         }
 
         .brand-panel {
             position: relative;
-            padding: 56px;
+            padding: 40px 38px;
             color: #fff;
             background:
-                linear-gradient(160deg, rgba(198, 40, 40, 0.22), rgba(10, 18, 33, 0.2)),
+                linear-gradient(165deg, rgba(181, 49, 34, 0.16), rgba(10, 18, 33, 0.18)),
                 var(--bg-panel);
         }
 
-        .brand-panel::after {
+        .brand-panel::before {
             content: "";
             position: absolute;
             inset: 0;
             background:
-                radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.08), transparent 20%),
-                radial-gradient(circle at 82% 78%, rgba(198, 40, 40, 0.22), transparent 24%);
+                radial-gradient(circle at 18% 24%, rgba(255, 255, 255, 0.09), transparent 22%),
+                radial-gradient(circle at 88% 70%, rgba(181, 49, 34, 0.28), transparent 30%);
             pointer-events: none;
         }
 
-        .brand-panel > * {
+        .brand-panel>* {
             position: relative;
             z-index: 1;
         }
 
-        .brand-topline {
-            display: inline-flex;
+        .brand-header {
+            display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 8px 14px;
-            border: 1px solid rgba(255, 255, 255, 0.14);
-            border-radius: 999px;
-            color: rgba(255, 255, 255, 0.82);
-            background: rgba(255, 255, 255, 0.05);
-            font-size: 0.86rem;
-            letter-spacing: 0.02em;
-            margin-bottom: 28px;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
         }
 
         .brand-logo {
-            width: 60px;
-            height: 60px;
+            width: 176px;
+            min-height: 68px;
             border-radius: 18px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.06));
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.22);
-            margin-bottom: 24px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.97);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.2);
         }
 
         .brand-logo img {
-            width: 30px;
-            height: 30px;
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .brand-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 999px;
+            color: rgba(255, 255, 255, 0.84);
+            background: rgba(255, 255, 255, 0.05);
+            font-size: 0.8rem;
+            letter-spacing: 0.02em;
+        }
+
+        .brand-status i {
+            color: #fca5a5;
+        }
+
+        .brand-kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(181, 49, 34, 0.14);
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.79rem;
+            font-weight: 600;
+            margin-bottom: 14px;
         }
 
         .brand-panel h1 {
-            margin: 0 0 18px;
-            font-size: clamp(2rem, 4vw, 3.4rem);
-            line-height: 1.05;
+            margin: 0 0 12px;
+            font-size: clamp(1.8rem, 3vw, 2.8rem);
+            line-height: 1.06;
             font-weight: 800;
-            letter-spacing: -0.03em;
+            letter-spacing: -0.035em;
+            max-width: 620px;
         }
 
         .brand-panel p {
             margin: 0;
-            max-width: 520px;
-            font-size: 1.06rem;
-            line-height: 1.7;
+            max-width: 560px;
+            font-size: 0.95rem;
+            line-height: 1.65;
             color: var(--text-light);
         }
 
-        .brand-highlights {
+        .brand-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 14px;
-            margin: 38px 0 30px;
+            gap: 10px;
+            margin: 22px 0 16px;
         }
 
-        .highlight-card {
-            padding: 18px;
-            border-radius: 18px;
+        .brand-card {
+            padding: 14px 13px;
+            border-radius: 16px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.08);
+            min-height: 118px;
         }
 
-        .highlight-card strong {
+        .brand-card-label {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.08);
+            font-size: 0.92rem;
+            margin-bottom: 10px;
+        }
+
+        .brand-card strong {
             display: block;
-            margin-bottom: 8px;
-            font-size: 1.05rem;
+            margin-bottom: 6px;
+            font-size: 0.92rem;
             font-weight: 700;
             color: #fff;
         }
 
-        .highlight-card span {
-            color: rgba(255, 255, 255, 0.72);
-            font-size: 0.93rem;
-            line-height: 1.5;
+        .brand-card span {
+            color: rgba(255, 255, 255, 0.74);
+            font-size: 0.82rem;
+            line-height: 1.45;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
 
-        .feature-list {
+        .brand-band {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .brand-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 11px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.84);
+            font-size: 0.78rem;
+            font-weight: 600;
+            max-width: 100%;
+        }
+
+        .trust-panel {
+            padding: 14px 14px 12px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.055);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .trust-panel-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .trust-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(181, 49, 34, 0.18);
+            color: #fff;
+            font-size: 0.95rem;
+        }
+
+        .trust-panel-title {
+            margin: 0;
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .trust-panel-subtitle {
+            margin: 2px 0 0;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.66);
+        }
+
+        .trust-list {
             list-style: none;
             padding: 0;
             margin: 0;
             display: grid;
-            gap: 14px;
+            gap: 8px;
         }
 
-        .feature-list li {
+        .trust-list li {
             display: flex;
-            gap: 14px;
+            gap: 10px;
             align-items: flex-start;
-            color: rgba(255, 255, 255, 0.82);
-            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.8);
+            line-height: 1.45;
+            font-size: 0.83rem;
         }
 
-        .feature-icon {
-            width: 38px;
-            height: 38px;
-            flex: 0 0 38px;
+        .trust-list i {
+            color: #fca5a5;
+            margin-top: 4px;
+        }
+
+        .mobile-brand-accordion {
+            display: none;
+            margin-top: 14px;
+        }
+
+        .mobile-brand-accordion details {
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.05);
+            overflow: hidden;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+        }
+
+        .mobile-brand-accordion summary {
+            list-style: none;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 12px;
+            padding: 12px 14px;
+            cursor: pointer;
+            color: #fff;
+            font-size: 0.86rem;
+            font-weight: 700;
+        }
+
+        .mobile-brand-accordion summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .mobile-brand-summary-text {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .mobile-brand-summary-text i {
+            color: #fca5a5;
+            font-size: 0.95rem;
+        }
+
+        .mobile-brand-summary-text span {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .mobile-brand-summary-stack {
+            display: grid;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .mobile-brand-summary-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .mobile-brand-summary-pill {
             display: inline-flex;
             align-items: center;
-            justify-content: center;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.08);
-            color: #fff;
+            gap: 6px;
+            padding: 5px 8px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.82);
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+
+        .mobile-brand-summary-pill i {
+            color: #f4b0a8;
+            font-size: 0.74rem;
+        }
+
+        .mobile-brand-chevron {
+            color: rgba(255, 255, 255, 0.72);
+            transition: transform 0.2s ease;
+            align-self: center;
+        }
+
+        .mobile-brand-accordion details[open] .mobile-brand-chevron {
+            transform: rotate(180deg);
+        }
+
+        .mobile-brand-content {
+            padding: 0 14px 14px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .mobile-brand-list {
+            list-style: none;
+            padding: 12px 0 0;
+            margin: 0;
+            display: grid;
+            gap: 10px;
+        }
+
+        .mobile-brand-list li {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            color: rgba(255, 255, 255, 0.84);
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }
+
+        .mobile-brand-list i {
+            color: #fca5a5;
+            margin-top: 3px;
+        }
+
+        .mobile-brand-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .mobile-brand-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.86);
+            font-size: 0.76rem;
+            font-weight: 600;
         }
 
         .form-panel {
-            padding: 40px 36px;
-            background: var(--bg-card);
+            padding: 34px 30px;
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.985) 0%, rgba(248, 250, 252, 0.97) 100%);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -226,44 +478,59 @@
 
         .form-card {
             width: 100%;
+            padding: 2px;
+        }
+
+        .form-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 11px;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent-dark);
+            font-size: 0.78rem;
+            font-weight: 700;
+            margin-bottom: 14px;
         }
 
         .form-topline {
             color: var(--accent);
-            font-size: 0.88rem;
+            font-size: 0.8rem;
             font-weight: 700;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
 
         .form-panel h2 {
-            margin: 0 0 10px;
-            font-size: 2rem;
+            margin: 0 0 8px;
+            font-size: 1.72rem;
             line-height: 1.15;
             font-weight: 800;
             color: var(--text-main);
         }
 
         .form-subtitle {
-            margin: 0 0 28px;
+            margin: 0 0 18px;
             color: var(--text-muted);
-            line-height: 1.7;
+            font-size: 0.94rem;
+            line-height: 1.6;
         }
 
         .status-card {
-            padding: 18px 18px 16px;
-            border-radius: 18px;
-            margin-bottom: 20px;
-            border: 1px solid rgba(40, 167, 69, 0.18);
-            background: var(--success-soft);
-            color: #1d6a32;
+            padding: 16px 16px 14px;
+            border-radius: 16px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(34, 197, 94, 0.16);
+            background: rgba(34, 197, 94, 0.08);
+            color: #166534;
             text-align: center;
         }
 
         .status-card i {
-            font-size: 2rem;
-            margin-bottom: 10px;
+            font-size: 1.6rem;
+            margin-bottom: 8px;
         }
 
         .status-card p {
@@ -272,22 +539,23 @@
 
         .status-card small {
             display: block;
-            margin-top: 8px;
-            color: #496c55;
+            margin-top: 6px;
+            font-size: 0.82rem;
+            color: #3d7a56;
         }
 
         .login-form {
             display: grid;
-            gap: 18px;
+            gap: 14px;
         }
 
         .field-group {
             display: grid;
-            gap: 8px;
+            gap: 6px;
         }
 
         .field-label {
-            font-size: 0.92rem;
+            font-size: 0.88rem;
             font-weight: 600;
             color: #334155;
         }
@@ -310,17 +578,35 @@
             border: 1px solid #d9e0ea;
             border-radius: 16px;
             background: var(--bg-soft);
-            padding: 15px 16px 15px 46px;
-            font-size: 1rem;
+            padding: 14px 14px 14px 44px;
+            font-size: 0.96rem;
             color: var(--text-main);
             transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
             outline: none;
         }
 
         .field-input input:focus {
-            border-color: rgba(198, 40, 40, 0.4);
-            box-shadow: 0 0 0 4px rgba(198, 40, 40, 0.1);
+            border-color: rgba(181, 49, 34, 0.42);
+            box-shadow: 0 0 0 4px rgba(181, 49, 34, 0.1);
             background: #fff;
+        }
+
+        .form-note {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 13px;
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.03);
+            border: 1px solid rgba(148, 163, 184, 0.14);
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            line-height: 1.5;
+        }
+
+        .form-note i {
+            color: var(--accent);
+            margin-top: 2px;
         }
 
         .login-button {
@@ -331,18 +617,18 @@
             width: 100%;
             border: none;
             border-radius: 16px;
-            padding: 16px 20px;
-            font-size: 1rem;
+            padding: 14px 18px;
+            font-size: 0.96rem;
             font-weight: 700;
             color: #fff;
             background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
-            box-shadow: 0 16px 36px rgba(198, 40, 40, 0.28);
+            box-shadow: 0 18px 40px rgba(181, 49, 34, 0.28);
             transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
         }
 
         .login-button:hover {
             transform: translateY(-1px);
-            box-shadow: 0 18px 38px rgba(198, 40, 40, 0.32);
+            box-shadow: 0 20px 42px rgba(181, 49, 34, 0.34);
         }
 
         .login-button:disabled {
@@ -373,8 +659,8 @@
         }
 
         .panel-footer {
-            margin-top: 24px;
-            padding-top: 18px;
+            margin-top: 18px;
+            padding-top: 14px;
             border-top: 1px solid var(--border-soft);
             display: flex;
             justify-content: space-between;
@@ -382,14 +668,14 @@
             gap: 12px;
             flex-wrap: wrap;
             color: var(--text-muted);
-            font-size: 0.88rem;
+            font-size: 0.82rem;
         }
 
         .security-badge {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 8px 12px;
+            padding: 7px 11px;
             border-radius: 999px;
             background: var(--accent-soft);
             color: var(--accent-dark);
@@ -397,7 +683,7 @@
         }
 
         .alert {
-            border-radius: 16px;
+            border-radius: 18px;
             margin-bottom: 18px;
         }
 
@@ -407,97 +693,433 @@
             }
         }
 
+        @media (max-width: 1199.98px) {
+            .login-layout {
+                grid-template-columns: minmax(0, 1fr) minmax(340px, 390px);
+                max-width: 1020px;
+            }
+
+            .brand-panel {
+                padding: 34px 30px;
+            }
+
+            .form-panel {
+                padding: 30px 26px;
+            }
+
+            .brand-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
         @media (max-width: 991.98px) {
             .login-layout {
                 grid-template-columns: 1fr;
                 max-width: 620px;
             }
 
-            .brand-panel {
-                padding: 36px 30px 28px;
+            .brand-panel,
+            .form-panel {
+                padding: 26px 24px;
             }
 
-            .brand-highlights {
-                grid-template-columns: 1fr;
+            .form-panel {
+                order: 1;
+            }
+
+            .brand-panel {
+                order: 2;
+            }
+
+            .brand-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .brand-panel h1,
+            .brand-panel p {
+                max-width: none;
+            }
+
+            .brand-panel p {
+                margin-bottom: 0;
+            }
+        }
+
+        @media (max-width: 767.98px) {
+            .login-shell {
+                padding: 14px 12px;
+                align-items: flex-start;
+            }
+
+            .login-shell::after {
+                width: 280px;
+                height: 280px;
+                right: -120px;
+                bottom: -150px;
+            }
+
+            .login-layout {
+                border-radius: 20px;
+            }
+
+            .brand-panel,
+            .form-panel {
+                padding: 22px 18px;
+            }
+
+            .brand-header {
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 14px;
+            }
+
+            .brand-status,
+            .brand-kicker {
+                width: 100%;
+                justify-content: center;
+                text-align: center;
+            }
+
+            .brand-logo {
+                width: 150px;
+                min-height: 58px;
+                padding: 10px 14px;
+            }
+
+            .brand-panel h1 {
+                font-size: clamp(1.45rem, 5.4vw, 1.9rem);
+                line-height: 1.12;
+            }
+
+            .brand-panel p {
+                font-size: 0.88rem;
+                line-height: 1.5;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+            }
+
+            .brand-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+                margin: 14px 0 12px;
+            }
+
+            .brand-card {
+                min-height: auto;
+                padding: 12px 10px;
+            }
+
+            .brand-card:last-child {
+                grid-column: 1 / -1;
+            }
+
+            .brand-card span {
+                display: none;
+            }
+
+            .brand-card strong {
+                margin-bottom: 0;
+                font-size: 0.84rem;
+            }
+
+            .brand-chip {
+                width: auto;
+                flex: 1 1 calc(50% - 8px);
+                justify-content: center;
+                text-align: center;
+            }
+
+            .trust-panel-header {
+                align-items: flex-start;
+            }
+
+            .trust-list {
+                display: none;
+            }
+
+            .trust-panel {
+                padding: 12px;
+            }
+
+            .mobile-brand-accordion {
+                display: block;
+            }
+
+            .form-panel h2 {
+                font-size: 1.45rem;
+            }
+
+            .form-subtitle {
+                margin-bottom: 14px;
+                font-size: 0.88rem;
+            }
+
+            .field-input input,
+            .login-button {
+                min-height: 48px;
             }
         }
 
         @media (max-width: 575.98px) {
             .login-shell {
-                padding: 16px;
+                padding: 10px;
             }
 
             .brand-panel,
             .form-panel {
-                padding: 28px 22px;
+                padding: 18px 16px;
+            }
+
+            .brand-header {
+                margin-bottom: 12px;
+            }
+
+            .brand-logo {
+                width: min(100%, 138px);
+                min-height: 54px;
+                padding: 9px 12px;
+            }
+
+            .brand-panel h1 {
+                font-size: 1.34rem;
+                margin-bottom: 8px;
+            }
+
+            .brand-panel p {
+                display: none;
+            }
+
+            .brand-grid,
+            .brand-band,
+            .trust-panel {
+                display: none;
             }
 
             .form-panel h2 {
-                font-size: 1.6rem;
+                font-size: 1.28rem;
+            }
+
+            .form-badge,
+            .security-badge {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .form-note {
+                padding: 10px 11px;
+                font-size: 0.78rem;
             }
 
             .panel-footer {
                 flex-direction: column;
+                align-items: center;
+                text-align: center;
+                gap: 8px;
+            }
+        }
+
+        @media (max-width: 399.98px) {
+            .login-shell {
+                padding: 8px;
+            }
+
+            .login-layout {
+                border-radius: 16px;
+            }
+
+            .brand-panel,
+            .form-panel {
+                padding: 16px 14px;
+            }
+
+            .brand-logo {
+                width: min(100%, 128px);
+                min-height: 48px;
+                padding: 8px 10px;
+            }
+
+            .brand-status,
+            .brand-kicker,
+            .brand-chip {
+                font-size: 0.74rem;
+            }
+
+            .mobile-brand-accordion summary {
+                padding: 10px 12px;
+                font-size: 0.8rem;
+            }
+
+            .mobile-brand-summary-meta {
+                gap: 5px;
+            }
+
+            .mobile-brand-summary-pill {
+                font-size: 0.68rem;
+                padding: 4px 7px;
+            }
+
+            .mobile-brand-content {
+                padding: 0 12px 12px;
+            }
+
+            .brand-panel h1 {
+                font-size: 1.18rem;
+            }
+
+            .form-panel h2 {
+                font-size: 1.15rem;
+            }
+
+            .field-input input {
+                padding: 13px 12px 13px 40px;
+                font-size: 0.9rem;
+            }
+
+            .field-input i {
+                left: 12px;
+            }
+
+            .login-button {
+                padding: 13px 14px;
+                font-size: 0.9rem;
+            }
+        }
+
+        @media (max-height: 760px) and (max-width: 991.98px) {
+            .login-shell {
                 align-items: flex-start;
+            }
+
+            .brand-panel,
+            .form-panel {
+                padding-top: 24px;
+                padding-bottom: 24px;
             }
         }
     </style>
 </head>
-<body>
+<body data-login-success="{% if login_success %}1{% else %}0{% endif %}" data-redirect-url="{{ redirect_url|default:'' }}">
     <div class="login-shell">
         <div class="login-layout">
             <section class="brand-panel">
-                <div class="brand-topline">
+                <div class="brand-header">
+                    <div class="brand-logo">
+                        <img src="{% static 'images/mrk-logo.png' %}" alt="MRK OTOMOTİV">
+                    </div>
+                    <div class="brand-status">
+                        <i class="bi bi-shield-lock"></i>
+                        <span>Güvenli kurumsal giriş alanı</span>
+                    </div>
+                </div>
+
+                <div class="brand-kicker">
                     <i class="bi bi-buildings"></i>
                     <span>Kurumsal Operasyon Platformu</span>
                 </div>
 
-                <div class="brand-logo">
-                    <img src="/static/images/favicon.svg" alt="MRK OTOMOTİV">
-                </div>
-
-                <h1>MRK OTOMOTİV finans ve saha süreçleri için tek merkez.</h1>
+                <h1>Tahsilat, satış ve cari süreçleri için tek merkezli kurumsal erişim.</h1>
                 <p>
-                    Tahsilat, satış, cari analiz ve operasyon ekranlarını güvenli bir altyapı üzerinde
-                    yönetin. Tüm ekipler için daha düzenli, daha okunaklı ve daha profesyonel bir giriş deneyimi.
+                    MRK OTOMOTİV ekipleri için finansal operasyonlar, saha akışları ve raporlama ekranları
+                    tek oturumla, net bir hiyerarşi ve güven veren bir giriş deneyimi üzerinden yönetilir.
                 </p>
 
-                <div class="brand-highlights">
-                    <div class="highlight-card">
-                        <strong>Merkezi Yönetim</strong>
-                        <span>Tahsilat, cari ve satış operasyonları tek oturumda yönetilir.</span>
+                <div class="mobile-brand-accordion">
+                    <details open>
+                        <summary>
+                            <span class="mobile-brand-summary-stack">
+                                <span class="mobile-brand-summary-text">
+                                    <i class="bi bi-grid-1x2"></i>
+                                    <span>Kurumsal özet ve erişim alanları</span>
+                                </span>
+                                <span class="mobile-brand-summary-meta">
+                                    <span class="mobile-brand-summary-pill"><i class="bi bi-shield-check"></i> Güvenli</span>
+                                    <span class="mobile-brand-summary-pill"><i class="bi bi-lightning-charge"></i> Hızlı</span>
+                                    <span class="mobile-brand-summary-pill"><i class="bi bi-people"></i> Rol Bazlı</span>
+                                </span>
+                            </span>
+                            <i class="bi bi-chevron-down mobile-brand-chevron"></i>
+                        </summary>
+                        <div class="mobile-brand-content">
+                            <ul class="mobile-brand-list">
+                                <li>
+                                    <i class="bi bi-check-circle-fill"></i>
+                                    <span>Rol bazlı erişim ile kullanıcılar yalnızca kendi operasyon alanlarını görür.</span>
+                                </li>
+                                <li>
+                                    <i class="bi bi-check-circle-fill"></i>
+                                    <span>Tahsilat, satış ve cari ekranları tek oturum içinde hızlı şekilde açılır.</span>
+                                </li>
+                            </ul>
+                            <div class="mobile-brand-chip-row">
+                                <span class="mobile-brand-chip"><i class="bi bi-cash-coin"></i> Tahsilat</span>
+                                <span class="mobile-brand-chip"><i class="bi bi-receipt"></i> Satış</span>
+                                <span class="mobile-brand-chip"><i class="bi bi-pie-chart"></i> Cari</span>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
+                <div class="brand-grid">
+                    <div class="brand-card">
+                        <div class="brand-card-label"><i class="bi bi-graph-up-arrow"></i></div>
+                        <strong>Raporlama Disiplini</strong>
+                        <span>Dashboard, tahsilat ve satış ekranları aynı kurumsal akış içinde hızlı erişir.</span>
                     </div>
-                    <div class="highlight-card">
-                        <strong>Hızlı Erişim</strong>
-                        <span>Saha ekipleri ve yöneticiler için sade, odaklı erişim akışı.</span>
+                    <div class="brand-card">
+                        <div class="brand-card-label"><i class="bi bi-people"></i></div>
+                        <strong>Rol Bazlı Erişim</strong>
+                        <span>Kullanıcı bazlı yetkilendirme ile herkes yalnızca kendi operasyon alanını görür.</span>
                     </div>
-                    <div class="highlight-card">
-                        <strong>Güvenli Kullanım</strong>
-                        <span>Yetki bazlı erişim ve güvenli oturum yönetimi altyapısı.</span>
+                    <div class="brand-card">
+                        <div class="brand-card-label"><i class="bi bi-lightning-charge"></i></div>
+                        <strong>Hızlı Operasyon</strong>
+                        <span>Saha ekipleri ve yöneticiler için sade, odaklı ve tekrar kullanılabilir arayüz yapısı sunar.</span>
                     </div>
                 </div>
 
-                <ul class="feature-list">
-                    <li>
-                        <span class="feature-icon"><i class="bi bi-graph-up-arrow"></i></span>
-                        <span>Yönetsel raporlama ve operasyon ekranları tek arayüzde tutarlı bir deneyim sunar.</span>
-                    </li>
-                    <li>
-                        <span class="feature-icon"><i class="bi bi-shield-check"></i></span>
-                        <span>Kurumsal görünüm, güçlü görsel hiyerarşi ve güven veren erişim akışı ile yenilendi.</span>
-                    </li>
-                </ul>
+                <div class="brand-band">
+                    <span class="brand-chip"><i class="bi bi-cash-coin"></i> Tahsilat Yönetimi</span>
+                    <span class="brand-chip"><i class="bi bi-receipt"></i> Satış Takibi</span>
+                    <span class="brand-chip"><i class="bi bi-pie-chart"></i> Cari Analiz</span>
+                </div>
+
+                <div class="trust-panel">
+                    <div class="trust-panel-header">
+                        <div class="trust-icon"><i class="bi bi-shield-check"></i></div>
+                        <div>
+                            <p class="trust-panel-title">Kurumsal güven ve operasyon bütünlüğü</p>
+                            <p class="trust-panel-subtitle">Tek noktadan, kontrollü ve okunaklı erişim</p>
+                        </div>
+                    </div>
+
+                    <ul class="trust-list">
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Yetki bazlı erişim ve güvenli oturum yönetimi ile ekranlar kontrollü biçimde açılır.</span>
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Finans, satış ve operasyon ekipleri için tutarlı bir kurumsal deneyim sağlanır.</span>
+                        </li>
+                    </ul>
+                </div>
             </section>
 
             <section class="form-panel">
                 <div class="form-card">
-                    <div class="form-topline">Kurumsal Giriş</div>
-                    <h2>{% if login_success %}Oturum açıldı{% else %}Sisteme giriş yapın{% endif %}</h2>
+                    <div class="form-badge">
+                        <i class="bi bi-person-badge"></i>
+                        <span>Kurumsal Giriş</span>
+                    </div>
+                    <div class="form-topline">MRK OTOMOTİV</div>
+                    <h2>{% if login_success %}Oturum açıldı{% else %}Sisteme güvenli şekilde giriş yapın{% endif %}</h2>
                     <p class="form-subtitle">
                         {% if login_success %}
                         Hesabınız doğrulandı. İlgili ekrana güvenli şekilde yönlendiriliyorsunuz.
                         {% else %}
-                        Kullanıcı bilgilerinizle oturum açın ve size yetkili panellere erişin.
+                        Kullanıcı bilgilerinizle oturum açın ve size tanımlı olan panel ve operasyon ekranlarına erişin.
                         {% endif %}
                     </p>
 
@@ -547,6 +1169,11 @@
                             </div>
                         </div>
 
+                        <div class="form-note">
+                            <i class="bi bi-info-circle"></i>
+                            <span>Giriş sonrasında sistem sizi yetkinize uygun ekrana otomatik olarak yönlendirir.</span>
+                        </div>
+
                         <button type="submit" class="login-button">
                             <span class="button-loader"></span>
                             <span class="button-text">Giriş Yap</span>
@@ -567,24 +1194,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const form = document.querySelector('.login-form');
-            const submitBtn = document.querySelector('.login-button');
-
-            if (form && submitBtn) {
-                form.addEventListener('submit', function () {
-                    submitBtn.classList.add('loading');
-                    submitBtn.disabled = true;
-                });
-            }
-
-            {% if login_success and redirect_url %}
-            setTimeout(function () {
-                window.location.replace('{{ redirect_url }}');
-            }, 1500);
-            {% endif %}
-        });
-    </script>
+    <script src="{% static 'js/login.js' %}"></script>
 </body>
 </html>

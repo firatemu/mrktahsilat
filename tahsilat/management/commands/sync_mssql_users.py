@@ -4,43 +4,14 @@ from django.conf import settings
 from django.contrib.auth.models import User
 import logging
 
+from tahsilat.services.mssql.common import (
+    build_mssql_connection_string,
+    fix_turkish_encoding,
+    get_mssql_fallbacks,
+    safe_decode_mssql_value,
+)
+
 logger = logging.getLogger(__name__)
-
-
-def normalize_turkish_chars(text):
-    if not text:
-        return ""
-    mapping = {
-        'EYÃŒP': 'EYÜP', 'EYÃœP': 'EYÜP',
-        'Ãœ': 'Ü', 'ÃŒ': 'Ü', 'Ã¼': 'ü',
-        'Ä±': 'ı', 'Ä°': 'İ',
-        'Ã§': 'ç', 'Ã‡': 'Ç',
-        'ÅŸ': 'ş', 'Åž': 'Ş',
-        'Ã¶': 'ö', 'Ã–': 'Ö',
-        'ÄŸ': 'ğ', 'Äž': 'Ğ',
-    }
-    result = str(text)
-    for k, v in mapping.items():
-        result = result.replace(k, v)
-    return result
-
-
-def safe_decode_string(value, fallbacks=None):
-    if not value:
-        return ""
-    if fallbacks is None:
-        fallbacks = ['cp1254', 'utf-8', 'latin-1']
-    if isinstance(value, bytes):
-        for enc in fallbacks:
-            try:
-                return normalize_turkish_chars(value.decode(enc))
-            except Exception:
-                continue
-        try:
-            return normalize_turkish_chars(value.decode('utf-8', errors='ignore'))
-        except Exception:
-            return str(value)
-    return normalize_turkish_chars(value)
 
 
 class Command(BaseCommand):
@@ -58,18 +29,8 @@ class Command(BaseCommand):
         if not config:
             raise CommandError('MSSQL_CONFIG is not defined in settings')
 
-        connection_string = (
-            f"DRIVER={{{config['driver']}}};"
-            f"SERVER={config['server']},{config['port']};"
-            f"DATABASE={config['database']};"
-            f"UID={config['username']};"
-            f"PWD={config['password']};"
-            f"charset={config.get('charset','utf-8')};"
-            f"TrustServerCertificate=yes;"
-        )
-        # Ensure AutoTranslate=no for encoding consistency
-        if not config.get('encoding_options', {}).get('auto_translate', True):
-            connection_string += 'AutoTranslate=no;'
+        connection_string = build_mssql_connection_string(config)
+        encoding_fallbacks = get_mssql_fallbacks(config)
 
         try:
             with pyodbc.connect(connection_string) as conn:
@@ -83,13 +44,21 @@ class Command(BaseCommand):
         for row in rows:
             raw_username = row[0] if len(row) > 0 else ''
             departman = row[1] if len(row) > 1 else ''
-            uname = safe_decode_string(raw_username).strip()
+            uname = safe_decode_mssql_value(
+                raw_username,
+                fallbacks=encoding_fallbacks,
+                preserve_turkish=True,
+            ).strip()
             if not uname:
                 continue
-            normalized = normalize_turkish_chars(uname).upper()
+            normalized = fix_turkish_encoding(uname).upper()
             mssql_users[normalized] = {
                 'raw': uname,
-                'departman': safe_decode_string(departman)
+                'departman': safe_decode_mssql_value(
+                    departman,
+                    fallbacks=encoding_fallbacks,
+                    preserve_turkish=True,
+                )
             }
 
         self.stdout.write(f'Found {len(mssql_users)} users in MSSQL')

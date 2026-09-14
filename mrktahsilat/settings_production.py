@@ -1,31 +1,26 @@
 from .settings import *
-import os
+from .env_loader import get_env_bool, get_env_int, get_env_list, get_env_var
 
-DEBUG = True
-ALLOWED_HOSTS = ['mrktahsilat.com', 'www.mrktahsilat.com', '72.62.52.105', 'localhost', '127.0.0.1']
+DEBUG = get_env_bool('DEBUG', default=False)
+ALLOWED_HOSTS = get_env_list('ALLOWED_HOSTS', default=ALLOWED_HOSTS)
+CSRF_TRUSTED_ORIGINS = get_env_list(
+    'CSRF_TRUSTED_ORIGINS', default=CSRF_TRUSTED_ORIGINS)
 
-# CSRF Settings
-CSRF_TRUSTED_ORIGINS = [
-    'http://mrktahsilat.com',
-    'https://mrktahsilat.com',
-    'http://www.mrktahsilat.com',
-    'https://www.mrktahsilat.com',
-    'http://72.62.52.105',
-    'https://72.62.52.105'
-]
-
-CSRF_COOKIE_SECURE = False
-CSRF_COOKIE_HTTPONLY = False
-SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = get_env_bool(
+    'CSRF_COOKIE_SECURE', default=not DEBUG)
+CSRF_COOKIE_HTTPONLY = get_env_bool(
+    'CSRF_COOKIE_HTTPONLY', default=False)
+SESSION_COOKIE_SECURE = get_env_bool(
+    'SESSION_COOKIE_SECURE', default=not DEBUG)
 
 # Cache control - Updated content için cache temizleme
-CACHE_MIDDLEWARE_SECONDS = 0
-USE_ETAGS = True
+CACHE_MIDDLEWARE_SECONDS = get_env_int(
+    'CACHE_MIDDLEWARE_SECONDS', default=0)
+USE_ETAGS = get_env_bool('USE_ETAGS', default=True)
 
 # Static files versioning
 STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
-# Cache control middleware ekle
 MIDDLEWARE = [
     'django.middleware.cache.UpdateCacheMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -35,7 +30,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'tahsilat.middleware.URLDebugMiddleware',  # Debug middleware for URL tracking
+    'tahsilat.middleware.URLDebugMiddleware',
     'django.middleware.cache.FetchFromCacheMiddleware',
 ]
 
@@ -46,33 +41,24 @@ STATICFILES_DIRS = []
 MEDIA_URL = '/media/'
 MEDIA_ROOT = '/var/www/mrktahsilat/media/'
 
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = 'DENY'
+SECURE_BROWSER_XSS_FILTER = get_env_bool(
+    'SECURE_BROWSER_XSS_FILTER', default=True)
+SECURE_CONTENT_TYPE_NOSNIFF = get_env_bool(
+    'SECURE_CONTENT_TYPE_NOSNIFF', default=True)
+X_FRAME_OPTIONS = get_env_var('X_FRAME_OPTIONS', default='DENY')
 
-# Encoding ayarları - Kalıcı çözüm
-import locale
-import os
-import sys
+TAHSILAT_DEBUG_REQUESTS = get_env_bool(
+    'TAHSILAT_DEBUG_REQUESTS', default=False)
+TAHSILAT_DEBUG_SQL = get_env_bool(
+    'TAHSILAT_DEBUG_SQL', default=False)
 
-# Sistem encoding'ini zorla UTF-8 yap
-os.environ['LANG'] = 'tr_TR.UTF-8'
-os.environ['LC_ALL'] = 'tr_TR.UTF-8'
-
-# Python default encoding
-if sys.version_info >= (3, 7):
-    # Python 3.7+ için
-    import codecs
-    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
-    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
-
-# Logging
+LOG_LEVEL = get_env_var('DJANGO_LOG_LEVEL', default='INFO').upper()
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',       
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
             'style': '{',
         },
         'simple': {
@@ -82,14 +68,14 @@ LOGGING = {
     },
     'handlers': {
         'file': {
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
             'class': 'logging.FileHandler',
             'filename': '/var/log/django/mrktahsilat.log',
             'formatter': 'verbose',
             'encoding': 'utf-8',
         },
         'console': {
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
         },
@@ -97,72 +83,50 @@ LOGGING = {
     'loggers': {
         'django': {
             'handlers': ['file'],
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
             'propagate': True,
         },
         'tahsilat': {
             'handlers': ['file', 'console'],
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
             'propagate': True,
         },
         'tahsilat.authentication': {
             'handlers': ['file', 'console'],
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
             'propagate': False,
         },
         'tahsilat.mssql_service': {
             'handlers': ['file', 'console'],
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
             'propagate': False,
         },
     },
 }
 
-# MSSQL Database Configuration
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
-# MSSQL Connection Settings (for custom connections) - Kalıcı encoding çözümü
 MSSQL_CONFIG = {
-    'server': '88.247.8.178',
-    'port': '2024',
-    'database': 'GO3',
-    'username': 'sa',
-    'password': '8423Otomotiv',
-    'driver': 'ODBC Driver 17 for SQL Server',
-    'charset': 'cp1254',
-    'autocommit': True,
-    # Kalıcı encoding ayarları
+    **MSSQL_CONFIG,
+    'charset': get_env_var(
+        'MSSQL_CHARSET',
+        default=MSSQL_CONFIG.get('charset', 'cp1254'),
+    ),
+    'autocommit': get_env_bool('MSSQL_AUTOCOMMIT', default=True),
     'encoding_options': {
-        'connection_encoding': 'cp1254',
-        'auto_translate': False,
-        'use_unicode': True,
-        'charset': 'cp1254',
-        'encoding_fallbacks': ['cp1254', 'utf-8', 'latin-1', 'iso-8859-9']
-    }
+        **MSSQL_CONFIG.get('encoding_options', {}),
+        'connection_encoding': get_env_var(
+            'MSSQL_CONNECTION_ENCODING', default='cp1254'),
+        'auto_translate': get_env_bool(
+            'MSSQL_AUTO_TRANSLATE', default=False),
+        'use_unicode': get_env_bool('MSSQL_USE_UNICODE', default=True),
+        'charset': get_env_var('MSSQL_ENCODING_CHARSET', default='cp1254'),
+        'encoding_fallbacks': get_env_list(
+            'MSSQL_ENCODING_FALLBACKS',
+            default=['cp1254', 'utf-8', 'latin-1', 'iso-8859-9'],
+        ),
+    },
 }
 
-# Authentication Backends
-AUTHENTICATION_BACKENDS = [
-    'tahsilat.authentication.MSSQLAuthenticationBackend',
-    'django.contrib.auth.backends.ModelBackend',
-]
-
-# Türkçe dil ayarları - kalıcı
-LANGUAGE_CODE = 'tr-tr'
-TIME_ZONE = 'Europe/Istanbul'
-USE_I18N = True
-USE_L10N = True
-USE_TZ = True
-
-# Encoding ile ilgili Django ayarları
-DEFAULT_CHARSET = 'utf-8'
-FILE_CHARSET = 'utf-8'
-
-# Session ayarları
-SESSION_COOKIE_NAME = 'mrktahsilat_sessionid'
-SESSION_SAVE_EVERY_REQUEST = True
+SESSION_COOKIE_NAME = get_env_var(
+    'SESSION_COOKIE_NAME', default='mrktahsilat_sessionid')
+SESSION_SAVE_EVERY_REQUEST = get_env_bool(
+    'SESSION_SAVE_EVERY_REQUEST', default=True)
