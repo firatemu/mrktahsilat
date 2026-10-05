@@ -88,6 +88,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'css/brand-theme.css' %}">
     <link rel="stylesheet" href="{% static 'css/global-loading.css' %}">
+    <link rel="stylesheet" href="{% static 'css/tab-manager.css' %}">
 
     <style>
         :root {
@@ -1082,6 +1083,14 @@
                         </a>
                     </li>
                     {% endif %}
+                    {% if user|has_menu_permission:'genel_karlilik' %}
+                    <li class="sidebar-dropdown-item">
+                        <a class="sidebar-dropdown-link" href="{% url 'tahsilat:genel_karlilik' %}">
+                            <i class="bi bi-graph-up-arrow"></i>
+                            <span>Karlılık</span>
+                        </a>
+                    </li>
+                    {% endif %}
                     {% if user|has_menu_permission:'genel_cari_analiz' %}
                     <li class="sidebar-dropdown-item">
                         <a class="sidebar-dropdown-link" href="{% url 'tahsilat:genel_cari_analiz' %}">
@@ -1448,11 +1457,24 @@
     <!-- Messages -->
     {% include 'includes/app_messages.html' %}
 
-    <!-- Main Content -->
-    <main>
-        {% block content %}
-        {% endblock %}
-    </main>
+    <!-- Tab Bar -->
+    <div class="mtk-tab-bar" id="mtk-tab-bar" role="tablist" aria-label="Açık sekmeler">
+        <div class="mtk-tab-bar__scroll" id="mtk-tab-bar-scroll"></div>
+        <div class="mtk-tab-bar__actions" id="mtk-tab-bar-actions">
+            <button class="mtk-tab-action" type="button" data-action="close-all" title="Diğer sekmeleri kapat">
+                <i class="bi bi-x-lg" aria-hidden="true"></i>
+                <span>Kapat</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content (Tab Manager root) -->
+    <div id="tab-content-root">
+        <main>
+            {% block content %}
+            {% endblock %}
+        </main>
+    </div>
 
     <!-- Footer -->
     <footer class="bg-dark text-light text-center py-3 mt-5">
@@ -1467,6 +1489,9 @@
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 
     <!-- Global Yenileme Script -->
+    <!-- Tab Manager -->
+    <script src="{% static 'js/tab-manager.js' %}"></script>
+
     <script>
         function yenileVeriler() {
             // Dashboard'da varsa o butonu kullan, yoksa global butonu

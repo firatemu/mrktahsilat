@@ -50,6 +50,9 @@
                     <th class="text-center">Ekleme Tarihi</th>
                     <th class="text-center">Teslim Durumu</th>
                     <th>Evrak No</th>
+                    <th class="sortable" data-sort="string" style="cursor:pointer;" title="Sıralamak için tıklayın">
+                        Açıklama <i class="bi bi-arrow-down-up text-muted small ms-1"></i>
+                    </th>
                     <th class="text-center">Evrak</th>
                     <th class="text-center" style="min-width: 150px;">İşlemler</th>
                 </tr>
@@ -82,6 +85,8 @@
                     <th><input type="text" class="form-control form-control-sm col-filter" data-col="13"
                             placeholder="Teslim"></th>
                     <th></th>
+                    <th><input type="text" class="form-control form-control-sm col-filter" data-col="15"
+                            placeholder="Açıklama" style="min-width: 120px;"></th>
                     <th></th>
                     <th></th>
                 </tr>
@@ -183,7 +188,12 @@
                         {% endif %}
                     </td>
                     <td class="text-nowrap" data-col="14"><small class="font-monospace text-muted">{{ tahsilat.EvrakNo|default:"-" }}</small></td>
-                    <td class="text-center" data-col="15">
+                    <td data-col="15">
+                        <div class="text-truncate" style="max-width: 220px;" title="{{ tahsilat.Aciklama|default:'' }}">
+                            <small class="text-muted">{{ tahsilat.Aciklama|default:"-" }}</small>
+                        </div>
+                    </td>
+                    <td class="text-center" data-col="16">
                         {% if tahsilat.evrak_var %}
                         <button type="button"
                             class="btn btn-sm btn-light text-primary border shadow-sm rounded-circle p-2"
@@ -198,7 +208,7 @@
                         </span>
                         {% endif %}
                     </td>
-                    <td class="text-center" data-col="16">
+                    <td class="text-center" data-col="17">
                         <div class="d-flex justify-content-center gap-1">
                             {% if user.username|upper == 'FIRAT' %}
                             <a href="{% url 'tahsilat:muhasebe_tahsilat_duzenle' tahsilat.ID %}"
@@ -223,7 +233,7 @@
                 <tr>
                     <td colspan="8" class="text-end">Sayfa Alt Toplamı:</td>
                     <td class="text-end text-success" id="pageSubtotal">₺0,00</td>
-                    <td colspan="8"></td>
+                    <td colspan="9"></td>
                 </tr>
             </tfoot>
         </table>

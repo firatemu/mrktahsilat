@@ -609,7 +609,7 @@
         }
         var headers = [
             'ID', 'Tarih', 'CariKod', 'KOD', 'Cari Ünvan', 'Tahsilat Türü', 'Banka', 'Taksit', 'Tutar',
-            'Plasiyer', 'Durum', 'Kullanıcı', 'Ekleme Tarihi', 'Teslim Durumu', 'Evrak No'
+            'Plasiyer', 'Durum', 'Kullanıcı', 'Ekleme Tarihi', 'Teslim Durumu', 'Evrak No', 'Aciklama'
         ];
         var rows = [];
         rows.push(headers.map(csvEscapeField).join(';'));
@@ -619,7 +619,7 @@
         dataRows.forEach(function (tr) {
             if (!isTahsilatRowVisible(tr)) return;
             var tds = tr.querySelectorAll('td');
-            if (tds.length < 15) return;
+            if (tds.length < 16) return;
             var cells = [];
             cells.push(csvEscapeField(tds[1].innerText));
             cells.push(csvEscapeField(tds[2].innerText));
@@ -629,7 +629,7 @@
             var kod = tr.getAttribute('data-kod');
             if (kod === null) kod = '';
             cells.push(csvEscapeField(kod));
-            for (var i = 4; i <= 14; i++) {
+            for (var i = 4; i <= 15; i++) {
                 cells.push(csvEscapeField(tds[i].innerText));
             }
             rows.push(cells.join(';'));

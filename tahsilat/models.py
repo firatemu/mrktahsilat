@@ -135,6 +135,7 @@ class KullaniciYetki(models.Model):
         ('genel_cari_analiz', 'Genel Görünüm > Cari Genel Analiz'),
         ('genel_cari_aylik_ozet', 'Genel Görünüm > Cari Aylık Özet'),
         ('plasiyer_prim', 'Genel Görünüm > Plasiyer Prim'),
+        ('genel_karlilik', 'Genel Görünüm > Karlılık'),
 
         # Hakediş Yönetimi Alt Menüleri
         ('plasiyer_hedef_durumu', 'Hakediş Yönetimi > Plasiyer Hedef Durumu'),
@@ -232,6 +233,7 @@ class KullaniciYetki(models.Model):
                 ('genel_cari_analiz', 'Cari Genel Analiz'),
                 ('genel_cari_aylik_ozet', 'Cari Aylık Özet'),
                 ('plasiyer_prim', 'Plasiyer Prim'),
+                ('genel_karlilik', 'Karlılık'),
             ],
             'Hakediş Yönetimi Alt Menüleri': [
                 ('plasiyer_hedef_durumu', 'Plasiyer Hedef Durumu'),

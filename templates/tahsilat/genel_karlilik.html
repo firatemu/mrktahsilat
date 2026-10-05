@@ -1,0 +1,898 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}{{ sayfa_baslik }} - MRK OTOMOTİV{% endblock %}
+
+{# ============================================================
+   KARLILIK DASHBOARD
+   - Üstte: hızlı tarih butonları + filtre formu
+   - 8 KPI kartı (4 sütun × 2 satır)
+   - Plasiyer + Marka (yan yana)
+   - En Karlı + En Zarar 20 Malzeme (yan yana)
+   - Malzeme Türü + Bölge (yan yana)
+   ============================================================ #}
+
+{% block extra_css %}
+<style>
+    /* ---- GENEL ---- */
+    .karlilik-page-header {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: #fff;
+        border-radius: 12px;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.25);
+    }
+    .karlilik-page-header h2 { margin: 0; font-weight: 700; }
+    .karlilik-page-header p { margin: 4px 0 0; opacity: 0.92; }
+
+    /* ---- HIZLI TARİH ---- */
+    .quick-range-bar {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid #dee2e6;
+        border-radius: 10px;
+        padding: 10px 14px;
+        margin-bottom: 0.75rem;
+    }
+    .quick-range-bar .btn {
+        font-size: 0.78rem;
+        padding: 4px 10px;
+        border-radius: 20px;
+    }
+
+    /* ---- KPI KARTLARI (izole: .kpi- prefix'i) ---- */
+    .kpi-row {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.85rem;
+        margin-bottom: 1.25rem;
+    }
+    .kpi-row > .kpi-col { min-width: 0; }
+    @media (max-width: 1100px) {
+        .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 480px) {
+        .kpi-row { grid-template-columns: 1fr; }
+    }
+
+    .kpi-card {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        background: #fff;
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+        padding: 0.85rem 1rem;
+        min-height: 78px;
+        min-width: 0;
+        position: relative;
+        overflow: hidden;
+        transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.10);
+    }
+    .kpi-icon {
+        flex: 0 0 auto;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        font-size: 1.25rem;
+        color: #fff;
+    }
+    .kpi-body { flex: 1 1 0; min-width: 0; overflow: hidden; }
+    .kpi-label {
+        font-size: 0.74rem;
+        font-weight: 600;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        margin: 0;
+        line-height: 1.1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .kpi-value {
+        font-size: 1.25rem;
+        font-weight: 800;
+        margin: 3px 0 0 0;
+        line-height: 1.15;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+    }
+    .kpi-sub {
+        font-size: 0.7rem;
+        color: #6c757d;
+        margin: 1px 0 0 0;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    /* Renkler */
+    .kpi-green  { border-left: 4px solid #28a745; }
+    .kpi-green  .kpi-icon  { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); }
+    .kpi-green  .kpi-value { color: #155724; }
+    .kpi-blue   { border-left: 4px solid #007bff; }
+    .kpi-blue   .kpi-icon  { background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); }
+    .kpi-blue   .kpi-value { color: #004085; }
+    .kpi-orange { border-left: 4px solid #fd7e14; }
+    .kpi-orange .kpi-icon  { background: linear-gradient(135deg, #fd7e14 0%, #ff8800 100%); }
+    .kpi-orange .kpi-value { color: #856404; }
+    .kpi-red    { border-left: 4px solid #dc3545; }
+    .kpi-red    .kpi-icon  { background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); }
+    .kpi-red    .kpi-value { color: #721c24; }
+    .kpi-purple { border-left: 4px solid #6f42c1; }
+    .kpi-purple .kpi-icon  { background: linear-gradient(135deg, #6f42c1 0%, #56309d 100%); }
+    .kpi-purple .kpi-value { color: #432874; }
+    .kpi-teal   { border-left: 4px solid #20c997; }
+    .kpi-teal   .kpi-icon  { background: linear-gradient(135deg, #20c997 0%, #17a589 100%); }
+    .kpi-teal   .kpi-value { color: #0c5949; }
+
+    /* ---- TABLO KARTLARI (izole: .tbl- prefix'i) ---- */
+    .tbl-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.25rem;
+    }
+    .tbl-row > .tbl-col { min-width: 0; }
+    @media (max-width: 992px) {
+        .tbl-row { grid-template-columns: 1fr; }
+    }
+
+    .tbl-card {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+        height: 100%;
+    }
+    .tbl-card .tbl-head {
+        padding: 0.85rem 1.1rem;
+        border-bottom: 1px solid #eef0f3;
+        font-weight: 700;
+        color: #495057;
+        font-size: 0.95rem;
+    }
+    .tbl-card .tbl-head i { color: #6c757d; }
+    .tbl-card .tbl-body { padding: 0; }
+    .tbl-card .tbl-scroll { max-height: 600px; overflow-y: auto; }
+    /* En Karlı / En Zarar 50 Malzeme tabloları için daha uzun */
+    .tbl-scroll.tbl-scroll-tall { max-height: 720px; }
+
+    .tbl-table { width: 100%; margin: 0; font-size: 0.86rem; border-collapse: collapse; }
+    .tbl-table thead th {
+        background: #f6f8fa;
+        font-weight: 600;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        color: #495057;
+        padding: 9px 10px;
+        text-align: center;
+        border-bottom: 2px solid #dee2e6;
+        white-space: nowrap;
+    }
+    .tbl-table thead th.text-end { text-align: right; }
+    .tbl-table tbody td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #f0f2f5;
+        text-align: center;
+        vertical-align: middle;
+    }
+    .tbl-table tbody td.text-end { text-align: right; }
+    .tbl-table tbody td.text-start { text-align: left; }
+    .tbl-table tbody tr:hover { background: #f8fbfc; }
+    .tbl-table tbody tr:last-child td { border-bottom: none; }
+    .tbl-empty { padding: 1.25rem; text-align: center; color: #6c757d; }
+
+    /* Marj pill */
+    .marj-pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.74rem;
+        font-weight: 700;
+    }
+    .marj-positive { background: #d4edda; color: #155724; }
+    .marj-negative { background: #f8d7da; color: #721c24; }
+    .marj-neutral  { background: #e2e3e5; color: #383d41; }
+
+    /* Loading */
+    .loading-overlay {
+        text-align: center;
+        padding: 3rem 1rem;
+    }
+    .loading-overlay .spinner-border { color: #28a745; }
+
+    /* Filter card */
+    .filter-card {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+
+    {# ======= SAYFA BAŞLIĞI ======= #}
+    <div class="karlilik-page-header d-flex justify-content-between align-items-center">
+        <div>
+            <h2><i class="{{ sayfa_ikon }} me-2"></i>{{ sayfa_baslik }} Dashboard</h2>
+            <p class="mb-0"><i class="bi bi-info-circle me-1"></i>Tüm kar verileri, KPI'lar ve analizler tek ekranda</p>
+        </div>
+        <div>
+            <i class="bi bi-calendar3 me-1"></i>
+            <span id="headerDate">{{ today }}</span>
+        </div>
+    </div>
+
+    {# ======= FİLTRE ALANI ======= #}
+    <div class="filter-card">
+        <div class="quick-range-bar">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <strong class="me-2"><i class="bi bi-lightning-charge-fill me-1"></i>Hızlı Tarih:</strong>
+                <button type="button" class="btn btn-outline-secondary" data-range="today">Bugün</button>
+                <button type="button" class="btn btn-outline-secondary" data-range="yesterday">Dün</button>
+                <button type="button" class="btn btn-outline-secondary" data-range="this_week">Bu Hafta</button>
+                <button type="button" class="btn btn-outline-secondary" data-range="last_week">Geçen Hafta</button>
+                <button type="button" class="btn btn-outline-secondary" data-range="this_month">Bu Ay</button>
+                <button type="button" class="btn btn-outline-secondary" data-range="last_month">Geçen Ay</button>
+                <button type="button" class="btn btn-outline-secondary" data-range="last_7">Son 7 Gün</button>
+                <button type="button" class="btn btn-outline-secondary" data-range="last_30">Son 30 Gün</button>
+                <button type="button" class="btn btn-outline-secondary" data-range="this_year">Bu Yıl</button>
+            </div>
+        </div>
+        <form id="karlilikFilterForm" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label" for="baslangic_tarihi">Başlangıç Tarihi</label>
+                <input type="date" class="form-control" id="baslangic_tarihi" name="baslangic_tarihi" value="{{ today }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="bitis_tarihi">Bitiş Tarihi</label>
+                <input type="date" class="form-control" id="bitis_tarihi" name="bitis_tarihi" value="{{ today }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="plasiyer">Plasiyer</label>
+                <select class="form-select" id="plasiyer" name="plasiyer">
+                    <option value="">Tümü</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="malzeme_turu">Malzeme Türü</label>
+                <select class="form-select" id="malzeme_turu" name="malzeme_turu">
+                    <option value="">Tümü</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex">
+                <button type="button" class="btn btn-primary flex-grow-1 me-2" id="btnUygula">
+                    <i class="bi bi-search me-1"></i>Uygula
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="btnTemizle" title="Temizle">
+                    <i class="bi bi-x-circle"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {# ======= LOADING ======= #}
+    <div id="loadingOverlay" class="loading-overlay" style="display:none;">
+        <div class="spinner-border mb-3" role="status">
+            <span class="visually-hidden">Yükleniyor...</span>
+        </div>
+        <h5 class="text-muted">Karlılık verileri yükleniyor...</h5>
+    </div>
+
+    {# ======= ANA İÇERİK ======= #}
+    <div id="karlilikContent">
+
+        {# ----- KPI KARTLARI ----- #}
+        <div class="kpi-row">
+            <div class="kpi-col">
+                <div class="kpi-card kpi-green">
+                    <div class="kpi-icon"><i class="bi bi-cash-coin"></i></div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Toplam Kar</div>
+                        <div class="kpi-value" id="kpiToplamKar">0,00 ₺</div>
+                        <div class="kpi-sub"><span id="kpiFaturaSayisi">0</span> fatura, <span id="kpiMalzemeSayisi">0</span> kalem</div>
+                    </div>
+                </div>
+            </div>
+            <div class="kpi-col">
+                <div class="kpi-card kpi-blue">
+                    <div class="kpi-icon"><i class="bi bi-receipt"></i></div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Toplam Hasılat</div>
+                        <div class="kpi-value" id="kpiToplamHasilat">0,00 ₺</div>
+                        <div class="kpi-sub">NET TOPLAM</div>
+                    </div>
+                </div>
+            </div>
+            <div class="kpi-col">
+                <div class="kpi-card kpi-orange">
+                    <div class="kpi-icon"><i class="bi bi-percent"></i></div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Ortalama Kar Marjı</div>
+                        <div class="kpi-value" id="kpiMarj">0,00 %</div>
+                        <div class="kpi-sub">Kar / Hasılat</div>
+                    </div>
+                </div>
+            </div>
+            <div class="kpi-col">
+                <div class="kpi-card kpi-teal">
+                    <div class="kpi-icon"><i class="bi bi-trophy"></i></div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">En Karlı Plasiyer</div>
+                        <div class="kpi-value" id="kpiEnKarliPlasiyer">-</div>
+                        <div class="kpi-sub" id="kpiEnKarliPlasiyerKar">0,00 ₺</div>
+                    </div>
+                </div>
+            </div>
+            <div class="kpi-col">
+                <div class="kpi-card kpi-purple">
+                    <div class="kpi-icon"><i class="bi bi-calendar-day"></i></div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Bugün / Dün</div>
+                        <div class="kpi-value" id="kpiBugunKar">0,00 ₺</div>
+                        <div class="kpi-sub">Dün: <span id="kpiDunKar">0,00 ₺</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="kpi-col">
+                <div class="kpi-card kpi-green">
+                    <div class="kpi-icon"><i class="bi bi-calendar3"></i></div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Bu Ay Kar</div>
+                        <div class="kpi-value" id="kpiAyKar">0,00 ₺</div>
+                        <div class="kpi-sub">Tüm yıl karşılaştırması grafikte</div>
+                    </div>
+                </div>
+            </div>
+            <div class="kpi-col">
+                <div class="kpi-card kpi-blue">
+                    <div class="kpi-icon"><i class="bi bi-check-circle"></i></div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Karlı Fatura Oranı</div>
+                        <div class="kpi-value" id="kpiKarliFaturaOrani">0,00 %</div>
+                        <div class="kpi-sub"><span id="kpiKarliFatura">0</span> / <span id="kpiToplamFatura">0</span> fatura</div>
+                    </div>
+                </div>
+            </div>
+            <div class="kpi-col">
+                <div class="kpi-card kpi-red">
+                    <div class="kpi-icon"><i class="bi bi-x-circle"></i></div>
+                    <div class="kpi-body">
+                        <div class="kpi-label">Zarar Eden Fatura</div>
+                        <div class="kpi-value" id="kpiZararFatura">0</div>
+                        <div class="kpi-sub">adet</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# ----- PLASIYER + MARKA KARLılığı ----- #}
+        <div class="tbl-row">
+            <div class="tbl-col">
+                <div class="tbl-card">
+                    <div class="tbl-head"><i class="bi bi-people me-2"></i>Plasiyer Karlılık Sıralaması</div>
+                    <div class="tbl-body">
+                        <div class="tbl-scroll">
+                            <table class="tbl-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:50px;">#</th>
+                                        <th class="text-start">Plasiyer</th>
+                                        <th class="text-end">Hasılat</th>
+                                        <th class="text-end">Kar</th>
+                                        <th class="text-end">Marj</th>
+                                        <th class="text-end" style="width:70px;">Adet</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="plasiyerKarTbody">
+                                    <tr><td colspan="6" class="tbl-empty">Yükleniyor...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="tbl-col">
+                <div class="tbl-card">
+                    <div class="tbl-head"><i class="bi bi-bookmark-star me-2"></i>Marka Karlılığı (Top 30)</div>
+                    <div class="tbl-body">
+                        <div class="tbl-scroll">
+                            <table class="tbl-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:50px;">#</th>
+                                        <th class="text-start">Marka</th>
+                                        <th class="text-end">Hasılat</th>
+                                        <th class="text-end">Kar</th>
+                                        <th class="text-end">Marj</th>
+                                        <th class="text-end" style="width:70px;">Adet</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="markaKarTbody">
+                                    <tr><td colspan="6" class="tbl-empty">Yükleniyor...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# ----- CARİ BAZLI KARLılık (En Karlı + En Zarar 20 Cari) ----- #}
+        <div class="tbl-row">
+            <div class="tbl-col">
+                <div class="tbl-card">
+                    <div class="tbl-head text-success"><i class="bi bi-trophy me-2"></i>Tüm Karlı Cari Hesaplar</div>
+                    <div class="tbl-body">
+                        <div class="tbl-scroll">
+                            <table class="tbl-table">
+                                <thead>
+                                    <tr>
+                                        <th class="text-start" style="width:90px;">Cari Kod</th>
+                                        <th class="text-start">Cari Ünvan</th>
+                                        <th class="text-end">Hasılat</th>
+                                        <th class="text-end">Kar</th>
+                                        <th class="text-end">Marj</th>
+                                        <th class="text-end" style="width:50px;">Fatura</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="enKarliCariTbody">
+                                    <tr><td colspan="6" class="tbl-empty">Yükleniyor...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="tbl-col">
+                <div class="tbl-card">
+                    <div class="tbl-head text-danger"><i class="bi bi-arrow-down-circle me-2"></i>Tüm Zarar Eden Cari Hesaplar</div>
+                    <div class="tbl-body">
+                        <div class="tbl-scroll">
+                            <table class="tbl-table">
+                                <thead>
+                                    <tr>
+                                        <th class="text-start" style="width:90px;">Cari Kod</th>
+                                        <th class="text-start">Cari Ünvan</th>
+                                        <th class="text-end">Hasılat</th>
+                                        <th class="text-end">Kar</th>
+                                        <th class="text-end">Marj</th>
+                                        <th class="text-end" style="width:50px;">Fatura</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="enZararCariTbody">
+                                    <tr><td colspan="6" class="tbl-empty">Yükleniyor...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+                {# ----- EN KARLI + EN ZARAR 20 MALZEME ----- #}
+        <div class="tbl-row">
+            <div class="tbl-col">
+                <div class="tbl-card">
+                    <div class="tbl-head text-success"><i class="bi bi-arrow-up-circle me-2"></i>En Karlı 50 Malzeme</div>
+                    <div class="tbl-body">
+                        <div class="tbl-scroll tbl-scroll-tall">
+                            <table class="tbl-table">
+                                <thead>
+                                    <tr>
+                                        <th class="text-start" style="width:90px;">Kod</th>
+                                        <th class="text-start">Açıklama</th>
+                                        <th class="text-start">Marka</th>
+                                        <th class="text-end">Hasılat</th>
+                                        <th class="text-end">Kar</th>
+                                        <th class="text-end">Marj</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="enKarliMalzemeTbody">
+                                    <tr><td colspan="6" class="tbl-empty">Yükleniyor...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="tbl-col">
+                <div class="tbl-card">
+                    <div class="tbl-head text-danger"><i class="bi bi-arrow-down-circle me-2"></i>En Zarar Eden 50 Malzeme</div>
+                    <div class="tbl-body">
+                        <div class="tbl-scroll tbl-scroll-tall">
+                            <table class="tbl-table">
+                                <thead>
+                                    <tr>
+                                        <th class="text-start" style="width:90px;">Kod</th>
+                                        <th class="text-start">Açıklama</th>
+                                        <th class="text-start">Marka</th>
+                                        <th class="text-end">Hasılat</th>
+                                        <th class="text-end">Kar</th>
+                                        <th class="text-end">Marj</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="enZararMalzemeTbody">
+                                    <tr><td colspan="6" class="tbl-empty">Yükleniyor...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# ----- MALZEME TÜRÜ + BÖLGE KARLılığı ----- #}
+        <div class="tbl-row">
+            <div class="tbl-col">
+                <div class="tbl-card">
+                    <div class="tbl-head"><i class="bi bi-tags me-2"></i>Malzeme Türü Karlılığı</div>
+                    <div class="tbl-body">
+                        <div class="tbl-scroll">
+                            <table class="tbl-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:50px;">#</th>
+                                        <th class="text-start">Tür</th>
+                                        <th class="text-end">Hasılat</th>
+                                        <th class="text-end">Kar</th>
+                                        <th class="text-end">Marj</th>
+                                        <th class="text-end" style="width:70px;">Adet</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="turKarTbody">
+                                    <tr><td colspan="6" class="tbl-empty">Yükleniyor...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="tbl-col">
+                <div class="tbl-card">
+                    <div class="tbl-head"><i class="bi bi-geo-alt me-2"></i>Bölge Karlılığı</div>
+                    <div class="tbl-body">
+                        <div class="tbl-scroll">
+                            <table class="tbl-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:50px;">#</th>
+                                        <th class="text-start">Bölge</th>
+                                        <th class="text-end">Hasılat</th>
+                                        <th class="text-end">Kar</th>
+                                        <th class="text-end">Marj</th>
+                                        <th class="text-end" style="width:70px;">Adet</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bolgeKarTbody">
+                                    <tr><td colspan="6" class="tbl-empty">Yükleniyor...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    // ===================== Yardımcılar =====================
+    function getCookie(name) {
+        const cookies = document.cookie ? document.cookie.split(';') : [];
+        for (let i = 0; i < cookies.length; i++) {
+            const ck = cookies[i].trim();
+            if (ck.substring(0, name.length + 1) === (name + '=')) {
+                return decodeURIComponent(ck.substring(name.length + 1));
+            }
+        }
+        return null;
+    }
+    function getCsrfToken() {
+        const c = getCookie('csrftoken');
+        if (c) return c;
+        const m = document.querySelector('meta[name=csrf-token]');
+        return m ? m.getAttribute('content') : '';
+    }
+    function fmtTL(v) {
+        const n = Number(v) || 0;
+        return n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20BA';
+    }
+    function fmtSayi(v, dp) {
+        if (dp === undefined) dp = 2;
+        const n = Number(v) || 0;
+        return n.toLocaleString('tr-TR', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+    }
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+    function marjPill(m) {
+        const n = Number(m) || 0;
+        const cls = n > 0.5 ? 'marj-positive' : (n < -0.5 ? 'marj-negative' : 'marj-neutral');
+        const sign = n > 0 ? '+' : '';
+        return '<span class="marj-pill ' + cls + '">' + sign + fmtSayi(n) + ' %</span>';
+    }
+    function renkliTutar(v) {
+        const n = Number(v) || 0;
+        const cls = n >= 0 ? 'text-success fw-bold' : 'text-danger fw-bold';
+        return '<span class="' + cls + '">' + fmtTL(n) + '</span>';
+    }
+
+    // ===================== Tarih aralıkları =====================
+    function setDateRange(range) {
+        const today = new Date();
+        const fmt = d => d.toISOString().split('T')[0];
+        let s = today, e = today;
+        if (range === 'today') {
+            s = e = today;
+        } else if (range === 'yesterday') {
+            s = e = new Date(today.getTime() - 86400000);
+        } else if (range === 'this_week') {
+            const day = today.getDay() === 0 ? 7 : today.getDay();
+            s = new Date(today.getTime() - (day - 1) * 86400000);
+            e = today;
+        } else if (range === 'last_week') {
+            const day = today.getDay() === 0 ? 7 : today.getDay();
+            const lastMon = new Date(today.getTime() - (day + 6) * 86400000);
+            s = lastMon;
+            e = new Date(lastMon.getTime() + 6 * 86400000);
+        } else if (range === 'this_month') {
+            s = new Date(today.getFullYear(), today.getMonth(), 1);
+            e = today;
+        } else if (range === 'last_month') {
+            s = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            e = new Date(today.getFullYear(), today.getMonth(), 0);
+        } else if (range === 'last_7') {
+            s = new Date(today.getTime() - 6 * 86400000);
+            e = today;
+        } else if (range === 'last_30') {
+            s = new Date(today.getTime() - 29 * 86400000);
+            e = today;
+        } else if (range === 'this_year') {
+            s = new Date(today.getFullYear(), 0, 1);
+            e = today;
+        }
+        document.getElementById('baslangic_tarihi').value = fmt(s);
+        document.getElementById('bitis_tarihi').value = fmt(e);
+        loadData();
+    }
+
+    function resetQuickRangeButtons() {
+        document.querySelectorAll('[data-range]').forEach(b => {
+            b.classList.remove('active', 'btn-primary');
+            b.classList.add('btn-outline-secondary');
+        });
+    }
+
+    // ===================== Tablo render =====================
+    function renderTbody(tbodyId, list, fields, withIndex) {
+        const tbody = document.getElementById(tbodyId);
+        if (!list || !list.length) {
+            tbody.innerHTML = '<tr><td colspan="' + (fields.length + (withIndex ? 1 : 0)) + '" class="tbl-empty">Veri bulunamadı</td></tr>';
+            return;
+        }
+        let html = '';
+        list.forEach((row, idx) => {
+            html += '<tr>';
+            if (withIndex) html += '<td>' + (idx + 1) + '</td>';
+            fields.forEach(f => {
+                if (f === 'hasilat') {
+                    html += '<td class="text-end">' + fmtTL(row[f]) + '</td>';
+                } else if (f === 'kar') {
+                    html += '<td class="text-end">' + renkliTutar(row[f]) + '</td>';
+                } else if (f === 'marj') {
+                    html += '<td class="text-end">' + marjPill(row[f]) + '</td>';
+                } else if (f === 'adet') {
+                    html += '<td class="text-end">' + fmtSayi(row[f], 0) + '</td>';
+                } else {
+                    html += '<td class="text-start">' + escapeHtml(row[f]) + '</td>';
+                }
+            });
+            html += '</tr>';
+        });
+        tbody.innerHTML = html;
+    }
+
+    function renderMalzemeTbody(tbodyId, list) {
+        const tbody = document.getElementById(tbodyId);
+        if (!list || !list.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="tbl-empty">Veri bulunamadı</td></tr>';
+            return;
+        }
+        let html = '';
+        list.forEach(row => {
+            html += '<tr>';
+            html += '<td class="text-start"><code class="bg-light text-dark px-1 rounded">' + escapeHtml(row.kod) + '</code></td>';
+            html += '<td class="text-start">' + escapeHtml(row.aciklama) + '</td>';
+            html += '<td class="text-start">' + escapeHtml(row.marka) + '</td>';
+            html += '<td class="text-end">' + fmtTL(row.hasilat) + '</td>';
+            html += '<td class="text-end">' + renkliTutar(row.kar) + '</td>';
+            html += '<td class="text-end">' + marjPill(row.marj) + '</td>';
+            html += '</tr>';
+        });
+        tbody.innerHTML = html;
+    }
+
+    function renderCariTbody(tbodyId, list) {
+        const tbody = document.getElementById(tbodyId);
+        if (!list || !list.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="tbl-empty">Veri bulunamadı</td></tr>';
+            return;
+        }
+        let html = '';
+        list.forEach(row => {
+            html += '<tr>';
+            html += '<td class="text-start"><code class="bg-light text-dark px-1 rounded">' + escapeHtml(row.cari_kod) + '</code></td>';
+            html += '<td class="text-start">' + escapeHtml(row.cari_unvan) + '</td>';
+            html += '<td class="text-end">' + fmtTL(row.hasilat) + '</td>';
+            html += '<td class="text-end">' + renkliTutar(row.kar) + '</td>';
+            html += '<td class="text-end">' + marjPill(row.marj) + '</td>';
+            html += '<td class="text-end">' + fmtSayi(row.fatura_sayisi, 0) + '</td>';
+            html += '</tr>';
+        });
+        tbody.innerHTML = html;
+    }
+
+    // ===================== Dropdown doldurma =====================
+    function fillSelect(selId, items) {
+        const sel = document.getElementById(selId);
+        if (!sel || !items || sel.options.length > 1) return;
+        items.forEach(v => {
+            const o = new Option(v, v);
+            sel.add(o);
+        });
+    }
+
+    // ===================== Ana render =====================
+    function renderAll(d) {
+        fillSelect('plasiyer', d.plasiyerler);
+        fillSelect('malzeme_turu', d.malzeme_turleri);
+
+        const k = d.kpis;
+        document.getElementById('kpiToplamKar').textContent = fmtTL(k.toplam_kar);
+        document.getElementById('kpiToplamHasilat').textContent = fmtTL(k.toplam_hasilat);
+        document.getElementById('kpiMarj').textContent = fmtSayi(k.ortalama_marj) + ' %';
+        document.getElementById('kpiEnKarliPlasiyer').textContent = k.en_karli_plasiyer || '-';
+        document.getElementById('kpiEnKarliPlasiyerKar').textContent = 'Kar: ' + fmtTL(k.en_karli_plasiyer_kar);
+        document.getElementById('kpiBugunKar').textContent = fmtTL(k.bugun_kar);
+        document.getElementById('kpiDunKar').textContent = fmtTL(k.dun_kar);
+        document.getElementById('kpiAyKar').textContent = fmtTL(k.ay_kar);
+        document.getElementById('kpiKarliFaturaOrani').textContent = fmtSayi(k.karli_fatura_orani) + ' %';
+        document.getElementById('kpiKarliFatura').textContent = k.karli_fatura_sayisi || 0;
+        document.getElementById('kpiToplamFatura').textContent = k.fatura_sayisi || 0;
+        document.getElementById('kpiZararFatura').textContent = k.zarar_fatura_sayisi || 0;
+        document.getElementById('kpiFaturaSayisi').textContent = k.fatura_sayisi || 0;
+        document.getElementById('kpiMalzemeSayisi').textContent = k.malzeme_sayisi || 0;
+
+        renderTbody('plasiyerKarTbody', d.plasiyer_karlilik, ['plasiyer', 'hasilat', 'kar', 'marj', 'adet'], true);
+        renderTbody('markaKarTbody',    d.marka_karlilik,    ['marka', 'hasilat', 'kar', 'marj', 'adet'], true);
+        renderTbody('turKarTbody',      d.tur_karlilik,      ['malzeme_turu', 'hasilat', 'kar', 'marj', 'adet'], true);
+        renderTbody('bolgeKarTbody',    d.bolge_karlilik,    ['bolge', 'hasilat', 'kar', 'marj', 'adet'], true);
+        renderCariTbody('enKarliCariTbody',   d.en_karli_cari);
+        renderCariTbody('enZararCariTbody',   d.en_zarar_cari);
+        renderMalzemeTbody('enKarliMalzemeTbody', d.en_karli_malzeme);
+        renderMalzemeTbody('enZararMalzemeTbody', d.en_zarar_malzeme);
+
+        const sVal = document.getElementById('baslangic_tarihi').value;
+        const eVal = document.getElementById('bitis_tarihi').value;
+        document.getElementById('headerDate').textContent = (sVal === eVal) ? sVal : (sVal + ' → ' + eVal);
+    }
+
+    // ===================== Veri yükleme =====================
+    function loadData() {
+        const form = document.getElementById('karlilikFilterForm');
+        const fd = new FormData(form);
+        fd.append('action', 'get_karlilik');
+        const csrf = getCsrfToken();
+        if (csrf) fd.append('csrfmiddlewaretoken', csrf);
+
+        document.getElementById('loadingOverlay').style.display = 'block';
+        document.getElementById('karlilikContent').style.opacity = '0.4';
+
+        fetch('{% url "tahsilat:genel_karlilik" %}', {
+            method: 'POST',
+            body: fd,
+            headers: {
+                'X-CSRFToken': csrf,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(r => {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        })
+        .then(resp => {
+            document.getElementById('loadingOverlay').style.display = 'none';
+            document.getElementById('karlilikContent').style.opacity = '1';
+            if (!resp.success) {
+                alert('Veri alınamadı: ' + (resp.error || ''));
+                return;
+            }
+            renderAll(resp.data);
+        })
+        .catch(err => {
+            document.getElementById('loadingOverlay').style.display = 'none';
+            document.getElementById('karlilikContent').style.opacity = '1';
+            console.error('Karlılık fetch error:', err);
+            alert('Veri yüklenemedi: ' + err.message);
+        });
+    }
+
+    // ===================== Event binding =====================
+    function bindEvents() {
+        document.querySelectorAll('[data-range]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                resetQuickRangeButtons();
+                btn.classList.remove('btn-outline-secondary');
+                btn.classList.add('active', 'btn-primary');
+                setDateRange(btn.dataset.range);
+            });
+        });
+
+        document.getElementById('btnUygula').addEventListener('click', () => {
+            resetQuickRangeButtons();
+            loadData();
+        });
+
+        document.getElementById('btnTemizle').addEventListener('click', () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('baslangic_tarihi').value = today;
+            document.getElementById('bitis_tarihi').value = today;
+            document.getElementById('plasiyer').value = '';
+            document.getElementById('malzeme_turu').value = '';
+            resetQuickRangeButtons();
+            loadData();
+        });
+    }
+
+    // ===================== Global error guard =====================
+    window.addEventListener('error', function (e) {
+        try {
+            const ov = document.getElementById('loadingOverlay');
+            if (ov) ov.style.display = 'none';
+            const ct = document.getElementById('karlilikContent');
+            if (ct) ct.style.opacity = '1';
+        } catch (_) {}
+    });
+
+    // ===================== Init =====================
+    function init() {
+        bindEvents();
+        loadData();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+</script>
+{% endblock %}

@@ -2411,6 +2411,8 @@ class MSSQLService:
               ,[KDV TUTARI]
               ,[KDV %]
               ,[NET TOPLAM]
+              ,[KAR]
+              ,[SON BİRİM NET]
               ,[CARİ KOD]
               ,[CARİ ÜNVAN]
               ,[FATURA NO]
@@ -3021,25 +3023,28 @@ class MSSQLService:
 
             # Tüm kayıtları al
             query = f"""
-            SELECT [CARİ KOD],
-                   [CARİ ÜNVAN],
-                   [FATURA NO],
-                   [TARİH],
-                   [TUTAR],
-                   [FATURAID],
-                   [TRCODE],
-                   [FATURA TÜRÜ],
-                   [AÇIKLAMA],
-                   [BELGE NO],
-                   [İPTAL DURUMU],
-                   [PLASİYER],
-                   [BÖLGE],
-                   [RESMİYET],
-                   [PLASİYER KOD],
-                   [E-BELGE TÜRÜ]
-            FROM [GO3].[dbo].[FATURA] 
+            SELECT f.[CARİ KOD],
+                   f.[CARİ ÜNVAN],
+                   f.[FATURA NO],
+                   f.[TARİH],
+                   f.[TUTAR],
+                   f.[FATURAID],
+                   f.[TRCODE],
+                   f.[FATURA TÜRÜ],
+                   f.[AÇIKLAMA],
+                   f.[BELGE NO],
+                   f.[İPTAL DURUMU],
+                   f.[PLASİYER],
+                   f.[BÖLGE],
+                   f.[RESMİYET],
+                   f.[PLASİYER KOD],
+                   f.[E-BELGE TÜRÜ],
+                   ISNULL((SELECT SUM(ISNULL(d.[KAR], 0))
+                           FROM [GO3].[dbo].[DETAY] d
+                           WHERE d.[FATURAID] = f.[FATURAID]), 0) AS [KAR_TOPLAMI]
+            FROM [GO3].[dbo].[FATURA] f
             WHERE {' AND '.join(where_conditions)}
-            ORDER BY [TARİH] DESC, [FATURAID] DESC
+            ORDER BY f.[TARİH] DESC, f.[FATURAID] DESC
             """
 
             logger.debug(f"Tüm satış listesi sorgusu: {query}")
@@ -3087,6 +3092,7 @@ class MSSQLService:
                     'İPTAL_DURUMU': self.safe_decode_string(row.get('İPTAL DURUMU')),
                     'RESMİYET': self.safe_decode_string(row.get('RESMİYET')),
                     'E_BELGE_TÜRÜ': self.safe_decode_string(row.get('E-BELGE TÜRÜ')),
+                    'KAR_TOPLAMI': float(row.get('KAR_TOPLAMI', 0) or 0),
                 })
 
             return satis_listesi
@@ -4989,6 +4995,458 @@ class MSSQLService:
 
         return {'plasiyer_data': plasiyer_bundle, 'monthly_stats': monthly_data}
 
+    def get_karlilik_dashboard_bundle(self, baslangic_tarihi=None, bitis_tarihi=None,
+                                       plasiyer=None, malzeme_turu=None):
+        """Karlılık dashboard için tek MSSQL bağlantısında tüm KPI verilerini getirir.
+
+        Dönen sözlük anahtarları:
+          kpis              : üst KPI kart verileri (toplam_kar, toplam_hasilat, ortalama_marj,
+                              karli_fatura_orani, karli_malzeme_orani, en_karli_plasiyer,
+                              dun_kar, bugun_kar, ay_kar)
+          aylik_kar         : 12 aylık (yılın) kar trendi {1..12: {kar, hasilat, adet}}
+          plasiyer_karlilik : [{plasiyer, hasilat, kar, marj, adet}, ...]
+          marka_karlilik    : [{marka, hasilat, kar, marj, adet}, ...]
+          tur_karlilik      : [{malzeme_turu, hasilat, kar, marj, adet}, ...]
+          en_karli_malzeme  : [{kod, aciklama, marka, hasilat, kar, marj, adet}, ...]  (top 20)
+          en_zarar_malzeme  : aynı yapı (en düşük 20)
+          fatura_dagilim    : {karli: n, sifir: n, zarar: n, toplam: n}
+          bolge_karlilik    : [{bolge, hasilat, kar, marj, adet}, ...]
+          plasiyerler       : dropdown için
+          malzeme_turleri   : dropdown için
+        """
+        def empty_bundle():
+            return {
+                'kpis': {
+                    'toplam_kar': 0.0, 'toplam_hasilat': 0.0, 'ortalama_marj': 0.0,
+                    'karli_fatura_orani': 0.0, 'karli_malzeme_orani': 0.0,
+                    'en_karli_plasiyer': '-', 'en_karli_plasiyer_kar': 0.0,
+                    'bugun_kar': 0.0, 'dun_kar': 0.0, 'ay_kar': 0.0,
+                    'fatura_sayisi': 0, 'malzeme_sayisi': 0,
+                },
+                'aylik_kar': {m: {'kar': 0.0, 'hasilat': 0.0, 'adet': 0} for m in range(1, 13)},
+                'plasiyer_karlilik': [],
+                'marka_karlilik': [],
+                'tur_karlilik': [],
+                'en_karli_malzeme': [],
+                'en_zarar_malzeme': [],
+                'fatura_dagilim': {'karli': 0, 'sifir': 0, 'zarar': 0, 'toplam': 0},
+                'bolge_karlilik': [],
+                'plasiyerler': [],
+                'malzeme_turleri': [],
+                'en_karli_cari': [],
+                'en_zarar_cari': [],
+                'toplam_cari_sayisi': 0,
+                'karli_cari_sayisi': 0,
+                'cari_toplam_alacak': 0.0,
+            }
+
+        result = empty_bundle()
+        conn = None
+        try:
+            conn = self.get_connection()
+            cur = conn.cursor()
+
+            # ---- WHERE koşulları (tarih + plasiyer + malzeme türü) ----
+            where_parts = ["(d.[TRCODE]=7 OR d.[TRCODE]=8)"]
+            params = []
+            if baslangic_tarihi:
+                where_parts.append("CAST(d.[TARİH] AS DATE) >= ?")
+                params.append(baslangic_tarihi)
+            if bitis_tarihi:
+                where_parts.append("CAST(d.[TARİH] AS DATE) <= ?")
+                params.append(bitis_tarihi)
+            if plasiyer:
+                where_parts.append("UPPER(LTRIM(RTRIM(d.[PLASİYER]))) = UPPER(LTRIM(RTRIM(?)))")
+                params.append(plasiyer)
+            if malzeme_turu:
+                where_parts.append("d.[MALZEME TÜRÜ] = ?")
+                params.append(malzeme_turu)
+            where_sql = " AND ".join(where_parts)
+
+            # ---- 1) Ana özet (toplam kar / hasılat / fatura-malzeme sayıları) ----
+            cur.execute(f"""
+                SELECT
+                    ISNULL(SUM(d.[KAR]), 0) AS toplam_kar,
+                    ISNULL(SUM(d.[NET TOPLAM]), 0) AS toplam_hasilat,
+                    COUNT(*) AS malzeme_sayisi,
+                    COUNT(DISTINCT d.[FATURAID]) AS fatura_sayisi,
+                    ISNULL(SUM(CASE WHEN d.[KAR] > 0 THEN 1 ELSE 0 END), 0) AS karli_malzeme_sayisi
+                FROM [GO3].[dbo].[DETAY] d
+                WHERE {where_sql}
+            """, params)
+            row = cur.fetchone()
+            toplam_kar = float(row[0] or 0)
+            toplam_hasilat = float(row[1] or 0)
+            malzeme_sayisi = int(row[2] or 0)
+            fatura_sayisi = int(row[3] or 0)
+            karli_malzeme = int(row[4] or 0)
+            ortalama_marj = (toplam_kar / toplam_hasilat * 100.0) if toplam_hasilat else 0.0
+
+            # Fatura başına kar özeti
+            cur.execute(f"""
+                SELECT
+                    SUM(CASE WHEN kar_toplam > 0 THEN 1 ELSE 0 END) AS karli_fatura,
+                    SUM(CASE WHEN kar_toplam = 0 THEN 1 ELSE 0 END) AS sifir_fatura,
+                    SUM(CASE WHEN kar_toplam < 0 THEN 1 ELSE 0 END) AS zarar_fatura
+                FROM (
+                    SELECT ISNULL(SUM(d.[KAR]), 0) AS kar_toplam
+                    FROM [GO3].[dbo].[DETAY] d
+                    WHERE {where_sql}
+                    GROUP BY d.[FATURAID]
+                ) x
+            """, params)
+            fr = cur.fetchone()
+            karli_fatura = int(fr[0] or 0)
+            sifir_fatura = int(fr[1] or 0)
+            zarar_fatura = int(fr[2] or 0)
+            karli_fatura_orani = (karli_fatura / fatura_sayisi * 100.0) if fatura_sayisi else 0.0
+            karli_malzeme_orani = (karli_malzeme / malzeme_sayisi * 100.0) if malzeme_sayisi else 0.0
+
+            # ---- 2) Bugün / Dün / Bu ay kar (tarih bağımsız) ----
+            today = date.today()
+            cur.execute(f"""
+                SELECT
+                    ISNULL(SUM(CASE WHEN CAST(d.[TARİH] AS DATE) = CAST(GETDATE() AS DATE) THEN d.[KAR] END), 0) AS bugun_kar,
+                    ISNULL(SUM(CASE WHEN CAST(d.[TARİH] AS DATE) = CAST(DATEADD(DAY,-1,GETDATE()) AS DATE) THEN d.[KAR] END), 0) AS dun_kar,
+                    ISNULL(SUM(CASE WHEN YEAR(d.[TARİH]) = YEAR(GETDATE()) AND MONTH(d.[TARİH]) = MONTH(GETDATE()) THEN d.[KAR] END), 0) AS ay_kar
+                FROM [GO3].[dbo].[DETAY] d
+                WHERE (d.[TRCODE]=7 OR d.[TRCODE]=8)
+            """)
+            tr = cur.fetchone()
+            bugun_kar = float(tr[0] or 0)
+            dun_kar = float(tr[1] or 0)
+            ay_kar = float(tr[2] or 0)
+
+            # ---- 3) Plasiyer dropdown ----
+            cur.execute("""
+                SELECT DISTINCT LTRIM(RTRIM(ISNULL(d.[PLASİYER], N''))) AS p
+                FROM [GO3].[dbo].[DETAY] d
+                WHERE (d.[TRCODE]=7 OR d.[TRCODE]=8)
+                  AND LTRIM(RTRIM(ISNULL(d.[PLASİYER], N''))) <> N''
+                ORDER BY p
+            """)
+            plasiyer_list = [self.safe_decode_string(r[0]) for r in cur.fetchall() if r[0]]
+
+            # ---- 4) Malzeme Türü dropdown ----
+            cur.execute("""
+                SELECT DISTINCT LTRIM(RTRIM(ISNULL(d.[MALZEME TÜRÜ], N''))) AS t
+                FROM [GO3].[dbo].[DETAY] d
+                WHERE (d.[TRCODE]=7 OR d.[TRCODE]=8)
+                  AND LTRIM(RTRIM(ISNULL(d.[MALZEME TÜRÜ], N''))) <> N''
+                ORDER BY t
+            """)
+            tur_list = [self.safe_decode_string(r[0]) for r in cur.fetchall() if r[0]]
+
+            # ---- 5) Aylık kar trendi (mevcut yıl) ----
+            cur.execute("""
+                SELECT
+                    MONTH(d.[TARİH]) AS ay,
+                    ISNULL(SUM(d.[KAR]), 0) AS kar,
+                    ISNULL(SUM(d.[NET TOPLAM]), 0) AS hasilat,
+                    COUNT(*) AS adet
+                FROM [GO3].[dbo].[DETAY] d
+                WHERE (d.[TRCODE]=7 OR d.[TRCODE]=8)
+                  AND YEAR(d.[TARİH]) = YEAR(GETDATE())
+                GROUP BY MONTH(d.[TARİH])
+                ORDER BY MONTH(d.[TARİH])
+            """)
+            aylik = {m: {'kar': 0.0, 'hasilat': 0.0, 'adet': 0} for m in range(1, 13)}
+            for r in cur.fetchall():
+                ay = int(r[0])
+                if 1 <= ay <= 12:
+                    aylik[ay] = {'kar': float(r[1] or 0), 'hasilat': float(r[2] or 0), 'adet': int(r[3] or 0)}
+
+            # ---- 6) Plasiyer Karlılık ----
+            cur.execute(f"""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(d.[PLASİYER], N''))) AS p,
+                    ISNULL(SUM(d.[KAR]), 0) AS kar,
+                    ISNULL(SUM(d.[NET TOPLAM]), 0) AS hasilat,
+                    COUNT(*) AS adet
+                FROM [GO3].[dbo].[DETAY] d
+                WHERE {where_sql}
+                GROUP BY LTRIM(RTRIM(ISNULL(d.[PLASİYER], N'')))
+                ORDER BY kar DESC
+            """, params)
+            plasiyer_kar = []
+            en_karli_plasiyer = '-'
+            en_karli_plasiyer_kar = 0.0
+            for r in cur.fetchall():
+                ad = self.safe_decode_string(r[0]) or '-'
+                kar = float(r[1] or 0)
+                has = float(r[2] or 0)
+                adet = int(r[3] or 0)
+                marj = (kar / has * 100.0) if has else 0.0
+                plasiyer_kar.append({'plasiyer': ad, 'kar': kar, 'hasilat': has, 'marj': marj, 'adet': adet})
+            if plasiyer_kar:
+                en_karli_plasiyer = plasiyer_kar[0]['plasiyer']
+                en_karli_plasiyer_kar = plasiyer_kar[0]['kar']
+
+            # ---- 7) Marka Karlılık (top 30) ----
+            cur.execute(f"""
+                SELECT TOP 30
+                    LTRIM(RTRIM(ISNULL(d.[MARKA], N''))) AS m,
+                    ISNULL(SUM(d.[KAR]), 0) AS kar,
+                    ISNULL(SUM(d.[NET TOPLAM]), 0) AS hasilat,
+                    COUNT(*) AS adet
+                FROM [GO3].[dbo].[DETAY] d
+                WHERE {where_sql}
+                  AND LTRIM(RTRIM(ISNULL(d.[MARKA], N''))) <> N''
+                GROUP BY LTRIM(RTRIM(ISNULL(d.[MARKA], N'')))
+                ORDER BY kar DESC
+            """, params)
+            marka_kar = []
+            for r in cur.fetchall():
+                ad = self.safe_decode_string(r[0])
+                kar = float(r[1] or 0)
+                has = float(r[2] or 0)
+                adet = int(r[3] or 0)
+                marj = (kar / has * 100.0) if has else 0.0
+                marka_kar.append({'marka': ad, 'kar': kar, 'hasilat': has, 'marj': marj, 'adet': adet})
+
+            # ---- 8) Malzeme Türü Karlılık ----
+            cur.execute(f"""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(d.[MALZEME TÜRÜ], N''))) AS t,
+                    ISNULL(SUM(d.[KAR]), 0) AS kar,
+                    ISNULL(SUM(d.[NET TOPLAM]), 0) AS hasilat,
+                    COUNT(*) AS adet
+                FROM [GO3].[dbo].[DETAY] d
+                WHERE {where_sql}
+                  AND LTRIM(RTRIM(ISNULL(d.[MALZEME TÜRÜ], N''))) <> N''
+                GROUP BY LTRIM(RTRIM(ISNULL(d.[MALZEME TÜRÜ], N'')))
+                ORDER BY kar DESC
+            """, params)
+            tur_kar = []
+            for r in cur.fetchall():
+                ad = self.safe_decode_string(r[0])
+                kar = float(r[1] or 0)
+                has = float(r[2] or 0)
+                adet = int(r[3] or 0)
+                marj = (kar / has * 100.0) if has else 0.0
+                tur_kar.append({'malzeme_turu': ad, 'kar': kar, 'hasilat': has, 'marj': marj, 'adet': adet})
+
+            # ---- 9) En Karlı 50 Malzeme ----
+            cur.execute(f"""
+                SELECT TOP 50
+                    LTRIM(RTRIM(ISNULL(d.[MALZEME KODU], N''))) AS kod,
+                    LTRIM(RTRIM(ISNULL(d.[AÇIKLAMASI], N''))) AS acik,
+                    LTRIM(RTRIM(ISNULL(d.[MARKA], N''))) AS marka,
+                    ISNULL(SUM(d.[KAR]), 0) AS kar,
+                    ISNULL(SUM(d.[NET TOPLAM]), 0) AS hasilat,
+                    COUNT(*) AS adet
+                FROM [GO3].[dbo].[DETAY] d
+                WHERE {where_sql}
+                  AND LTRIM(RTRIM(ISNULL(d.[MALZEME KODU], N''))) <> N''
+                GROUP BY LTRIM(RTRIM(ISNULL(d.[MALZEME KODU], N''))),
+                         LTRIM(RTRIM(ISNULL(d.[AÇIKLAMASI], N''))),
+                         LTRIM(RTRIM(ISNULL(d.[MARKA], N'')))
+                ORDER BY kar DESC
+            """, params)
+            en_karli = []
+            for r in cur.fetchall():
+                kod = self.safe_decode_string(r[0])
+                acik = self.safe_decode_string(r[1])
+                marka = self.safe_decode_string(r[2])
+                kar = float(r[3] or 0)
+                has = float(r[4] or 0)
+                adet = int(r[5] or 0)
+                marj = (kar / has * 100.0) if has else 0.0
+                en_karli.append({'kod': kod, 'aciklama': acik, 'marka': marka,
+                                 'kar': kar, 'hasilat': has, 'marj': marj, 'adet': adet})
+
+            # ---- 10) En Zarar Eden 50 Malzeme ----
+            cur.execute(f"""
+                SELECT TOP 50
+                    LTRIM(RTRIM(ISNULL(d.[MALZEME KODU], N''))) AS kod,
+                    LTRIM(RTRIM(ISNULL(d.[AÇIKLAMASI], N''))) AS acik,
+                    LTRIM(RTRIM(ISNULL(d.[MARKA], N''))) AS marka,
+                    ISNULL(SUM(d.[KAR]), 0) AS kar,
+                    ISNULL(SUM(d.[NET TOPLAM]), 0) AS hasilat,
+                    COUNT(*) AS adet
+                FROM [GO3].[dbo].[DETAY] d
+                WHERE {where_sql}
+                  AND LTRIM(RTRIM(ISNULL(d.[MALZEME KODU], N''))) <> N''
+                GROUP BY LTRIM(RTRIM(ISNULL(d.[MALZEME KODU], N''))),
+                         LTRIM(RTRIM(ISNULL(d.[AÇIKLAMASI], N''))),
+                         LTRIM(RTRIM(ISNULL(d.[MARKA], N'')))
+                ORDER BY kar ASC
+            """, params)
+            en_zarar = []
+            for r in cur.fetchall():
+                kod = self.safe_decode_string(r[0])
+                acik = self.safe_decode_string(r[1])
+                marka = self.safe_decode_string(r[2])
+                kar = float(r[3] or 0)
+                has = float(r[4] or 0)
+                adet = int(r[5] or 0)
+                marj = (kar / has * 100.0) if has else 0.0
+                en_zarar.append({'kod': kod, 'aciklama': acik, 'marka': marka,
+                                 'kar': kar, 'hasilat': has, 'marj': marj, 'adet': adet})
+
+            # ---- 11) Bölge Karlılık ----
+            cur.execute(f"""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(d.[BÖLGE], N''))) AS b,
+                    ISNULL(SUM(d.[KAR]), 0) AS kar,
+                    ISNULL(SUM(d.[NET TOPLAM]), 0) AS hasilat,
+                    COUNT(*) AS adet
+                FROM [GO3].[dbo].[DETAY] d
+                WHERE {where_sql}
+                  AND LTRIM(RTRIM(ISNULL(d.[BÖLGE], N''))) <> N''
+                GROUP BY LTRIM(RTRIM(ISNULL(d.[BÖLGE], N'')))
+                ORDER BY kar DESC
+            """, params)
+            bolge_kar = []
+            for r in cur.fetchall():
+                ad = self.safe_decode_string(r[0])
+                kar = float(r[1] or 0)
+                has = float(r[2] or 0)
+                adet = int(r[3] or 0)
+                marj = (kar / has * 100.0) if has else 0.0
+                bolge_kar.append({'bolge': ad, 'kar': kar, 'hasilat': has, 'marj': marj, 'adet': adet})
+
+            # ---- 12) Cari Bazlı Karlılık (En Karlı + En Zarar 20'şer cari) ----
+            # Toplam: kaç cari, kaçı karlı, toplam alacak (NET TOPLAM)
+            cur.execute(f'''
+                SELECT
+                    COUNT(DISTINCT [CARİ KOD]) AS toplam_cari,
+                    COUNT(DISTINCT CASE WHEN kar_toplam > 0 THEN [FATURAID] END) AS karli_cari,
+                    ISNULL(SUM(NET_TOPLAM), 0) AS toplam_alacak
+                FROM (
+                    SELECT [FATURAID], [CARİ KOD],
+                           ISNULL(SUM(d.[KAR]), 0) AS kar_toplam,
+                           ISNULL(SUM(d.[NET TOPLAM]), 0) AS NET_TOPLAM
+                    FROM [GO3].[dbo].[DETAY] d
+                    WHERE {where_sql}
+                    GROUP BY [FATURAID], [CARİ KOD]
+                ) x
+            ''', params)
+            cr = cur.fetchone()
+            toplam_cari = int(cr[0] or 0)
+            karli_cari = int(cr[1] or 0)
+            cari_toplam_alacak = float(cr[2] or 0)
+
+            # Tüm Cari (karlı, karsız, sıfır) — sınır yok
+            cur.execute(f'''
+                SELECT
+                    LTRIM(RTRIM(ISNULL(d.[CARİ KOD], N''))) AS cari_kod,
+                    LTRIM(RTRIM(ISNULL(d.[CARİ ÜNVAN], N''))) AS cari_unvan,
+                    ISNULL(SUM(d.[KAR]), 0) AS kar,
+                    ISNULL(SUM(d.[NET TOPLAM]), 0) AS hasilat,
+                    ISNULL(SUM(d.[TOPLAM İNDİRİM]), 0) AS toplam_indirim,
+                    COUNT(*) AS adet,
+                    COUNT(DISTINCT d.[FATURAID]) AS fatura_sayisi
+                FROM [GO3].[dbo].[DETAY] d
+                WHERE {where_sql}
+                  AND LTRIM(RTRIM(ISNULL(d.[CARİ KOD], N''))) <> N''
+                GROUP BY LTRIM(RTRIM(ISNULL(d.[CARİ KOD], N''))),
+                         LTRIM(RTRIM(ISNULL(d.[CARİ ÜNVAN], N'')))
+                ORDER BY kar DESC
+            ''', params)
+            en_karli_cari = []
+            for r in cur.fetchall():
+                kod = self.safe_decode_string(r[0])
+                unv = self.safe_decode_string(r[1])
+                kar = float(r[2] or 0)
+                has = float(r[3] or 0)
+                ind = float(r[4] or 0)
+                adet = int(r[5] or 0)
+                fsy = int(r[6] or 0)
+                marj = (kar / has * 100.0) if has else 0.0
+                en_karli_cari.append({
+                    'cari_kod': kod, 'cari_unvan': unv,
+                    'kar': kar, 'hasilat': has, 'toplam_indirim': ind,
+                    'adet': adet, 'fatura_sayisi': fsy, 'marj': marj,
+                })
+
+            # Zarar Eden Tüm Cari
+            cur.execute(f'''
+                SELECT
+                    LTRIM(RTRIM(ISNULL(d.[CARİ KOD], N''))) AS cari_kod,
+                    LTRIM(RTRIM(ISNULL(d.[CARİ ÜNVAN], N''))) AS cari_unvan,
+                    ISNULL(SUM(d.[KAR]), 0) AS kar,
+                    ISNULL(SUM(d.[NET TOPLAM]), 0) AS hasilat,
+                    ISNULL(SUM(d.[TOPLAM İNDİRİM]), 0) AS toplam_indirim,
+                    COUNT(*) AS adet,
+                    COUNT(DISTINCT d.[FATURAID]) AS fatura_sayisi
+                FROM [GO3].[dbo].[DETAY] d
+                WHERE {where_sql}
+                  AND LTRIM(RTRIM(ISNULL(d.[CARİ KOD], N''))) <> N''
+                GROUP BY LTRIM(RTRIM(ISNULL(d.[CARİ KOD], N''))),
+                         LTRIM(RTRIM(ISNULL(d.[CARİ ÜNVAN], N'')))
+                ORDER BY kar ASC
+            ''', params)
+            en_zarar_cari = []
+            for r in cur.fetchall():
+                kod = self.safe_decode_string(r[0])
+                unv = self.safe_decode_string(r[1])
+                kar = float(r[2] or 0)
+                has = float(r[3] or 0)
+                ind = float(r[4] or 0)
+                adet = int(r[5] or 0)
+                fsy = int(r[6] or 0)
+                marj = (kar / has * 100.0) if has else 0.0
+                en_zarar_cari.append({
+                    'cari_kod': kod, 'cari_unvan': unv,
+                    'kar': kar, 'hasilat': has, 'toplam_indirim': ind,
+                    'adet': adet, 'fatura_sayisi': fsy, 'marj': marj,
+                })
+
+            result['en_karli_cari'] = en_karli_cari
+            result['en_zarar_cari'] = en_zarar_cari
+            result['toplam_cari_sayisi'] = toplam_cari
+            result['karli_cari_sayisi'] = karli_cari
+            result['cari_toplam_alacak'] = cari_toplam_alacak
+
+            cur.close()
+
+            result['kpis'] = {
+                'toplam_kar': toplam_kar,
+                'toplam_hasilat': toplam_hasilat,
+                'ortalama_marj': ortalama_marj,
+                'karli_fatura_orani': karli_fatura_orani,
+                'karli_malzeme_orani': karli_malzeme_orani,
+                'en_karli_plasiyer': en_karli_plasiyer,
+                'en_karli_plasiyer_kar': en_karli_plasiyer_kar,
+                'bugun_kar': bugun_kar,
+                'dun_kar': dun_kar,
+                'ay_kar': ay_kar,
+                'fatura_sayisi': fatura_sayisi,
+                'malzeme_sayisi': malzeme_sayisi,
+                'karli_fatura_sayisi': karli_fatura,
+                'zarar_fatura_sayisi': zarar_fatura,
+            }
+            result['aylik_kar'] = aylik
+            result['plasiyer_karlilik'] = plasiyer_kar
+            result['marka_karlilik'] = marka_kar
+            result['tur_karlilik'] = tur_kar
+            result['en_karli_malzeme'] = en_karli
+            result['en_zarar_malzeme'] = en_zarar
+            result['fatura_dagilim'] = {
+                'karli': karli_fatura,
+                'sifir': sifir_fatura,
+                'zarar': zarar_fatura,
+                'toplam': fatura_sayisi,
+            }
+            result['bolge_karlilik'] = bolge_kar
+            result['plasiyerler'] = plasiyer_list
+            result['malzeme_turleri'] = tur_list
+
+
+
+        except Exception as e:
+            logger.error(f'get_karlilik_dashboard_bundle error: {e}')
+            # Boş döndür ama crash etme
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+        return result
+
     def get_monthly_satis_tahsilat_stats(self):
         """Tüm ayların satış ve tahsilat toplamlarını getirir (aylık bazda)"""
         try:
@@ -6078,7 +6536,7 @@ class MSSQLService:
             except Exception:
                 pass
 
-    def get_malzeme_satis_detay_all(self, baslangic_tarihi=None, bitis_tarihi=None, plasiyer=None, cari_kod=None, cari_unvan=None, malzeme_kodu=None, malzeme_aciklama=None):
+    def get_malzeme_satis_detay_all(self, baslangic_tarihi=None, bitis_tarihi=None, plasiyer=None, cari_kod=None, cari_unvan=None, malzeme_kodu=None, malzeme_aciklama=None, kar_filter=None):
         """DETAY tablosundan tüm malzeme satış detaylarını getirir - sayfalama olmadan - sadece dolu parametrelerle filtreleme"""
         try:
             conn = self.get_connection()
@@ -6087,10 +6545,11 @@ class MSSQLService:
             # Base query
             base_query = """
                   SELECT [TARİH], [MALZEME KODU], [AÇIKLAMASI], [MARKA], [MALZEME TÜRÜ],
-                      [MİKTAR], [BİRİM], [BİRİM BRÜT], [BİRİM İNDİRİM], [BİRİM NET], [B2B], [FARK],
-                      [TOPLAM İNDİRİM], [KDV TUTARI], [NET TOPLAM], [FATURA NO],
+                      [MİKTAR], [BİRİM], [BİRİM NET],
+                      [SON BİRİM NET], [KAR],
+                      [NET TOPLAM], [FATURA NO],
                       [CARİ KOD], [CARİ ÜNVAN], [PLASİYER], [BÖLGE]
-                FROM [GO3].[dbo].[DETAY] 
+                FROM [GO3].[dbo].[DETAY]
                 WHERE (TRCODE = 8 OR TRCODE = 7)
             """
 
@@ -6125,6 +6584,15 @@ class MSSQLService:
                 base_query += " AND [AÇIKLAMASI] LIKE ?"
                 params.append(f'%{malzeme_aciklama}%')
 
+            # Kar filtresi
+            if kar_filter and str(kar_filter).strip():
+                if str(kar_filter).strip() == 'pozitif':
+                    base_query += " AND ISNULL([KAR], 0) > 0"
+                elif str(kar_filter).strip() == 'negatif':
+                    base_query += " AND ISNULL([KAR], 0) < 0"
+                elif str(kar_filter).strip() == 'sifir':
+                    base_query += " AND ISNULL([KAR], 0) = 0"
+
             # Tüm kayıtları al - sayfalama yok
             main_query = base_query + " ORDER BY [TARİH] DESC"
 
@@ -6142,19 +6610,15 @@ class MSSQLService:
                     'MALZEME_TÜRÜ': self.safe_decode_string(row[4]),
                     'MİKTAR': float(row[5]) if row[5] else 0,
                     'BİRİM': self.safe_decode_string(row[6]),
-                    'BİRİM_BRÜT': float(row[7]) if row[7] else 0,
-                    'BİRİM_İNDİRİM': float(row[8]) if row[8] else 0,
-                    'BİRİM_NET': float(row[9]) if row[9] else 0,
-                    'B2B': float(row[10]) if row[10] else 0,
-                    'FARK': float(row[11]) if row[11] else 0,
-                    'TOPLAM_İNDİRİM': float(row[12]) if row[12] else 0,
-                    'KDV_TUTARI': float(row[13]) if row[13] else 0,
-                    'NET_TOPLAM': float(row[14]) if row[14] else 0,
-                    'FATURA_NO': self.safe_decode_string(row[15]),
-                    'CARİ_KOD': self.safe_decode_string(row[16]),
-                    'CARİ_ÜNVAN': self.safe_decode_string(row[17]),
-                    'PLASİYER': self.safe_decode_string(row[18]),
-                    'BÖLGE': self.safe_decode_string(row[19])
+                    'BİRİM_NET': float(row[7]) if row[7] else 0,
+                    'SON_BİRİM_NET': float(row[8]) if row[8] is not None else 0,
+                    'KAR': float(row[9]) if row[9] is not None else 0,
+                    'NET_TOPLAM': float(row[10]) if row[10] else 0,
+                    'FATURA_NO': self.safe_decode_string(row[11]),
+                    'CARİ_KOD': self.safe_decode_string(row[12]),
+                    'CARİ_ÜNVAN': self.safe_decode_string(row[13]),
+                    'PLASİYER': self.safe_decode_string(row[14]),
+                    'BÖLGE': self.safe_decode_string(row[15])
                 }
                 data.append(item)
 

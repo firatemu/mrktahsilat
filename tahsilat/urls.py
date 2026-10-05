@@ -23,6 +23,7 @@ urlpatterns = [
     path('genel-gorunum/ekstre/', views.genel_ekstre, name='genel_ekstre'),
     path('genel-gorunum/cari-genel-analiz/', views.genel_cari_analiz, name='genel_cari_analiz'),
     path('genel-gorunum/cari-aylik-ozet/', views.genel_cari_aylik_ozet, name='genel_cari_aylik_ozet'),
+    path('genel-gorunum/karlilik/', views.genel_karlilik, name='genel_karlilik'),
 
     # AJAX endpoints
     path('ajax/get-plasiyer-regions/', views.get_plasiyer_regions, name='get_plasiyer_regions'),

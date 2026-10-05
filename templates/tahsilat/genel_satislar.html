@@ -98,59 +98,104 @@
         font-weight: bold;
     }
 
-    /* Sabit Footer Stilleri */
+    /* ===== Sabit Footer (kurumsal — Toplam Tutar + Toplam Kar) ===== */
     .fixed-footer {
         position: fixed;
         bottom: 0;
         left: 0;
         right: 0;
-        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-        color: white;
-        padding: 15px 20px;
-        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+        background: #ffffff;
+        color: #212529;
+        padding: 14px 24px;
+        box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.10);
         z-index: 1000;
-        border-top: 3px solid #1e7e34;
+        border-top: 3px solid #0d6efd;
     }
-
-    .footer-content {
+    .fixed-footer .footer-content {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        max-width: 1200px;
+        max-width: 1400px;
         margin: 0 auto;
+        gap: 1rem;
     }
-
-    .footer-totals {
+    .fixed-footer .footer-totals {
         display: flex;
-        gap: 20px;
+        gap: 32px;
         align-items: center;
     }
-
-    .footer-total-item {
-        text-align: center;
+    .fixed-footer .footer-total-item {
         display: flex;
         flex-direction: column;
-        align-items: center;
-        justify-content: center;
+        align-items: flex-start;
+        line-height: 1.15;
+        padding: 4px 16px;
+        border-right: 1px solid #e9ecef;
     }
-
-    .footer-total-label {
+    .fixed-footer .footer-total-item:last-child { border-right: none; }
+    .fixed-footer .footer-total-label {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        margin: 0;
+    }
+    .fixed-footer .footer-total-value {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #212529;
+        margin: 2px 0 0 0;
+    }
+    .fixed-footer .footer-total-value.text-success { color: #155724; }
+    .fixed-footer .footer-tab-info {
         font-size: 0.85rem;
-        opacity: 0.9;
-        margin-bottom: 2px;
-        text-align: center;
+        color: #6c757d;
+        display: flex;
+        align-items: center;
+        gap: 6px;
     }
+    .fixed-footer .footer-tab-info i { color: #0d6efd; }
 
-    .footer-total-value {
-        font-size: 1.2rem;
-        font-weight: bold;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-        text-align: center;
+    /* ===== Datagrid alt toplam satırı ===== */
+    .grid-totals {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 1.5rem;
+        padding: 10px 16px;
+        margin-top: 10px;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        color: #495057;
     }
-
-    .footer-record-count {
-        font-size: 0.9rem;
-        opacity: 0.9;
+    .grid-totals .gt-item {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+    }
+    .grid-totals .gt-label {
+        font-weight: 600;
+        color: #6c757d;
+        text-transform: uppercase;
+        font-size: 0.72rem;
+        letter-spacing: 0.3px;
+    }
+    .grid-totals .gt-value {
+        font-weight: 800;
+        font-size: 1rem;
+        color: #212529;
+    }
+    .grid-totals .gt-value.text-success { color: #155724; }
+    .grid-totals .gt-record-count {
+        color: #6c757d;
+        font-size: 0.8rem;
+        padding: 3px 10px;
+        background: #e9ecef;
+        border-radius: 12px;
+        font-weight: 600;
     }
 
     /* Ana içerik için alt boşluk ekle */
@@ -225,7 +270,7 @@
     .table-header .fatura-info {
         display: grid;
         /* Use the same grid structure as `satislarim` for consistent layout */
-        grid-template-columns: 80px 1fr 120px 120px 120px 120px 120px 40px;
+        grid-template-columns: 80px 1fr 120px 120px 120px 100px 120px 120px 120px 40px;
         gap: 15px;
         padding: 15px;
         font-weight: 600;
@@ -263,7 +308,7 @@
 
     .fatura-info {
         display: grid;
-        grid-template-columns: 80px 1fr 120px 120px 120px 120px 120px 40px;
+        grid-template-columns: 80px 1fr 120px 120px 120px 100px 120px 120px 120px 40px;
         gap: 15px;
         padding: 15px;
         align-items: center;
@@ -307,9 +352,14 @@
     }
 
     .fatura-plasiyer,
-    .fatura-location {
+    .fatura-location,
+    .fatura-kar {
         text-align: center;
         font-size: 12px;
+    }
+
+    .fatura-kar {
+        font-weight: 700;
     }
 
     .expand-icon {
@@ -467,10 +517,12 @@
             gap: 10px;
         }
 
+        .fatura-info>div:nth-child(2),
         .fatura-info>div:nth-child(3),
         .fatura-info>div:nth-child(5),
         .fatura-info>div:nth-child(6),
-        .fatura-info>div:nth-child(7) {
+        .fatura-info>div:nth-child(7),
+        .fatura-info>div:nth-child(8) {
             display: none;
         }
 
@@ -478,10 +530,12 @@
             grid-template-columns: 60px 1fr 100px 30px;
         }
 
+        .table-header .fatura-info>div:nth-child(2),
         .table-header .fatura-info>div:nth-child(3),
         .table-header .fatura-info>div:nth-child(5),
         .table-header .fatura-info>div:nth-child(6),
-        .table-header .fatura-info>div:nth-child(7) {
+        .table-header .fatura-info>div:nth-child(7),
+        .table-header .fatura-info>div:nth-child(8) {
             display: none;
         }
     }
@@ -669,6 +723,8 @@
                                         id="tutarHeader">
                                         Tutar <i class="bi bi-arrow-down-up ms-1" id="sortIcon"></i>
                                     </div>
+                                    <div style="text-align: center;">Kar</div>
+                                    <div style="text-align: center;">Kar Oranı %</div>
                                     <div style="text-align: center;">Plasiyer</div>
                                     <div style="text-align: center;">Bölge</div>
                                     <div style="text-align: center;">E-Belge Türü</div>
@@ -680,7 +736,7 @@
                             {% if satis_listesi %}
                             {% endif %}
                             {% for fatura in satis_listesi %}
-                            <div class="fatura-item" data-amount="{{ fatura.NET_TOPLAM|stringformat:'.2f' }}">
+                            <div class="fatura-item" data-amount="{{ fatura.NET_TOPLAM|stringformat:'.2f' }}" data-kar="{{ fatura.KAR_TOPLAMI|stringformat:'.2f' }}">
                                 <div class="fatura-row" onclick="toggleDetail('{{ fatura.ID }}')">
                                     <div class="fatura-info">
                                         <div class="fatura-id">#{{ fatura.ID }}</div>
@@ -696,6 +752,24 @@
                                         <div class="fatura-date">{{ fatura.FormattedDate|default:"-" }}</div>
 
                                         <div class="fatura-amount">{{ fatura.NET_TOPLAM|currency_format_decimal }}</div>
+
+                                        <div class="fatura-kar">
+                                            {% if fatura.KAR_TOPLAMI %}
+                                            <span class="badge {% if fatura.KAR_TOPLAMI > 0 %}bg-success{% else %}bg-danger{% endif %}">{{ fatura.KAR_TOPLAMI|currency_format_decimal }} ₺</span>
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="fatura-kar-orani">
+                                            {% if fatura.KAR_TOPLAMI and fatura.NET_TOPLAM %}
+                                            <span class="badge {% if fatura.KAR_TOPLAMI > 0 %}bg-success{% else %}bg-danger{% endif %}">
+                                                {% widthratio fatura.KAR_TOPLAMI fatura.NET_TOPLAM 100 %}%
+                                            </span>
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </div>
 
                                         <div class="fatura-plasiyer">
                                             {% if fatura.CARİ_PLASİYER %}
@@ -768,6 +842,19 @@
                     </small>
                 </div>
 
+                <!-- Satış Listesi alt toplam (Toplam Tutar + Toplam Kar) -->
+                <div class="grid-totals" id="satisListesiTotals">
+                    <span class="gt-record-count"><i class="bi bi-list-ol me-1"></i><span id="satisListesiRecordCount">{{ satis_listesi|length }}</span> kayıt</span>
+                    <span class="gt-item">
+                        <span class="gt-label">Toplam Tutar</span>
+                        <span class="gt-value" id="satisListesiTotalTutar">0,00 ₺</span>
+                    </span>
+                    <span class="gt-item">
+                        <span class="gt-label">Toplam Kar</span>
+                        <span class="gt-value text-success" id="satisListesiTotalKar">0,00 ₺</span>
+                    </span>
+                </div>
+
             </div>
 
             <!-- Malzeme Satış Listesi Sekmesi -->
@@ -811,6 +898,15 @@
                                     name="malzeme_aciklama" placeholder="Malzeme açıklaması girin...">
                             </div>
                             <div class="col-md-2">
+                                <label for="kar_filter" class="form-label">Kar</label>
+                                <select class="form-select" id="kar_filter" name="kar_filter">
+                                    <option value="">Hepsi</option>
+                                    <option value="pozitif">0'dan Büyük</option>
+                                    <option value="negatif">0'dan Küçük</option>
+                                    <option value="sifir">Sıfır</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
                                 <label for="per_page" class="form-label">Sayfa Başı Kayıt</label>
                                 <select class="form-select" id="per_page" name="per_page">
                                     <option value="100">100</option>
@@ -820,7 +916,7 @@
                                     <option value="all">Hepsi</option>
                                 </select>
                             </div>
-                            <div class="col-md-6 d-flex align-items-end">
+                            <div class="col-md-4 d-flex align-items-end">
                                 <button type="button" class="btn btn-primary me-2" onclick="loadMalzemeData()">
                                     <i class="bi bi-search me-1"></i>Ara
                                 </button>
@@ -874,6 +970,19 @@
                     <small class="text-muted">
                         Toplam <span id="malzeme-count">0</span> kayıt gösteriliyor
                     </small>
+
+                    <!-- Malzeme Satış Listesi alt toplam -->
+                    <div class="grid-totals" id="malzemeListesiTotals" style="margin-top:10px;">
+                        <span class="gt-record-count"><i class="bi bi-list-ol me-1"></i><span id="malzemeListesiRecordCount">0</span> kayıt</span>
+                        <span class="gt-item">
+                            <span class="gt-label">Toplam Tutar</span>
+                            <span class="gt-value" id="malzemeListesiTotalTutar">0,00 ₺</span>
+                        </span>
+                        <span class="gt-item">
+                            <span class="gt-label">Toplam Kar</span>
+                            <span class="gt-value text-success" id="malzemeListesiTotalKar">0,00 ₺</span>
+                        </span>
+                    </div>
                 </div>
 
             </div>
@@ -892,8 +1001,20 @@
             });
         }
 
-        // Sayfa yüklendiğinde hash kontrolü yap
-        document.addEventListener('DOMContentLoaded', function () {
+        // Türkçe formatındaki sayıyı float'a çevir (1.234,56 → 1234.56)
+        function parseTRNumberFromText(text) {
+            if (!text) return 0;
+            // Sadece sayı, virgül ve noktayı al
+            const cleaned = text.replace(/[^\d.,\-]/g, '');
+            if (!cleaned) return 0;
+            // Türkçe format: nokta binlik, virgül ondalık
+            const normalized = cleaned.replace(/\./g, '').replace(',', '.');
+            const num = parseFloat(normalized);
+            return isNaN(num) ? 0 : num;
+        }
+
+        // Sayfa yüklendiğinde hash kontrolü yap — readyState kontrolü ile her durumda çalışsın
+        function initGenelSatislarPage() {
             // Bugünün tarihini al
             const today = new Date().toISOString().split('T')[0];
 
@@ -915,7 +1036,12 @@
                 malzemeTab.show();
             }
             // Hash yoksa veya farklıysa varsayılan olarak Satış Listesi açık kalır
-        });
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initGenelSatislarPage);
+        } else {
+            initGenelSatislarPage();
+        }
 
         // Malzeme satış verilerini yükleme fonksiyonu
         function loadMalzemeData() {
@@ -962,13 +1088,10 @@
                                     <th>Malzeme Türü</th>
                                     <th class="text-end">Miktar</th>
                                     <th>Birim</th>
-                                    <th class="text-end">Birim Brüt</th>
-                                    <th class="text-end">Birim İndirim</th>
                                     <th class="text-end">Birim Net</th>
-                                    <th class="text-end">B2B</th>
-                                    <th class="text-end">Fark</th>
-                                    <th class="text-end">Toplam İndirim</th>
-                                    <th class="text-end">KDV Tutarı</th>
+                                    <th class="text-end">Son Birim Net</th>
+                                    <th class="text-end">Kar</th>
+                                    <th class="text-end">Kar Oranı %</th>
                                     <th class="text-end">Net Toplam</th>
                                     <th>Cari Kod</th>
                                     <th>Cari Ünvan</th>
@@ -981,34 +1104,31 @@
                         // Toplamları hesapla
                         let toplamMiktar = 0;
                         let toplamNetToplam = 0;
-                        let toplamIndirim = 0;
+                        let toplamKar = 0;
 
                         data.data.forEach(item => {
                             toplamMiktar += parseFloat(item.MİKTAR || 0);
                             toplamNetToplam += parseFloat(item.NET_TOPLAM || 0);
-                            toplamIndirim += parseFloat(item.TOPLAM_İNDİRİM || 0);
+                            toplamKar += parseFloat(item.KAR || 0);
 
                             tableHtml += `
                         <tr>
-                            <td><span class="badge bg-light text-dark border">${item.TARİH || '-'}</span></td>
-                            <td><code class="bg-light text-dark px-2 py-1 rounded">${item.FATURA_NO || '-'}</code></td>
-                            <td><code class="bg-light text-dark px-2 py-1 rounded">${item.MALZEME_KODU || '-'}</code></td>
-                            <td>${item.AÇIKLAMASI || '-'}</td>
-                            <td>${item.MARKA || '-'}</td>
-                            <td><span class="badge bg-secondary">${item.MALZEME_TÜRÜ || '-'}</span></td>
-                            <td class="text-end fw-bold">${formatCurrency(item.MİKTAR)}</td>
-                            <td>${item.BİRİM || '-'}</td>
-                            <td class="text-end">${formatCurrency(item.BİRİM_BRÜT)} ₺</td>
-                            <td class="text-end text-danger">${formatCurrency(item.BİRİM_İNDİRİM)} ₺</td>
-                            <td class="text-end fw-bold text-success">${formatCurrency(item.BİRİM_NET)} ₺</td>
-                            <td class="text-end fw-bold text-info">${formatCurrency(item.B2B)} ₺</td>
-                            <td class="text-end fw-bold text-dark">${formatCurrency(item.FARK)} ₺</td>
-                            <td class="text-end text-danger">${formatCurrency(item.TOPLAM_İNDİRİM)} ₺</td>
-                            <td class="text-end text-warning">${formatCurrency(item.KDV_TUTARI)} ₺</td>
-                            <td class="text-end fw-bold text-primary">${formatCurrency(item.NET_TOPLAM)} ₺</td>
-                            <td><code class="bg-light text-dark px-2 py-1 rounded">${item.CARİ_KOD || '-'}</code></td>
-                            <td>${item.CARİ_ÜNVAN || '-'}</td>
-                            <td><span class="badge bg-success">${item.BÖLGE || '-'}</span></td>
+                            <td class="text-dark"><span class="badge bg-light text-dark border">${item.TARİH || '-'}</span></td>
+                            <td class="text-dark"><code class="bg-light text-dark px-2 py-1 rounded">${item.FATURA_NO || '-'}</code></td>
+                            <td class="text-dark"><code class="bg-light text-dark px-2 py-1 rounded">${item.MALZEME_KODU || '-'}</code></td>
+                            <td class="text-dark">${item.AÇIKLAMASI || '-'}</td>
+                            <td class="text-dark">${item.MARKA || '-'}</td>
+                            <td class="text-dark"><span class="badge bg-secondary">${item.MALZEME_TÜRÜ || '-'}</span></td>
+                            <td class="text-end fw-bold text-dark">${formatCurrency(item.MİKTAR)}</td>
+                            <td class="text-dark">${item.BİRİM || '-'}</td>
+                            <td class="text-end fw-bold text-dark">${formatCurrency(item.BİRİM_NET)} ₺</td>
+                            <td class="text-end fw-bold text-primary">${formatCurrency(item.SON_BİRİM_NET)} ₺</td>
+                            <td class="text-end fw-bold ${(parseFloat(item.KAR) || 0) > 0 ? 'text-success' : 'text-danger'}">${formatCurrency(item.KAR)} ₺</td>
+                            <td class="text-end fw-bold text-dark">${(parseFloat(item.NET_TOPLAM) > 0 ? (((parseFloat(item.KAR) || 0) / parseFloat(item.NET_TOPLAM)) * 100).toFixed(2).replace('.', ',') : '0,00')} %</td>
+                            <td class="text-end fw-bold text-dark">${formatCurrency(item.NET_TOPLAM)} ₺</td>
+                            <td class="text-dark"><code class="bg-light text-dark px-2 py-1 rounded">${item.CARİ_KOD || '-'}</code></td>
+                            <td class="text-dark">${item.CARİ_ÜNVAN || '-'}</td>
+                            <td class="text-dark"><span class="badge bg-success">${item.BÖLGE || '-'}</span></td>
                         </tr>
                     `;
                         });
@@ -1082,7 +1202,7 @@
             action.value = format === 'excel' ? 'export_malzeme_satis_excel' : 'export_malzeme_satis_pdf';
             temp.appendChild(action);
             // Copy filter fields
-            ['baslangic_tarihi', 'bitis_tarihi', 'plasiyer', 'cari_kod', 'cari_unvan', 'malzeme_kodu', 'malzeme_aciklama', 'per_page']
+            ['baslangic_tarihi', 'bitis_tarihi', 'plasiyer', 'cari_kod', 'cari_unvan', 'malzeme_kodu', 'malzeme_aciklama', 'kar_filter', 'per_page']
                 .forEach(id => {
                     const el = document.getElementById(id) || document.getElementById(id + '_filter');
                     if (el && el.name) {
@@ -1243,12 +1363,10 @@
                             <th style="width: 100px;">Türü</th>
                             <th style="width: 70px;">Miktar</th>
                             <th style="width: 60px;">Birim</th>
-                            <th style="width: 90px;">Birim Brüt</th>
-                            <th style="width: 90px;">İndirim</th>
                             <th style="width: 90px;">Birim Net</th>
-                            <th style="width: 90px;">Brüt Toplam</th>
-                            <th style="width: 70px;">KDV %</th>
-                            <th style="width: 90px;">KDV Tutarı</th>
+                            <th style="width: 90px;">Son Birim Net</th>
+                            <th style="width: 100px;">Kar</th>
+                            <th style="width: 100px;">Kar Oranı %</th>
                             <th style="width: 100px;">Net Toplam</th>
                         </tr>
                     </thead>
@@ -1257,13 +1375,11 @@
 
             data.detaylar.forEach(detay => {
                 const miktar = parseFloat(detay['MİKTAR'] || detay['MIKTAR'] || 0);
-                const birimBrut = parseFloat(detay['BİRİM BRÜT'] || detay['BIRIM_BRUT'] || 0);
-                const birimIndirim = parseFloat(detay['BİRİM İNDİRİM'] || detay['BIRIM_INDIRIM'] || 0);
                 const birimNet = parseFloat(detay['BİRİM NET'] || detay['BIRIM_NET'] || 0);
-                const brutToplam = parseFloat(detay['BRÜT TOPLAM'] || detay['BRUT_TOPLAM'] || 0);
-                const kdvOrani = parseFloat(detay['KDV %'] || detay['KDV_%'] || 0);
-                const kdvTutari = parseFloat(detay['KDV TUTARI'] || detay['KDV_TUTARI'] || 0);
+                const sonBirimNet = parseFloat(detay['SON BİRİM NET'] || detay['SON_BIRIM_NET'] || 0);
+                const kar = parseFloat(detay['KAR'] || 0);
                 const netToplam = parseFloat(detay['NET TOPLAM'] || detay['NET_TOPLAM'] || 0);
+                const karOrani = netToplam > 0 ? ((kar / netToplam) * 100) : 0;
 
                 const malzemeKodu = detay['MALZEME KODU'] || detay['MALZEME_KODU'] || '';
                 const aciklama = detay['AÇIKLAMASI'] || detay['ACIKLAMASI'] || '';
@@ -1279,12 +1395,10 @@
                 <td><span class="malzeme-tur">${malzemeTuru}</span></td>
                 <td class="miktar">${formatCurrency(miktar)}</td>
                 <td class="birim">${birim}</td>
-                <td class="fiyat">${formatCurrency(birimBrut)} ₺</td>
-                <td class="indirim">${formatCurrency(birimIndirim)} ₺</td>
                 <td class="net-fiyat">${formatCurrency(birimNet)} ₺</td>
-                <td class="brut-toplam">${formatCurrency(brutToplam)} ₺</td>
-                <td class="kdv-oran">${kdvOrani.toFixed(0)}%</td>
-                <td class="kdv-tutar">${formatCurrency(kdvTutari)} ₺</td>
+                <td class="son-birim-net">${formatCurrency(sonBirimNet)} ₺</td>
+                <td class="detay-kar" style="color: ${kar >= 0 ? '#155724' : '#721c24'}; font-weight: bold;">${formatCurrency(kar)} ₺</td>
+                <td class="detay-kar-orani" style="color: ${kar >= 0 ? '#155724' : '#721c24'}; font-weight: bold;">${karOrani.toFixed(2).replace('.', ',')} %</td>
                 <td class="net-toplam">${formatCurrency(netToplam)} ₺</td>
             </tr>
         `;
@@ -1314,171 +1428,92 @@
             return cookieValue;
         }
 
-
         // Footer güncelleme fonksiyonları
-        function updateFooter(tabName, totalRecords, totalAmount, totalMiktar = 0, totalIndirim = 0) {
-            document.getElementById('footerActiveTab').textContent = tabName;
-            document.getElementById('footerTotalRecords').textContent = totalRecords;
-
-            console.log('updateFooter çağrıldı:', {
-                tabName, totalRecords, totalAmount, totalMiktar, totalIndirim
-            });
-
-            // Ana listeler için sadece TUTAR göster
-            if (tabName === 'Alım Listesi' || tabName === 'Satış Listesi') {
-                document.getElementById('footerLabel1').textContent = 'TUTAR';
-                document.getElementById('footerLabel2').textContent = 'TUTAR';
-                document.getElementById('footerLabel3').textContent = 'TUTAR';
-
-                document.getElementById('footerTotalAmount').textContent = totalAmount.toLocaleString('tr-TR', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                }) + ' ₺';
-                document.getElementById('footerTotalMiktar').textContent = '-';
-                document.getElementById('footerTotalIndirim').textContent = '-';
-            } else {
-                // Malzeme listeleri için 3 farklı kolon göster
-                document.getElementById('footerLabel1').textContent = 'MİKTAR';
-                document.getElementById('footerLabel2').textContent = 'TOPLAM İNDİRİM';
-                document.getElementById('footerLabel3').textContent = 'NET TOPLAM';
-
-                document.getElementById('footerTotalAmount').textContent = totalAmount.toLocaleString('tr-TR', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                }) + ' ₺';
-                document.getElementById('footerTotalMiktar').textContent = totalMiktar.toLocaleString('tr-TR', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                });
-                document.getElementById('footerTotalIndirim').textContent = totalIndirim.toLocaleString('tr-TR', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                }) + ' ₺';
-            }
-
+        function initFooter() {
             document.getElementById('fixedFooter').style.display = 'block';
         }
 
         function calculateSatisListesiTotals() {
-            // TR sayı formatını (1.234,56) güvenli şekilde sayıya çevir
-            function parseTRNumberFromText(text) {
-                if (text === null || text === undefined) return 0;
-                const cleaned = String(text)
-                    .replace(/[^\d,.-]/g, '') // para simgesi/boşluk vb. temizle
-                    .replace(/\./g, '')      // binlik ayırıcı noktaları kaldır
-                    .replace(',', '.');      // ondalık virgülü noktaya çevir
-                const n = Number(cleaned);
-                return Number.isFinite(n) ? n : 0;
-            }
-
-            // En doğru kaynak: server-side sayısal `data-amount` alanı (NET_TOPLAM .2f)
+            // En doğru kaynak: server-side sayısal data-amount ve data-kar
             const items = document.querySelectorAll('#liste .fatura-item');
-            let totalAmount = 0;
-            let recordCount = items.length;
+            let totalTutar = 0;
+            let totalKar = 0;
+            const recordCount = items.length;
 
             items.forEach(item => {
                 const amountAttr = item.getAttribute('data-amount');
-                // `data-amount` beklenen format: "3980.80" (nokta ondalık)
-                const n = Number(amountAttr);
-                if (Number.isFinite(n)) {
-                    totalAmount += n;
-                    return;
-                }
-                // Fallback: DOM'daki görünen tutarı parse et
-                const info = item.querySelector('.fatura-info');
-                const tutarElement = info ? info.children[3] : null;
-                if (tutarElement) totalAmount += parseTRNumberFromText(tutarElement.textContent);
-            });
+                const karAttr = item.getAttribute('data-kar');
+                const a = Number(amountAttr);
+                const k = Number(karAttr);
+                if (Number.isFinite(a)) totalTutar += a;
+                if (Number.isFinite(k)) totalKar += k;
 
-            // Ana Satış Listesi için sadece TUTAR hesaplanır
-            updateFooter('Satış Listesi', recordCount, totalAmount, 0, 0);
+        });
+
+            // Datagrid alt toplam
+            document.getElementById('satisListesiRecordCount').textContent = recordCount;
+            document.getElementById('satisListesiTotalTutar').textContent =
+                totalTutar.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20BA';
+            document.getElementById('satisListesiTotalKar').textContent =
+                totalKar.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20BA';
         }
 
         function calculateMalzemeSatisTotals() {
             const rows = document.querySelectorAll('#malzeme-table-container tbody tr');
-            let totalAmount = 0;
-            let totalMiktar = 0;
-            let totalIndirim = 0;
-            let recordCount = rows.length;
+            let totalTutar = 0;
+            let totalKar = 0;
+            const recordCount = rows.length;
 
-            console.log('Malzeme Satış Listesi - Toplam satır sayısı:', recordCount);
-            // Sum values directly from table body columns:
+            // Sütun indisleri: 10=Kar, 12=Net Toplam
             rows.forEach(row => {
                 const cells = row.querySelectorAll('td');
-                if (!cells || cells.length === 0) return;
-
-                // Column indices in the generated table:
-                // 0=Tarih,1=Fatura No,2=Malzeme Kodu,3=Açıklama,4=Marka,5=Malzeme Türü,
-                // 6=Miktar,7=Birim,8=Birim Brüt,9=Birim İndirim,10=Birim Net,
-                // 11=B2B, 12=FARK, 13=Toplam İndirim,14=KDV Tutarı,15=Net Toplam,
-                // 16=Cari Kod,17=Cari Ünvan,18=Bölge
-
-                const miktarText = (cells[6] && cells[6].textContent) ? cells[6].textContent : '0';
-                const indirimText = (cells[13] && cells[13].textContent) ? cells[13].textContent : '0';
-                const netText = (cells[15] && cells[15].textContent) ? cells[15].textContent : '0';
-
-                const miktarVal = parseTRNumberFromText(miktarText);
-                const indirimVal = parseTRNumberFromText(indirimText);
-                const netVal = parseTRNumberFromText(netText);
-
-                totalMiktar += miktarVal;
-                totalIndirim += indirimVal;
-                totalAmount += netVal;
+                if (!cells || cells.length < 13) return;
+                const karText = (cells[10] && cells[10].textContent) ? cells[10].textContent : '0';
+                const netText = (cells[12] && cells[12].textContent) ? cells[12].textContent : '0';
+                totalKar += parseTRNumberFromText(karText);
+                totalTutar += parseTRNumberFromText(netText);
             });
 
-            console.log('Final değerler - Miktar:', totalMiktar, 'İndirim:', totalIndirim, 'Net Toplam:', totalAmount);
-            updateFooter('Malzeme Satış Listesi', recordCount, totalAmount, totalMiktar, totalIndirim);
+            // Datagrid alt toplam
+            const gridTotalsEl = document.getElementById('malzemeListesiTotals');
+            if (gridTotalsEl) gridTotalsEl.style.display = 'flex';
+            document.getElementById('malzemeListesiRecordCount').textContent = recordCount;
+            document.getElementById('malzemeListesiTotalTutar').textContent =
+                totalTutar.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20BA';
+            document.getElementById('malzemeListesiTotalKar').textContent =
+                totalKar.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20BA';
         }
 
-        // Tab değişimlerinde footer'ı güncelle
-        document.addEventListener('DOMContentLoaded', function () {
+        // Tab değişimlerinde footer'ı güncelle + ilk hesaplama
+        function initFooterAndTabs() {
             // Tab event'lerini dinle
             const tabButtons = document.querySelectorAll('button[data-bs-toggle="tab"]');
             tabButtons.forEach(button => {
                 button.addEventListener('shown.bs.tab', function (event) {
                     const targetTab = event.target.getAttribute('data-bs-target');
                     if (targetTab === '#liste') {
-                        // Satış Listesi sekmesi açıldığında
                         setTimeout(calculateSatisListesiTotals, 100);
                     } else if (targetTab === '#malzeme') {
-                        // Malzeme Satış Listesi sekmesi açıldığında
                         setTimeout(calculateMalzemeSatisTotals, 100);
+                        // İlk açılışta malzeme verisini otomatik yükle
+                        if (typeof loadMalzemeData === 'function') {
+                            const mContainer = document.getElementById('malzeme-table-container');
+                            if (mContainer && (mContainer.innerHTML.indexOf('Yükleniyor') !== -1 || mContainer.innerHTML.indexOf('Arama yapın') !== -1)) {
+                                loadMalzemeData();
+                            }
+                        }
                     }
                 });
             });
-
-            // Sayfa yüklendiğinde footer'ı güncelle
-            setTimeout(calculateSatisListesiTotals, 500);
-        });
+            // İlk hesaplama
+            setTimeout(calculateSatisListesiTotals, 200);
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initFooterAndTabs);
+        } else {
+            initFooterAndTabs();
+        }
     </script>
-
-    <!-- Sabit Footer -->
-    <div class="fixed-footer" id="fixedFooter" style="display: none;">
-        <div class="footer-content">
-            <div class="footer-totals">
-                <div class="footer-total-item">
-                    <div class="footer-total-label">Toplam Kayıt</div>
-                    <div class="footer-total-value" id="footerTotalRecords">0</div>
-                </div>
-                <div class="footer-total-item">
-                    <div class="footer-total-label" id="footerLabel1">Toplam Miktar</div>
-                    <div class="footer-total-value" id="footerTotalMiktar">0,00</div>
-                </div>
-                <div class="footer-total-item">
-                    <div class="footer-total-label" id="footerLabel2">Toplam İndirim</div>
-                    <div class="footer-total-value" id="footerTotalIndirim">0,00 ₺</div>
-                </div>
-                <div class="footer-total-item">
-                    <div class="footer-total-label" id="footerLabel3">Net Toplam</div>
-                    <div class="footer-total-value" id="footerTotalAmount">0,00 ₺</div>
-                </div>
-            </div>
-            <div class="footer-record-count">
-                <i class="bi bi-info-circle me-1"></i>
-                <span id="footerActiveTab">Satış Listesi</span>
-            </div>
-        </div>
-    </div>
 
 </div> <!-- main-content kapatma -->
 {% endblock %}

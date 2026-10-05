@@ -3092,6 +3092,7 @@ def genel_satislar(request):
             cari_unvan = request.POST.get('cari_unvan', '')
             malzeme_kodu = request.POST.get('malzeme_kodu', '')
             malzeme_aciklama = request.POST.get('malzeme_aciklama', '')
+            kar_filter = request.POST.get('kar_filter', '')
             per_page = request.POST.get('per_page', '100')
             page = int(request.POST.get('page', 1))
 
@@ -3118,7 +3119,8 @@ def genel_satislar(request):
                 cari_kod=cari_kod,
                 cari_unvan=cari_unvan,
                 malzeme_kodu=malzeme_kodu,
-                malzeme_aciklama=malzeme_aciklama
+                malzeme_aciklama=malzeme_aciklama,
+                kar_filter=kar_filter
             )
 
             # Export işlemleri
@@ -3166,7 +3168,8 @@ def genel_satislar(request):
 
                     # Tablo verilerini hazırla
                     table_data = [['Tarih', 'Cari Kod', 'Cari Unvan',
-                                   'Malzeme Kodu', 'Malzeme Açıklama', 'Miktar', 'Birim Net', 'B2B', 'Fark', 'Tutar']]
+                                   'Malzeme Kodu', 'Malzeme Açıklama', 'Miktar',
+                                   'Birim Net', 'Son Birim Net', 'Kar', 'Tutar']]
                     for row in malzeme_data['data']:
                         table_data.append([
                             str(row.get('TARİH', '')),
@@ -3176,8 +3179,8 @@ def genel_satislar(request):
                             str(row.get('AÇIKLAMASI', '')),
                             str(row.get('MİKTAR', '')),
                             str(row.get('BİRİM_NET', '')),
-                            str(row.get('B2B', '')),
-                            str(row.get('FARK', '')),
+                            str(row.get('SON_BİRİM_NET', '')),
+                            str(row.get('KAR', '')),
                             str(row.get('NET_TOPLAM', ''))
                         ])
 
@@ -10773,3 +10776,63 @@ def plasiyer_prim_kaydet(request):
         })
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
+
+from django.views.decorators.cache import never_cache
+
+@never_cache
+@login_required
+def genel_karlilik(request):
+    """Genel Görünüm - Karlılık Dashboard"""
+    user_data = request.session.get('mssql_user_data', {})
+    if not user_data:
+        user_data = {}
+
+    # Yetki kontrolü (FIRAT süper kullanıcı)
+    from .models import KullaniciYetki
+    has_access = (request.user.username.upper() == 'FIRAT')
+    if not has_access:
+        try:
+            yetki = KullaniciYetki.objects.get(
+                kullanici=request.user, menu_adi='genel_gorunum')
+            if yetki.erisim_izni:
+                has_access = True
+            else:
+                messages.error(request, 'Bu sayfaya erişim yetkiniz bulunmamaktadır.')
+                return redirect('tahsilat:dashboard')
+        except KullaniciYetki.DoesNotExist:
+            messages.error(request, 'Bu sayfaya erişim yetkiniz bulunmamaktadır.')
+            return redirect('tahsilat:dashboard')
+
+    # AJAX: data çek
+    if request.method == 'POST' and request.POST.get('action') == 'get_karlilik':
+        try:
+            baslangic_tarihi = request.POST.get('baslangic_tarihi', '') or None
+            bitis_tarihi = request.POST.get('bitis_tarihi', '') or None
+            plasiyer = request.POST.get('plasiyer', '') or None
+            malzeme_turu = request.POST.get('malzeme_turu', '') or None
+
+            mssql = MSSQLService()
+            bundle = mssql.get_karlilik_dashboard_bundle(
+                baslangic_tarihi=baslangic_tarihi,
+                bitis_tarihi=bitis_tarihi,
+                plasiyer=plasiyer,
+                malzeme_turu=malzeme_turu,
+            )
+            return JsonResponse({'success': True, 'data': bundle})
+        except Exception as e:
+            logger.error(f"genel_karlilik AJAX error: {e}")
+            return JsonResponse({'success': False, 'error': str(e)})
+
+    # GET - ilk render (bugün seçili)
+    from datetime import date
+    today_str = date.today().strftime('%Y-%m-%d')
+
+    context = {
+        'sayfa_baslik': 'Karlılık',
+        'sayfa_ikon': 'bi-graph-up-arrow',
+        'user': request.user,
+        'user_data': user_data,
+        'today': today_str,
+    }
+    return render(request, 'tahsilat/genel_karlilik.html', context)
